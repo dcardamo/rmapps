@@ -1,3 +1,3 @@
-fn main() {
-    println!("rmbujo");
+fn main() -> anyhow::Result<()> {
+    rmbujo::cli::main()
 }
