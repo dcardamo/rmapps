@@ -22,7 +22,9 @@ enum Command {
 }
 
 pub fn run(args: Vec<String>) -> anyhow::Result<()> {
-    let cli = Cli::try_parse_from(args)?;
+    // try_parse_from returns Err for --help/--version (DisplayHelp/DisplayVersion);
+    // e.exit() handles those correctly (print + exit 0) instead of propagating as anyhow::Error.
+    let cli = Cli::try_parse_from(args).unwrap_or_else(|e| e.exit());
     match (cli.command, cli.config) {
         (Some(Command::New), _) => {
             let (config, out_dir, config_path) = wizard::run_wizard()?;
