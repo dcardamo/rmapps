@@ -2,7 +2,7 @@
 
 use askama::Template;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DayView {
     pub day: u32,
     pub weekday: &'static str,
