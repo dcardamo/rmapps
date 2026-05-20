@@ -80,28 +80,28 @@
     {
       "id": 11,
       "subject": "Task 11: Year orchestrator + deploy seam (src/generate.rs, src/deploy/)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9, 3],
       "description": "**Goal:** Build a full year of PDFs with correct filenames behind a no-op Deployer.\n\n**Files:** src/generate.rs, src/deploy/{mod,local}.rs, src/lib.rs, tests/generate.rs\n\n**Verify:** `nix develop -c cargo test --test generate`\n\n```json:metadata\n{\"files\": [\"src/generate.rs\", \"src/deploy/mod.rs\", \"src/deploy/local.rs\", \"tests/generate.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test generate\", \"acceptanceCriteria\": [\"15 named PDFs\", \"deployer none ok, unknown errs\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 12,
       "subject": "Task 12: CLI + wizard (src/cli.rs, src/wizard.rs, src/main.rs)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11, 3],
       "description": "**Goal:** `rmbujo new` wizard (creates year folder + toml, builds); `rmbujo <config.toml>` regenerates.\n\n**Files:** src/cli.rs, src/wizard.rs, src/main.rs, src/lib.rs, tests/cli.rs\n\n**Verify:** `nix develop -c cargo test --test cli`\n\n```json:metadata\n{\"files\": [\"src/cli.rs\", \"src/wizard.rs\", \"src/main.rs\", \"tests/cli.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test cli\", \"acceptanceCriteria\": [\"wizard assemble returns Config/out_dir/config_path\", \"regenerate from config writes PDFs\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 13,
       "subject": "Task 13: Visual regression goldens (tests/visual.rs)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 7],
       "description": "**Goal:** Rasterize each page type (pdftoppm) and diff against committed golden PNGs; RMBUJO_UPDATE_GOLDENS refreshes.\n\n**Files:** tests/visual.rs, tests/goldens/\n\n**Verify:** `nix develop -c cargo test --test visual`\n\n```json:metadata\n{\"files\": [\"tests/visual.rs\", \"tests/goldens/\"], \"verifyCommand\": \"nix develop -c cargo test --test visual\", \"acceptanceCriteria\": [\"goldens generated per page type\", \"comparison passes within tolerance\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 14,
       "subject": "Task 14: README + full suite green",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [12, 13, 10],
       "description": "**Goal:** Document usage; confirm whole suite + clippy pass.\n\n**Files:** README.md\n\n**Verify:** `nix develop -c cargo test`\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"nix develop -c cargo test\", \"acceptanceCriteria\": [\"README documents setup + usage\", \"full suite + clippy pass\"], \"requiresUserVerification\": false}\n```"
     }
