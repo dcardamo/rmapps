@@ -76,6 +76,8 @@ pub fn render_pdf(
         "cover.svg",
         svg::cover_svg(device.width_pt(), device.height_pt(), color(theme, "navy", "#1B365D"), color(theme, "cover_to", "#0F2444")).into_bytes(),
     );
+    // to_vec() copies ~750 KB of static font data per call; fine for the
+    // once-per-run, sequential rendering this tool does (15 PDFs/year).
     assets.add_font_bytes(FONT_REGULAR.to_vec())?;
     assets.add_font_bytes(FONT_BOLD.to_vec())?;
 
