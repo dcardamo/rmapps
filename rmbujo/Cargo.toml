@@ -1,0 +1,28 @@
+[package]
+name = "rmbujo"
+version = "0.1.0"
+edition = "2021"
+description = "Dot-grid bullet journal PDF generator for reMarkable"
+
+[lib]
+name = "rmbujo"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rmbujo"
+path = "src/main.rs"
+
+[dependencies]
+fulgur = "0.6"
+askama = "0.13"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+dialoguer = "0.11"
+anyhow = "1"
+
+[dev-dependencies]
+fulgur = "0.6"
+lopdf = "0.36"
+image = "0.25"
