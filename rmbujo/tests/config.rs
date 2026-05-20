@@ -1,4 +1,4 @@
-use rmbujo::config::{self, Config, DeployConfig, IcsFeed};
+use rmbujo::config::{self, Config, IcsFeed};
 
 #[test]
 fn round_trip() {
