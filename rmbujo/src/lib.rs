@@ -5,3 +5,4 @@ pub mod device;
 pub mod geometry;
 pub mod svg;
 pub mod theme;
+pub mod templates;

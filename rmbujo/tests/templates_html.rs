@@ -1,0 +1,38 @@
+use askama::Template;
+use rmbujo::calendar::build_month;
+use rmbujo::templates::{Cover, DayView, FutureLog, MonthIndex, Reference};
+
+#[test]
+fn month_index_rows() {
+    let m = build_month(2026, 5, "sun").unwrap();
+    let days: Vec<DayView> = m.days.iter()
+        .map(|d| DayView { day: d.day, weekday: d.weekday, week_start: d.week_start })
+        .collect();
+    let html = MonthIndex { month_name: "May", year: 2026, days: &days }.render().unwrap();
+    assert_eq!(html.matches("class=\"day").count(), 31);
+    assert!(html.contains("weekstart"));
+    assert!(html.contains(">18<") && html.contains("Mon"));
+}
+
+#[test]
+fn cover_blank_vs_titled() {
+    let blank = Cover { year: 2026, title: "", blank_title: true }.render().unwrap();
+    assert!(blank.contains("title-blank"));
+    assert!(!blank.contains("class=\"title\""));
+    let titled = Cover { year: 2026, title: "Reference", blank_title: false }.render().unwrap();
+    assert!(titled.contains("Reference"));
+}
+
+#[test]
+fn future_log_blocks() {
+    let html = FutureLog { months: &["January", "February", "March"] }.render().unwrap();
+    assert_eq!(html.matches("fl-block").count(), 3);
+    assert!(html.contains("February"));
+}
+
+#[test]
+fn reference_legend() {
+    let html = Reference.render().unwrap();
+    assert!(html.contains("Feeling / mood"));
+    assert_eq!(html.matches("class=\"page\"").count(), 2);
+}

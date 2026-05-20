@@ -1,0 +1,12 @@
+<section class="page">
+  <div class="h-month">{{ month_name }} {{ year }}</div>
+  <div class="month-list">
+    {% for day in days %}
+    <div class="day{% if day.week_start %} weekstart{% endif %}">
+      <span class="num">{{ day.day }}</span>
+      <span class="wd">{{ day.weekday }}</span>
+      <span class="gutter"></span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
