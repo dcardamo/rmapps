@@ -60,15 +60,18 @@ fn assert_no_overlap_and_in_bounds(pdf: &std::path::Path) {
     }
 }
 
-fn assert_text_present(pdf: &std::path::Path) {
+fn assert_text_present(pdf: &std::path::Path, min_items: usize) {
     // fulgur's inspect() decodes text as raw glyph IDs for CID fonts, not Unicode,
-    // so we cannot search for readable strings like "May" or "2026". We verify that
-    // at least some text items were emitted — confirming text rendered into the PDF
-    // (not just into the intermediate HTML) and that the PDF is non-trivial.
+    // so we cannot search for readable strings like "May" or "2026". Instead we
+    // assert a plausible *count* of text items, which confirms the day rows actually
+    // rendered into the PDF (not just into the intermediate HTML) — a bare non-empty
+    // check would pass even if only the header rendered. The month page emits a header
+    // + 31 day rows (number + weekday) plus the Tasks page header (~64 items total).
     let result = inspect(pdf).unwrap();
     assert!(
-        !result.text_items.is_empty(),
-        "expected text items in rendered PDF, got none",
+        result.text_items.len() >= min_items,
+        "expected >= {min_items} text items in rendered PDF, got {}",
+        result.text_items.len(),
     );
 }
 
@@ -78,8 +81,9 @@ fn month_layout_clean() {
     let out = tmp("month");
     month::build_month_pdf(&cfg, 5, &out).unwrap();
     assert_no_overlap_and_in_bounds(&out);
-    // Text actually rendered into the PDF (not just present in the HTML).
-    assert_text_present(&out);
+    // Text actually rendered into the PDF (not just present in the HTML):
+    // header + 31 day rows (number + weekday) + Tasks header ≈ 64 items.
+    assert_text_present(&out, 60);
 }
 
 #[test]
