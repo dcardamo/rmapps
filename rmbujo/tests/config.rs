@@ -1,6 +1,18 @@
 use rmbujo::config::{self, Config, IcsFeed};
 
 #[test]
+fn validate_accepts_defaults() {
+    assert!(Config::new(2026).validate().is_ok());
+}
+
+#[test]
+fn validate_rejects_bad_fields() {
+    assert!(Config { device: "nope".into(), ..Config::new(2026) }.validate().is_err());
+    assert!(Config { week_start: "xyz".into(), ..Config::new(2026) }.validate().is_err());
+    assert!(Config { theme: "nope".into(), ..Config::new(2026) }.validate().is_err());
+}
+
+#[test]
 fn round_trip() {
     let dir = tempdir();
     let cfg = Config {

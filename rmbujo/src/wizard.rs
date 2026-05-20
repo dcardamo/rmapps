@@ -51,6 +51,7 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
     let (config, out_dir, config_path) = assemble(Answers {
         year, base, device, week_start, daily_pages, collection_pages, theme,
     });
-    std::fs::create_dir_all(&out_dir)?;
+    // The caller validates and creates the directory after this returns, so
+    // invalid input doesn't leave an orphan folder behind.
     Ok((config, out_dir, config_path))
 }

@@ -62,6 +62,19 @@ impl Config {
             deploy: DeployConfig::default(),
         }
     }
+
+    /// Validate the device, theme, and week_start up front, before any output is
+    /// written, so bad input fails fast with a clear message (spec: validate at
+    /// parse time) rather than partway through rendering.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        crate::device::get_device(&self.device)?;
+        crate::theme::load_theme(&self.theme)?;
+        match self.week_start.as_str() {
+            "sun" | "mon" => {}
+            other => anyhow::bail!("week_start must be 'sun' or 'mon', got {other:?}"),
+        }
+        Ok(())
+    }
 }
 
 pub fn load(path: &Path) -> anyhow::Result<Config> {

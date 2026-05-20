@@ -8,4 +8,4 @@ update-goldens:
 fmt:
 	nix develop -c cargo fmt
 clippy:
-	nix develop -c cargo clippy -- -D warnings
+	nix develop -c cargo clippy --all-targets -- -D warnings

@@ -28,6 +28,8 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
     match (cli.command, cli.config) {
         (Some(Command::New), _) => {
             let (config, out_dir, config_path) = wizard::run_wizard()?;
+            config.validate()?;
+            std::fs::create_dir_all(&out_dir)?;
             config::dump(&config, &config_path)?;
             let paths = generate::generate_year(&config, &out_dir)?;
             deploy::get_deployer(&config)?.deploy(&paths)?;
@@ -36,6 +38,7 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
         }
         (None, Some(path)) => {
             let config = config::load(&path)?;
+            config.validate()?;
             let out_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
             let paths = generate::generate_year(&config, &out_dir)?;
             deploy::get_deployer(&config)?.refresh(&paths)?;
