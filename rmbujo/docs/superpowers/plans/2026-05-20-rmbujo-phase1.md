@@ -1246,7 +1246,7 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .dotgrid--below {{ top: 24pt; }}\n\
 .h-month {{ color: var(--navy); font-size: 16pt; font-weight: bold; margin-bottom: 6pt; }}\n\
 .h-section {{ color: var(--navy); font-size: 14pt; font-weight: bold; }}\n\
-.daylist {{ display: flex; flex-direction: column; height: calc(100% - 26pt); margin-top: 4pt; }}\n\
+.month-list {{ display: flex; flex-direction: column; height: calc(100% - 26pt); margin-top: 4pt; }}\n\
 .day {{ flex: 1 1 0; display: flex; align-items: center; gap: 8pt; min-height: 0; border-bottom: 0.25pt solid #eeeeee; }}\n\
 .day.weekstart {{ border-top: 0.6pt solid var(--rule); }}\n\
 .day .num {{ width: 16pt; text-align: right; font-weight: bold; }}\n\
