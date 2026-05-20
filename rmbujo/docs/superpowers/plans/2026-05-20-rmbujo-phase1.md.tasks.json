@@ -1,0 +1,110 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-20-rmbujo-phase1.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Nix flake, Cargo scaffold, vendored font, fulgur smoke test",
+      "status": "pending",
+      "description": "**Goal:** Nix dev shell where the crate builds/links and fulgur renders a PDF.\n\n**Files:** flake.nix, .envrc, Cargo.toml, Makefile, .gitignore, src/lib.rs, src/main.rs, assets/fonts/DejaVuSerif*.ttf, tests/smoke.rs\n\n**Verify:** `nix develop -c cargo test --test smoke`\n\n```json:metadata\n{\"files\": [\"flake.nix\", \".envrc\", \"Cargo.toml\", \"Makefile\", \"assets/fonts/DejaVuSerif.ttf\", \"tests/smoke.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test smoke\", \"acceptanceCriteria\": [\"fulgur renders a PDF (links with libiconv)\", \"pdftoppm available in shell\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Device geometry (src/device.rs)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Map a device key to page size in points.\n\n**Files:** src/device.rs, src/lib.rs, tests/device.rs\n\n**Verify:** `nix develop -c cargo test --test device`\n\n```json:metadata\n{\"files\": [\"src/device.rs\", \"src/lib.rs\", \"tests/device.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test device\", \"acceptanceCriteria\": [\"move ~260.18x462.55pt\", \"unknown device errors\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Calendar (src/calendar.rs)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Per-month day lists with weekday abbreviations and week-grouping flags.\n\n**Files:** src/calendar.rs, src/lib.rs, tests/calendar.rs\n\n**Verify:** `nix develop -c cargo test --test calendar`\n\n```json:metadata\n{\"files\": [\"src/calendar.rs\", \"src/lib.rs\", \"tests/calendar.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test calendar\", \"acceptanceCriteria\": [\"weekdays + leap years\", \"sunday week-starts 3,10,17,24,31\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Config (src/config.rs, TOML)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Load/dump per-year TOML config with defaults + Phase 2 sections.\n\n**Files:** src/config.rs, src/lib.rs, tests/config.rs\n\n**Verify:** `nix develop -c cargo test --test config`\n\n```json:metadata\n{\"files\": [\"src/config.rs\", \"src/lib.rs\", \"tests/config.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test config\", \"acceptanceCriteria\": [\"round-trip equality\", \"minimal defaults\", \"missing year errors\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Theme (src/theme.rs + themes/library.toml)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Load theme (embedded library or path) and emit CSS custom properties.\n\n**Files:** src/theme.rs, themes/library.toml, src/lib.rs, tests/theme.rs\n\n**Verify:** `nix develop -c cargo test --test theme`\n\n```json:metadata\n{\"files\": [\"src/theme.rs\", \"themes/library.toml\", \"src/lib.rs\", \"tests/theme.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test theme\", \"acceptanceCriteria\": [\"library palette loads\", \"css vars sorted\", \"unknown theme errors\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Dot-grid geometry (src/geometry.rs)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Compute dot spacing/margin/counts for a device.\n\n**Files:** src/geometry.rs, src/lib.rs, tests/geometry.rs\n\n**Verify:** `nix develop -c cargo test --test geometry`\n\n```json:metadata\n{\"files\": [\"src/geometry.rs\", \"src/lib.rs\", \"tests/geometry.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test geometry\", \"acceptanceCriteria\": [\"move spacing 14.17 cols 16 rows 31\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: SVG generators (src/svg.rs)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Generate dot-tile and cover SVGs deterministically from theme + geometry.\n\n**Files:** src/svg.rs, src/lib.rs, tests/svg.rs\n\n**Verify:** `nix develop -c cargo test --test svg`\n\n```json:metadata\n{\"files\": [\"src/svg.rs\", \"src/lib.rs\", \"tests/svg.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test svg\", \"acceptanceCriteria\": [\"dot tile has circle+color\", \"cover has gradient+colors\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: askama templates (src/templates.rs + templates/*.html)",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Compile-time-checked page templates rendering to HTML strings.\n\n**Files:** src/templates.rs, templates/{base,cover,dotgrid,tasks,month_index,future_log,reference}.html, src/lib.rs, tests/templates_html.rs\n\n**Verify:** `nix develop -c cargo test --test templates_html`\n\n```json:metadata\n{\"files\": [\"src/templates.rs\", \"templates/base.html\", \"templates/cover.html\", \"templates/month_index.html\", \"templates/future_log.html\", \"templates/reference.html\", \"templates/dotgrid.html\", \"templates/tasks.html\", \"tests/templates_html.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test templates_html\", \"acceptanceCriteria\": [\"31 day rows + weekstart\", \"cover blank vs titled\", \"3 fl-blocks\", \"reference legend incl = and 2 sections\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Rendering (src/render.rs)",
+      "status": "pending",
+      "blockedBy": [1, 5, 6, 7],
+      "description": "**Goal:** Assemble HTML + CSS + SVG assets + embedded font → fulgur PDF; deterministic metadata; re-export fulgur::inspect.\n\n**Files:** src/render.rs, src/lib.rs, tests/render.rs\n\n**Verify:** `nix develop -c cargo test --test render`\n\n```json:metadata\n{\"files\": [\"src/render.rs\", \"src/lib.rs\", \"tests/render.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test render\", \"acceptanceCriteria\": [\"2-page PDF at move size\", \"byte-identical on repeat render\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Notebook builders (src/notebooks/)",
+      "status": "pending",
+      "blockedBy": [8, 3, 2],
+      "description": "**Goal:** Build each notebook's fragments and render one PDF with the correct page count.\n\n**Files:** src/notebooks/{mod,month,future_log,collection,reference}.rs, src/lib.rs, tests/notebooks.rs\n\n**Verify:** `nix develop -c cargo test --test notebooks`\n\n```json:metadata\n{\"files\": [\"src/notebooks/mod.rs\", \"src/notebooks/month.rs\", \"src/notebooks/future_log.rs\", \"src/notebooks/collection.rs\", \"src/notebooks/reference.rs\", \"tests/notebooks.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test notebooks\", \"acceptanceCriteria\": [\"month=2+daily\", \"future-log=5\", \"collection=1+N\", \"reference=3\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Layout / overlap inspection tests (tests/layout.rs)",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** Geometrically assert no text overlap and no overflow (fulgur::inspect); assert key text rendered into the PDF.\n\n**Files:** tests/layout.rs\n\n**Verify:** `nix develop -c cargo test --test layout`\n\n```json:metadata\n{\"files\": [\"tests/layout.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test layout\", \"acceptanceCriteria\": [\"no text-box overlap per page\", \"all text within page bounds\", \"key text present in rendered PDF\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Year orchestrator + deploy seam (src/generate.rs, src/deploy/)",
+      "status": "pending",
+      "blockedBy": [9, 3],
+      "description": "**Goal:** Build a full year of PDFs with correct filenames behind a no-op Deployer.\n\n**Files:** src/generate.rs, src/deploy/{mod,local}.rs, src/lib.rs, tests/generate.rs\n\n**Verify:** `nix develop -c cargo test --test generate`\n\n```json:metadata\n{\"files\": [\"src/generate.rs\", \"src/deploy/mod.rs\", \"src/deploy/local.rs\", \"tests/generate.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test generate\", \"acceptanceCriteria\": [\"15 named PDFs\", \"deployer none ok, unknown errs\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: CLI + wizard (src/cli.rs, src/wizard.rs, src/main.rs)",
+      "status": "pending",
+      "blockedBy": [11, 3],
+      "description": "**Goal:** `rmbujo new` wizard (creates year folder + toml, builds); `rmbujo <config.toml>` regenerates.\n\n**Files:** src/cli.rs, src/wizard.rs, src/main.rs, src/lib.rs, tests/cli.rs\n\n**Verify:** `nix develop -c cargo test --test cli`\n\n```json:metadata\n{\"files\": [\"src/cli.rs\", \"src/wizard.rs\", \"src/main.rs\", \"tests/cli.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test cli\", \"acceptanceCriteria\": [\"wizard assemble returns Config/out_dir/config_path\", \"regenerate from config writes PDFs\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: Visual regression goldens (tests/visual.rs)",
+      "status": "pending",
+      "blockedBy": [8, 7],
+      "description": "**Goal:** Rasterize each page type (pdftoppm) and diff against committed golden PNGs; RMBUJO_UPDATE_GOLDENS refreshes.\n\n**Files:** tests/visual.rs, tests/goldens/\n\n**Verify:** `nix develop -c cargo test --test visual`\n\n```json:metadata\n{\"files\": [\"tests/visual.rs\", \"tests/goldens/\"], \"verifyCommand\": \"nix develop -c cargo test --test visual\", \"acceptanceCriteria\": [\"goldens generated per page type\", \"comparison passes within tolerance\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: README + full suite green",
+      "status": "pending",
+      "blockedBy": [12, 13, 10],
+      "description": "**Goal:** Document usage; confirm whole suite + clippy pass.\n\n**Files:** README.md\n\n**Verify:** `nix develop -c cargo test`\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"nix develop -c cargo test\", \"acceptanceCriteria\": [\"README documents setup + usage\", \"full suite + clippy pass\"], \"requiresUserVerification\": false}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-20T00:00:00Z"
+}
