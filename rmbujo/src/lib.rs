@@ -2,3 +2,4 @@
 pub mod calendar;
 pub mod config;
 pub mod device;
+pub mod theme;
