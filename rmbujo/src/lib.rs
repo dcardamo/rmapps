@@ -3,6 +3,7 @@ pub mod calendar;
 pub mod config;
 pub mod device;
 pub mod geometry;
+pub mod notebooks;
 pub mod render;
 pub mod svg;
 pub mod theme;
