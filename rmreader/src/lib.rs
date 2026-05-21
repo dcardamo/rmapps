@@ -8,5 +8,6 @@ pub mod wizard;
 pub mod content;
 pub mod manifest;
 pub mod assemble;
+pub mod render;
 // Added in later tasks:
-// pub mod render; pub mod deploy; pub mod generate;
+// pub mod deploy; pub mod generate;
