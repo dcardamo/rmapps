@@ -1,0 +1,75 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-21-rmreader-phase1.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Project scaffold",
+      "status": "pending",
+      "description": "**Goal:** Buildable Rust skeleton mirroring rmbujo (cargo, nix flake, rmapi overlay, Makefile, gitignore, base template, device.rs, theme.rs).\n\n```json:metadata\n{\"files\":[\"Cargo.toml\",\"src/main.rs\",\"src/lib.rs\",\"flake.nix\",\"nix/overlays/rmapi.nix\",\"Makefile\",\".gitignore\",\"templates/base.html\",\"src/device.rs\",\"src/theme.rs\",\"tests/device.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test device\",\"acceptanceCriteria\":[\"cargo build succeeds\",\"device test passes\",\"gitignore covers rmreader.toml\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Config",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Config structs that round-trip through TOML and a validate() that fails fast.\n\n```json:metadata\n{\"files\":[\"src/config.rs\",\"tests/config.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test config\",\"acceptanceCriteria\":[\"TOML round-trip\",\"validate rejects bad device/token/locations/backend/folders\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Readwise client",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Fetch Library (new+later+shortlist merged) and Feed docs with html_content; paginate, dedupe, sort by saved_at desc, cap; testable HttpTransport seam; validate_token.\n\n```json:metadata\n{\"files\":[\"src/readwise/mod.rs\",\"src/readwise/http.rs\",\"src/lib.rs\",\"tests/readwise.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test readwise\",\"acceptanceCriteria\":[\"pagination via nextPageCursor\",\"429 honors Retry-After\",\"merge+dedupe+sort+cap\",\"validate_token 204\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Wizard",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** init wizard. Pure assemble(Answers)->Config+paths; run_wizard prompts + validates token.\n\n```json:metadata\n{\"files\":[\"src/wizard.rs\",\"src/lib.rs\",\"tests/wizard.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test wizard\",\"acceptanceCriteria\":[\"assemble builds valid config\",\"config.validate ok\",\"token validated\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Content pipeline",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** html_content -> render-ready HTML: fetch images (guards), transcode WebP/AVIF->PNG, rewrite img src->key, strip script/iframe/on* via lol_html. ImageFetcher seam.\n\n```json:metadata\n{\"files\":[\"src/content.rs\",\"src/lib.rs\",\"tests/content.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test content\",\"acceptanceCriteria\":[\"strips script/iframe/handlers\",\"embeds image + rewrites src\",\"drops tracking pixel\",\"images-disabled drops imgs without fetch\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: SPIKE — fulgur running-header links",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Decide per-page running-header nav vs per-section nav. Render multi-page HTML with <a> in GCPM running header; lopdf-count Link annotations on later pages; record decision.\n\n```json:metadata\n{\"files\":[\"docs/superpowers/spikes/2026-05-21-fulgur-running-header-links.md\"],\"verifyCommand\":\"nix develop -c cargo test --test spike_running_header -- --nocapture\",\"acceptanceCriteria\":[\"multi-page render\",\"lopdf link-annotation count on later page\",\"decision recorded; throwaway test removed\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Manifest + PDF assembly + templates",
+      "status": "pending",
+      "blockedBy": [2, 4, 5],
+      "description": "**Goal:** One HTML doc per PDF (index->cards->articles) with item-<id>/article-<id> anchors, nav (per spike), bookmark CSS; sidecar manifest. Built{fragments,assets,manifest}.\n\n```json:metadata\n{\"files\":[\"src/manifest.rs\",\"src/assemble.rs\",\"templates/index.html\",\"templates/card.html\",\"templates/article.html\",\"templates/nav.html\",\"src/lib.rs\",\"tests/assemble.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test assemble\",\"acceptanceCriteria\":[\"cross-section anchors\",\"Built.fragments Vec<String>\",\"manifest lists each doc with anchors\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Render (fulgur)",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** fulgur render of fragments+assets with Newsprint reader CSS, embedded Newsreader+Hanken Grotesk, color images, bookmarks(true). Prove internal links resolve via lopdf.\n\n```json:metadata\n{\"files\":[\"src/render.rs\",\"assets/fonts/Newsreader-Regular.ttf\",\"assets/fonts/HankenGrotesk-Regular.ttf\",\"src/lib.rs\",\"tests/render.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test render\",\"acceptanceCriteria\":[\"valid PDF\",\"internal link annotation resolves\",\"bookmarks present\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Deploy (rmapi)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Upload both PDFs non-destructively. Copy rmbujo deploy (RmapiRunner, ProcessRmapi token-clobber guard, LocalDeployer); adapt to (PathBuf, folder) pairs.\n\n```json:metadata\n{\"files\":[\"src/deploy/mod.rs\",\"src/deploy/rmapi.rs\",\"src/deploy/local.rs\",\"src/lib.rs\",\"tests/deploy.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test deploy\",\"acceptanceCriteria\":[\"mkdir+put per target\",\"refresh --content-only\",\"two-folder sequence asserted\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Generate orchestration + CLI",
+      "status": "pending",
+      "blockedBy": [3, 6, 7, 8],
+      "description": "**Goal:** Wire fetch->content->assemble->render->manifest->deploy targets; UreqImageFetcher; CLI init + regenerate; full suite + clippy/fmt clean.\n\n```json:metadata\n{\"files\":[\"src/generate.rs\",\"src/cli.rs\",\"src/lib.rs\",\"tests/cli.rs\",\"tests/generate.rs\",\"Cargo.toml\"],\"verifyCommand\":\"nix develop -c cargo test\",\"acceptanceCriteria\":[\"generate writes pdf+manifest, returns targets\",\"CLI init + regenerate flows\",\"full suite + clippy + fmt clean\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-21"
+}
