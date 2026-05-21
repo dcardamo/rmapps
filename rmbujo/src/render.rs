@@ -29,9 +29,19 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
     let h = device.height_pt();
     let m = grid.margin_pt;
     let sp = grid.spacing_pt;
-    // Month-index header occupies exactly two dot rows so the day rows below it
-    // (each one dot-row tall, text vertically centered) line up with the dot grid.
-    let hsp = 2.0 * sp;
+    // Dot-page font sizes scale with the pitch so single-line labels always fit
+    // between dot rows at any configured spacing (~15.9/10.2/7.9pt at 4.5mm).
+    let head_fs = 1.25 * sp;
+    let num_fs = 0.8 * sp;
+    let wd_fs = 0.62 * sp;
+    // The month index paints its dot grid on the day LIST, not the page. Dots and
+    // rows then live in the same element's coordinate system, so they shift
+    // together — alignment can't drift with the heading height, the page count, or
+    // the spacing (a page-fixed grid does, because the renderer doesn't pin the
+    // flowed rows' phase relative to it). A half-pitch vertical offset puts a dot
+    // row on every row *boundary*, so the centred label sits in the gap between two
+    // dots, never astride one (the "dot strikethrough").
+    let half_sp = 0.5 * sp;
     format!(
         "{vars}\n\
 @page {{ size: {w}pt {h}pt; margin: 0; }}\n\
@@ -47,12 +57,13 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
    the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
    a page background resolves correctly even when rendered as a single page. */\n\
 .dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {m}pt; }}\n\
-.dotpage .h-month {{ height: {hsp}pt; margin: 0; display: flex; align-items: center; }}\n\
-.month-list {{ display: flex; flex-direction: column; }}\n\
-.day {{ height: {sp}pt; display: flex; align-items: center; gap: 6pt; }}\n\
+.dotpage .h-section {{ font-size: {head_fs}pt; }}\n\
+.month-index .h-month {{ font-size: {head_fs}pt; margin-bottom: {half_sp}pt; }}\n\
+.month-list {{ display: flex; flex-direction: column; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: 0pt {half_sp}pt; }}\n\
+.day {{ height: {sp}pt; display: flex; align-items: center; gap: 6pt; font-size: {num_fs}pt; line-height: 1; }}\n\
 .day .num {{ width: 16pt; text-align: right; font-weight: bold; }}\n\
 .day.weekstart .num {{ color: var(--navy); }}\n\
-.day .wd {{ color: var(--navy); font-size: 8pt; }}\n\
+.day .wd {{ color: var(--navy); font-size: {wd_fs}pt; }}\n\
 .cover {{ position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: {m}pt; color: #fff; background-image: url(cover.svg); background-size: 100% 100%; background-repeat: no-repeat; }}\n\
 .cover .year {{ font-size: 9pt; letter-spacing: 3px; }}\n\
 .cover .title {{ font-size: 24pt; font-weight: bold; }}\n\
@@ -62,7 +73,8 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .legend {{ font-size: 9pt; line-height: 1.8; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--navy); }}\n\
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: #fff; background: var(--brick); font-size: 7pt; }}\n",
-        vars = css_vars(theme), w = w, h = h, m = m, sp = sp, hsp = hsp, family = FONT_FAMILY,
+        vars = css_vars(theme), w = w, h = h, m = m, sp = sp, half_sp = half_sp,
+        head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = FONT_FAMILY,
     )
 }
 

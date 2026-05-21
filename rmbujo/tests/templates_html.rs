@@ -13,7 +13,9 @@ fn month_index_rows() {
     assert!(html.contains("weekstart"));
     assert!(html.contains(">18<") && html.contains("Mon"));
     // Month index sits on the dot grid (consistent with daily pages), not ruled rows.
-    assert!(html.contains("dotpage"));
+    // Dots are anchored to the day list so labels land between dot rows.
+    assert!(html.contains("month-index"));
+    assert!(html.contains("month-list"));
     assert!(!html.contains("gutter"));
 }
 
