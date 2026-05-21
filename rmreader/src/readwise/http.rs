@@ -15,8 +15,14 @@ impl HttpTransport for UreqTransport {
                 body: resp.into_string()?,
             }),
             Err(ureq::Error::Status(code, resp)) => {
-                let retry_after = resp.header("retry-after").and_then(|s| s.trim().parse::<u64>().ok());
-                Ok(HttpResponse { status: code, retry_after, body: resp.into_string().unwrap_or_default() })
+                let retry_after = resp
+                    .header("retry-after")
+                    .and_then(|s| s.trim().parse::<u64>().ok());
+                Ok(HttpResponse {
+                    status: code,
+                    retry_after,
+                    body: resp.into_string().unwrap_or_default(),
+                })
             }
             Err(e) => Err(anyhow::anyhow!("HTTP error for {url}: {e}")),
         }

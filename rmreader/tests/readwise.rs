@@ -1,15 +1,23 @@
-use rmreader::readwise::{fetch_documents, Document, HttpResponse, HttpTransport};
+use rmreader::readwise::{fetch_documents, HttpResponse, HttpTransport};
 use std::cell::RefCell;
 
 /// Fake transport returning canned responses per URL substring.
-struct Fake { calls: RefCell<Vec<String>>, script: Vec<(u16, Option<u64>, String)>, idx: RefCell<usize> }
+struct Fake {
+    calls: RefCell<Vec<String>>,
+    script: Vec<(u16, Option<u64>, String)>,
+    idx: RefCell<usize>,
+}
 impl HttpTransport for Fake {
     fn get(&self, url: &str, _token: &str) -> anyhow::Result<HttpResponse> {
         self.calls.borrow_mut().push(url.to_string());
         let mut i = self.idx.borrow_mut();
         let (status, retry, body) = self.script[*i].clone();
         *i += 1;
-        Ok(HttpResponse { status, retry_after: retry, body })
+        Ok(HttpResponse {
+            status,
+            retry_after: retry,
+            body,
+        })
     }
 }
 
@@ -25,12 +33,30 @@ fn doc(id: &str, saved: &str) -> String {
 fn paginates_and_sorts_desc_and_caps() {
     // two pages on one location, returned newest-first after sort, capped to 2.
     let script = vec![
-        (200, None, page(&format!("{},{}", doc("a","2026-01-01T00:00:00Z"), doc("b","2026-03-01T00:00:00Z")), Some("CUR"))),
-        (200, None, page(&doc("c","2026-02-01T00:00:00Z"), None)),
+        (
+            200,
+            None,
+            page(
+                &format!(
+                    "{},{}",
+                    doc("a", "2026-01-01T00:00:00Z"),
+                    doc("b", "2026-03-01T00:00:00Z")
+                ),
+                Some("CUR"),
+            ),
+        ),
+        (200, None, page(&doc("c", "2026-02-01T00:00:00Z"), None)),
     ];
-    let fake = Fake { calls: RefCell::new(vec![]), script, idx: RefCell::new(0) };
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script,
+        idx: RefCell::new(0),
+    };
     let docs = fetch_documents(&fake, "tok", &["new".into()], 2, |_| {}).unwrap();
-    assert_eq!(docs.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(), vec!["b", "c"]);
+    assert_eq!(
+        docs.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(),
+        vec!["b", "c"]
+    );
     assert!(fake.calls.borrow()[1].contains("pageCursor=CUR"));
     assert!(fake.calls.borrow()[0].contains("withHtmlContent=true"));
     assert!(fake.calls.borrow()[0].contains("location=new"));
@@ -41,9 +67,13 @@ fn retries_after_429() {
     let mut slept = 0u64;
     let script = vec![
         (429, Some(7), String::new()),
-        (200, None, page(&doc("a","2026-01-01T00:00:00Z"), None)),
+        (200, None, page(&doc("a", "2026-01-01T00:00:00Z"), None)),
     ];
-    let fake = Fake { calls: RefCell::new(vec![]), script, idx: RefCell::new(0) };
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script,
+        idx: RefCell::new(0),
+    };
     let docs = fetch_documents(&fake, "tok", &["new".into()], 10, |s| slept += s).unwrap();
     assert_eq!(docs.len(), 1);
     assert_eq!(slept, 7);
@@ -52,10 +82,14 @@ fn retries_after_429() {
 #[test]
 fn dedupes_across_locations() {
     let script = vec![
-        (200, None, page(&doc("a","2026-01-01T00:00:00Z"), None)), // new
-        (200, None, page(&doc("a","2026-01-01T00:00:00Z"), None)), // later (same id)
+        (200, None, page(&doc("a", "2026-01-01T00:00:00Z"), None)), // new
+        (200, None, page(&doc("a", "2026-01-01T00:00:00Z"), None)), // later (same id)
     ];
-    let fake = Fake { calls: RefCell::new(vec![]), script, idx: RefCell::new(0) };
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script,
+        idx: RefCell::new(0),
+    };
     let docs = fetch_documents(&fake, "tok", &["new".into(), "later".into()], 10, |_| {}).unwrap();
     assert_eq!(docs.len(), 1);
 }

@@ -20,17 +20,20 @@ pub struct Processed {
 /// Collect <img> src URLs (first pass).
 fn collect_img_urls(html: &str) -> Vec<String> {
     let urls = std::cell::RefCell::new(Vec::new());
-    let _ = rewrite_str(html, RewriteStrSettings {
-        element_content_handlers: vec![element!("img[src]", |el| {
-            if let Some(src) = el.get_attribute("src") {
-                if src.starts_with("http://") || src.starts_with("https://") {
-                    urls.borrow_mut().push(src);
+    let _ = rewrite_str(
+        html,
+        RewriteStrSettings {
+            element_content_handlers: vec![element!("img[src]", |el| {
+                if let Some(src) = el.get_attribute("src") {
+                    if src.starts_with("http://") || src.starts_with("https://") {
+                        urls.borrow_mut().push(src);
+                    }
                 }
-            }
-            Ok(())
-        })],
-        ..RewriteStrSettings::default()
-    });
+                Ok(())
+            })],
+            ..RewriteStrSettings::default()
+        },
+    );
     urls.into_inner()
 }
 
@@ -84,30 +87,43 @@ pub fn process_html(html: &str, images_enabled: bool, fetcher: &dyn ImageFetcher
     }
 
     // Pass 2: rewrite img src -> key (drop unresolved/disabled), strip dangerous nodes/attrs.
-    let cleaned = rewrite_str(html, RewriteStrSettings {
-        element_content_handlers: vec![
-            element!("script,iframe,noscript,style,object,embed,form", |el| { el.remove(); Ok(()) }),
-            element!("img", |el| {
-                let keep = el.get_attribute("src")
-                    .and_then(|s| url_to_key.get(&s).cloned());
-                match keep {
-                    Some(key) => { let _ = el.set_attribute("src", &key); }
-                    None => el.remove(),
-                }
-                Ok(())
-            }),
-            element!("*", |el| {
-                let names: Vec<String> = el.attributes().iter().map(|a| a.name()).collect();
-                for n in names {
-                    if n.starts_with("on") {
-                        el.remove_attribute(&n);
+    let cleaned = rewrite_str(
+        html,
+        RewriteStrSettings {
+            element_content_handlers: vec![
+                element!("script,iframe,noscript,style,object,embed,form", |el| {
+                    el.remove();
+                    Ok(())
+                }),
+                element!("img", |el| {
+                    let keep = el
+                        .get_attribute("src")
+                        .and_then(|s| url_to_key.get(&s).cloned());
+                    match keep {
+                        Some(key) => {
+                            let _ = el.set_attribute("src", &key);
+                        }
+                        None => el.remove(),
                     }
-                }
-                Ok(())
-            }),
-        ],
-        ..RewriteStrSettings::default()
-    }).unwrap_or_else(|_| html.to_string());
+                    Ok(())
+                }),
+                element!("*", |el| {
+                    let names: Vec<String> = el.attributes().iter().map(|a| a.name()).collect();
+                    for n in names {
+                        if n.starts_with("on") {
+                            el.remove_attribute(&n);
+                        }
+                    }
+                    Ok(())
+                }),
+            ],
+            ..RewriteStrSettings::default()
+        },
+    )
+    .unwrap_or_else(|_| html.to_string());
 
-    Processed { html: cleaned, assets }
+    Processed {
+        html: cleaned,
+        assets,
+    }
 }

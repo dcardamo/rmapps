@@ -43,14 +43,16 @@ impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
         // ignore. A genuine auth/connectivity failure surfaces on the first `put`.
         for (pdf, folder) in targets {
             let _ = self.runner.run(&["-ni", "mkdir", folder.as_str()]);
-            self.runner.run(&self.put_args(path_str(pdf)?, folder, false))?;
+            self.runner
+                .run(&self.put_args(path_str(pdf)?, folder, false))?;
         }
         Ok(())
     }
 
     fn refresh(&self, targets: &[(PathBuf, String)]) -> anyhow::Result<()> {
         for (pdf, folder) in targets {
-            self.runner.run(&self.put_args(path_str(pdf)?, folder, true))?;
+            self.runner
+                .run(&self.put_args(path_str(pdf)?, folder, true))?;
         }
         Ok(())
     }

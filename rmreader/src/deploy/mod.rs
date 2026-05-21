@@ -14,7 +14,9 @@ pub trait Deployer: std::fmt::Debug {
 pub fn get_deployer(config: &Config) -> anyhow::Result<Box<dyn Deployer>> {
     match config.deploy.backend.as_str() {
         "none" => Ok(Box::new(local::LocalDeployer)),
-        "rmapi" => Ok(Box::new(rmapi::RmapiDeployer::new(rmapi::ProcessRmapi::new()?))),
+        "rmapi" => Ok(Box::new(rmapi::RmapiDeployer::new(
+            rmapi::ProcessRmapi::new()?,
+        ))),
         other => anyhow::bail!("unsupported deploy backend: {other:?}"),
     }
 }

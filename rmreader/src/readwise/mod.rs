@@ -96,7 +96,10 @@ pub fn fetch_documents(
                 continue; // retry same cursor
             }
             if resp.status != 200 {
-                anyhow::bail!("Readwise list failed (HTTP {}) for location {loc}", resp.status);
+                anyhow::bail!(
+                    "Readwise list failed (HTTP {}) for location {loc}",
+                    resp.status
+                );
             }
             let parsed: ListResponse = serde_json::from_str(&resp.body)?;
             all.extend(parsed.results);

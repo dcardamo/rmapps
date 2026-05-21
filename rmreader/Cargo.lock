@@ -2948,6 +2948,7 @@ dependencies = [
  "lopdf 0.36.0",
  "serde",
  "serde_json",
+ "tempfile",
  "toml",
  "ureq",
  "url",

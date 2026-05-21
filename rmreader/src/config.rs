@@ -17,9 +17,16 @@ pub struct LibraryConfig {
 fn default_library_locations() -> Vec<String> {
     vec!["new".into(), "later".into(), "shortlist".into()]
 }
-fn default_max_items() -> u32 { 100 }
+fn default_max_items() -> u32 {
+    100
+}
 impl Default for LibraryConfig {
-    fn default() -> Self { Self { locations: default_library_locations(), max_items: default_max_items() } }
+    fn default() -> Self {
+        Self {
+            locations: default_library_locations(),
+            max_items: default_max_items(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,9 +36,16 @@ pub struct FeedConfig {
     #[serde(default = "default_max_items")]
     pub max_items: u32,
 }
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 impl Default for FeedConfig {
-    fn default() -> Self { Self { enabled: true, max_items: default_max_items() } }
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_items: default_max_items(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,7 +54,9 @@ pub struct ImagesConfig {
     pub enabled: bool,
 }
 impl Default for ImagesConfig {
-    fn default() -> Self { Self { enabled: true } }
+    fn default() -> Self {
+        Self { enabled: true }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -52,9 +68,17 @@ pub struct DeployConfig {
     #[serde(default)]
     pub feed_folder: String,
 }
-fn default_backend() -> String { "none".into() }
+fn default_backend() -> String {
+    "none".into()
+}
 impl Default for DeployConfig {
-    fn default() -> Self { Self { backend: "none".into(), library_folder: String::new(), feed_folder: String::new() } }
+    fn default() -> Self {
+        Self {
+            backend: "none".into(),
+            library_folder: String::new(),
+            feed_folder: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -75,9 +99,15 @@ pub struct Config {
     #[serde(default)]
     pub deploy: DeployConfig,
 }
-fn default_device() -> String { "paper-pro-move".into() }
-fn default_output_dir() -> String { ".".into() }
-fn default_theme() -> String { "reader".into() }
+fn default_device() -> String {
+    "paper-pro-move".into()
+}
+fn default_output_dir() -> String {
+    ".".into()
+}
+fn default_theme() -> String {
+    "reader".into()
+}
 
 const VALID_LOCATIONS: &[&str] = &["new", "later", "shortlist", "archive", "feed"];
 
@@ -86,7 +116,9 @@ impl Config {
         crate::device::get_device(&self.device)?;
         crate::theme::load_theme(&self.theme)?;
         if self.readwise.token.trim().is_empty() {
-            anyhow::bail!("readwise.token is required (get one at https://readwise.io/access_token)");
+            anyhow::bail!(
+                "readwise.token is required (get one at https://readwise.io/access_token)"
+            );
         }
         if self.library.locations.is_empty() {
             anyhow::bail!("library.locations must list at least one location");
@@ -103,7 +135,9 @@ impl Config {
                     anyhow::bail!("deploy.library_folder is required for the rmapi backend");
                 }
                 if self.feed.enabled && self.deploy.feed_folder.trim().is_empty() {
-                    anyhow::bail!("deploy.feed_folder is required when feed is enabled and backend is rmapi");
+                    anyhow::bail!(
+                        "deploy.feed_folder is required when feed is enabled and backend is rmapi"
+                    );
                 }
             }
             other => anyhow::bail!("deploy.backend must be 'none' or 'rmapi', got {other:?}"),

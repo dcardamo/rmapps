@@ -25,9 +25,7 @@ fn renders_pdf_with_resolving_internal_link() {
             for a in annots {
                 if let Ok(id) = a.as_reference() {
                     if let Ok(ad) = doc.get_dictionary(id) {
-                        if ad.get(b"Subtype").ok().and_then(|s| s.as_name().ok())
-                            == Some(b"Link")
-                        {
+                        if ad.get(b"Subtype").ok().and_then(|s| s.as_name().ok()) == Some(b"Link") {
                             links += 1;
                         }
                     }
@@ -35,5 +33,8 @@ fn renders_pdf_with_resolving_internal_link() {
             }
         }
     }
-    assert!(links >= 1, "expected at least one Link annotation, got {links}");
+    assert!(
+        links >= 1,
+        "expected at least one Link annotation, got {links}"
+    );
 }

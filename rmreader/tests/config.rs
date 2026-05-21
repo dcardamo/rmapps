@@ -1,7 +1,7 @@
 use rmreader::config::Config;
 
 fn valid_toml() -> &'static str {
-r#"
+    r#"
 device = "paper-pro-move"
 output_dir = "."
 [readwise]

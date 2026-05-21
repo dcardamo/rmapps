@@ -62,7 +62,9 @@ struct ArticleTpl<'a> {
 }
 
 fn rt(d: &Document) -> String {
-    d.reading_time.map(|m| format!("{m} min")).unwrap_or_else(|| "—".into())
+    d.reading_time
+        .map(|m| format!("{m} min"))
+        .unwrap_or_else(|| "—".into())
 }
 
 /// `content_fn(html_content, id) -> (processed_html, assets)` is injected so the
@@ -88,15 +90,37 @@ pub fn assemble_document(
             anchor: format!("item-{}", d.id),
         })
         .collect();
-    fragments.push(IndexTpl { collection, count: docs.len(), rows: &rows }.render().unwrap());
+    fragments.push(
+        IndexTpl {
+            collection,
+            count: docs.len(),
+            rows: &rows,
+        }
+        .render()
+        .unwrap(),
+    );
 
     // Cards
     for (i, d) in docs.iter().enumerate() {
         let card_anchor = format!("item-{}", d.id);
         let article_anchor = format!("article-{}", d.id);
-        let prev = if i > 0 { Some(format!("item-{}", docs[i - 1].id)) } else { None };
-        let next = if i + 1 < docs.len() { Some(format!("item-{}", docs[i + 1].id)) } else { None };
-        let nav = Nav { prev, next, card: None }.render().unwrap();
+        let prev = if i > 0 {
+            Some(format!("item-{}", docs[i - 1].id))
+        } else {
+            None
+        };
+        let next = if i + 1 < docs.len() {
+            Some(format!("item-{}", docs[i + 1].id))
+        } else {
+            None
+        };
+        let nav = Nav {
+            prev,
+            next,
+            card: None,
+        }
+        .render()
+        .unwrap();
         fragments.push(
             CardTpl {
                 anchor: &card_anchor,
@@ -125,9 +149,23 @@ pub fn assemble_document(
     for (i, d) in docs.iter().enumerate() {
         let article_anchor = format!("article-{}", d.id);
         let card_anchor = format!("item-{}", d.id);
-        let prev = if i > 0 { Some(format!("article-{}", docs[i - 1].id)) } else { None };
-        let next = if i + 1 < docs.len() { Some(format!("article-{}", docs[i + 1].id)) } else { None };
-        let nav = Nav { prev, next, card: Some(card_anchor) }.render().unwrap();
+        let prev = if i > 0 {
+            Some(format!("article-{}", docs[i - 1].id))
+        } else {
+            None
+        };
+        let next = if i + 1 < docs.len() {
+            Some(format!("article-{}", docs[i + 1].id))
+        } else {
+            None
+        };
+        let nav = Nav {
+            prev,
+            next,
+            card: Some(card_anchor),
+        }
+        .render()
+        .unwrap();
         let raw = d.html_content.clone().unwrap_or_default();
         let (processed, mut a) = content_fn(&raw, &d.id);
         assets.append(&mut a);
@@ -150,6 +188,9 @@ pub fn assemble_document(
     Built {
         fragments,
         assets,
-        manifest: Manifest { collection: collection.to_string(), items },
+        manifest: Manifest {
+            collection: collection.to_string(),
+            items,
+        },
     }
 }
