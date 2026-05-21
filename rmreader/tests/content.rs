@@ -39,7 +39,7 @@ fn strips_scripts_and_handlers_keeps_text() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(html, true, &f);
+    let out = process_html(html, "d1", true, &f);
     assert!(out.html.contains("Hello"));
     assert!(!out.html.contains("script"));
     assert!(!out.html.contains("iframe"));
@@ -60,7 +60,7 @@ fn embeds_real_image_and_rewrites_src() {
         map,
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(r#"<p><img src="https://x/p.png"></p>"#, true, &f);
+    let out = process_html(r#"<p><img src="https://x/p.png"></p>"#, "d1", true, &f);
     assert_eq!(out.assets.len(), 1);
     let key = &out.assets[0].0;
     assert!(out.html.contains(key));
@@ -81,7 +81,7 @@ fn drops_tracking_pixel() {
         map,
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(r#"<img src="https://x/track.png">"#, true, &f);
+    let out = process_html(r#"<img src="https://x/track.png">"#, "d1", true, &f);
     assert_eq!(out.assets.len(), 0);
     assert!(!out.html.contains("img"));
 }
@@ -92,8 +92,40 @@ fn images_disabled_drops_all_imgs_without_fetch() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(r#"<img src="https://x/p.png">text"#, false, &f);
+    let out = process_html(r#"<img src="https://x/p.png">text"#, "d1", false, &f);
     assert!(out.html.contains("text"));
     assert!(!out.html.contains("img"));
     assert!(f.fetched.borrow().is_empty());
+}
+
+/// Regression: asset keys must be unique across documents so that merging
+/// multiple articles' assets into one AssetBundle never silently overwrites
+/// an image from a different document.
+#[test]
+fn distinct_doc_ids_yield_distinct_asset_keys() {
+    let mut map = std::collections::HashMap::new();
+    map.insert(
+        "https://x/p.png".to_string(),
+        Some(FetchedImage {
+            bytes: png_8x8(),
+            ext: "png".into(),
+        }),
+    );
+    // Two separate fetchers sharing the same image data.
+    let fa = FakeFetcher {
+        map: map.clone(),
+        fetched: RefCell::new(vec![]),
+    };
+    let fb = FakeFetcher {
+        map,
+        fetched: RefCell::new(vec![]),
+    };
+    let a = process_html(r#"<img src="https://x/p.png">"#, "doc-a", true, &fa);
+    let b = process_html(r#"<img src="https://x/p.png">"#, "doc-b", true, &fb);
+    assert_eq!(a.assets.len(), 1);
+    assert_eq!(b.assets.len(), 1);
+    assert_ne!(
+        a.assets[0].0, b.assets[0].0,
+        "asset keys must differ when doc ids differ to prevent AssetBundle collisions"
+    );
 }

@@ -1,4 +1,14 @@
 //! Turn Readwise html_content into render-ready HTML with embedded local images.
+//!
+//! # Security model
+//! The sanitiser (Pass 2 below) removes `<script>`, `<iframe>`, `<noscript>`,
+//! `<style>`, `<object>`, `<embed>`, `<form>`, and all `on*` event handlers,
+//! and rewrites every `<img src>` to a local asset key (dropping unresolvable
+//! images). This is the first line of defence. Remaining content safety —
+//! `style` `url()` references, `<link>`, `<meta http-equiv=refresh>`, and
+//! any other remote or `data:` targets — relies on fulgur's `file://`-only
+//! `NetProvider` as a second line of defence: those targets simply never load
+//! and never trigger network or navigation actions during PDF rendering.
 use lol_html::{element, rewrite_str, RewriteStrSettings};
 
 #[derive(Clone)]
@@ -60,8 +70,28 @@ fn normalize_image(bytes: &[u8]) -> Option<(Vec<u8>, String)> {
     }
 }
 
-pub fn process_html(html: &str, images_enabled: bool, fetcher: &dyn ImageFetcher) -> Processed {
+/// Sanitise `html` and embed images as local assets.
+///
+/// `doc_id` is included in every asset key so that keys remain globally unique
+/// when assets from multiple documents are merged into a single `AssetBundle`.
+pub fn process_html(
+    html: &str,
+    doc_id: &str,
+    images_enabled: bool,
+    fetcher: &dyn ImageFetcher,
+) -> Processed {
     use std::collections::HashMap;
+    // Sanitise doc_id so the key is always filename-safe.
+    let safe_id: String = doc_id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
 
     // Pass 1: fetch + normalize images into a url -> key map.
     let mut url_to_key: HashMap<String, String> = HashMap::new();
@@ -78,7 +108,9 @@ pub fn process_html(html: &str, images_enabled: bool, fetcher: &dyn ImageFetcher
                     normalize_image(&fetched.bytes)
                 };
                 if let Some((bytes, ext)) = normalized {
-                    let key = format!("img-{i}.{ext}");
+                    // Include doc_id so keys are unique across articles when
+                    // assets from multiple documents are merged into one bundle.
+                    let key = format!("img-{safe_id}-{i}.{ext}");
                     url_to_key.insert(url.clone(), key.clone());
                     assets.push((key, bytes));
                 }

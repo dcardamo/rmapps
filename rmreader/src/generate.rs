@@ -14,7 +14,24 @@ impl ImageFetcher for UreqImageFetcher {
         if !ct.starts_with("image/") {
             return None;
         }
-        let ext = if ct.contains("svg") { "svg" } else { "bin" }.to_string();
+        // Derive an honest extension from the content-type subtype so downstream
+        // code (and asset keys) reflect the actual format.  SVG must be detected
+        // first because its subtype is "svg+xml".  Unknown types fall back to
+        // "bin", which normalize_image() will still handle correctly.
+        let ext = if ct.contains("svg") {
+            "svg"
+        } else if ct.contains("jpeg") || ct.contains("jpg") {
+            "jpg"
+        } else if ct.contains("png") {
+            "png"
+        } else if ct.contains("gif") {
+            "gif"
+        } else if ct.contains("webp") {
+            "webp"
+        } else {
+            "bin"
+        }
+        .to_string();
         let mut bytes = Vec::new();
         use std::io::Read;
         resp.into_reader()
@@ -33,8 +50,8 @@ fn build_one(
     out_dir: &Path,
 ) -> anyhow::Result<PathBuf> {
     let images_enabled = config.images.enabled;
-    let built = crate::assemble::assemble_document(collection, docs, |html, _id| {
-        let p = process_html(html, images_enabled, fetcher);
+    let built = crate::assemble::assemble_document(collection, docs, |html, id| {
+        let p = process_html(html, id, images_enabled, fetcher);
         (p.html, p.assets)
     });
     let device = crate::device::get_device(&config.device)?;

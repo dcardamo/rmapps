@@ -2939,7 +2939,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "askama",
- "chrono",
  "clap",
  "dialoguer",
  "fulgur",
@@ -2951,7 +2950,6 @@ dependencies = [
  "tempfile",
  "toml",
  "ureq",
- "url",
 ]
 
 [[package]]
