@@ -33,6 +33,26 @@ fn png_8x8() -> Vec<u8> {
 }
 
 #[test]
+fn truncates_monster_articles_with_note() {
+    // An article far over the size cap is truncated and gets an "open in Readwise"
+    // note appended, so fulgur's layout time can't blow up on huge pages.
+    let big = format!("<p>{}</p>", "word ".repeat(40_000)); // ~200 KB
+    let f = FakeFetcher {
+        map: Default::default(),
+        fetched: RefCell::new(vec![]),
+    };
+    let out = process_html(&big, "d1", false, &f);
+    assert!(out.html.len() < big.len());
+    assert!(out.html.contains("truncated"));
+
+    // A normal-size article is left intact (no note).
+    let small = "<p>just a short article</p>";
+    let out2 = process_html(small, "d1", false, &f);
+    assert!(out2.html.contains("just a short article"));
+    assert!(!out2.html.contains("truncated"));
+}
+
+#[test]
 fn strips_scripts_and_handlers_keeps_text() {
     let html = r#"<p onclick="x()">Hello</p><script>evil()</script><iframe src="z"></iframe>"#;
     let f = FakeFetcher {

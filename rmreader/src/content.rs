@@ -70,6 +70,11 @@ fn normalize_image(bytes: &[u8]) -> Option<(Vec<u8>, String)> {
     }
 }
 
+/// Hard cap on article HTML size. Real articles sit well under this; pathological
+/// pages (full Wikipedia dumps with hundreds of footnotes) explode fulgur's layout
+/// time and freeze the render, so we truncate them. Tunable.
+const MAX_HTML_BYTES: usize = 80_000;
+
 /// Sanitise `html` and embed images as local assets.
 ///
 /// `doc_id` is included in every asset key so that keys remain globally unique
@@ -92,6 +97,19 @@ pub fn process_html(
             }
         })
         .collect();
+
+    // Cap pathologically large articles so fulgur's layout time can't blow up and
+    // freeze the render. Truncate at a UTF-8 boundary; a note (appended below) sends
+    // the reader to Readwise for the full text.
+    let (html, truncated) = if html.len() > MAX_HTML_BYTES {
+        let mut end = MAX_HTML_BYTES;
+        while end > 0 && !html.is_char_boundary(end) {
+            end -= 1;
+        }
+        (&html[..end], true)
+    } else {
+        (html, false)
+    };
 
     // Pass 1: fetch + normalize images into a url -> key map.
     let mut url_to_key: HashMap<String, String> = HashMap::new();
@@ -119,7 +137,7 @@ pub fn process_html(
     }
 
     // Pass 2: rewrite img src -> key (drop unresolved/disabled), strip dangerous nodes/attrs.
-    let cleaned = rewrite_str(
+    let mut cleaned = rewrite_str(
         html,
         RewriteStrSettings {
             element_content_handlers: vec![
@@ -153,6 +171,12 @@ pub fn process_html(
         },
     )
     .unwrap_or_else(|_| html.to_string());
+
+    if truncated {
+        cleaned.push_str(
+            "<p class=\"truncated\"><em>… Article truncated for on-device reading — open it in Readwise for the full text.</em></p>",
+        );
+    }
 
     Processed {
         html: cleaned,
