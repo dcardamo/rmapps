@@ -54,15 +54,38 @@ fn build_one(
     fetcher: &dyn ImageFetcher,
     out_dir: &Path,
 ) -> anyhow::Result<PathBuf> {
+    use std::time::Instant;
     let images_enabled = config.images.enabled;
+    let total = docs.len();
+    let idx = std::cell::Cell::new(0usize);
+    eprintln!("[rmreader] {collection}: processing {total} docs");
     let built = crate::assemble::assemble_document(collection, docs, |html, id| {
+        let i = idx.get() + 1;
+        idx.set(i);
+        let t = Instant::now();
         let p = process_html(html, id, images_enabled, fetcher);
+        eprintln!(
+            "[rmreader]   {collection} {i}/{total}: {} KB html, {} imgs, {:.1}s",
+            html.len() / 1024,
+            p.assets.len(),
+            t.elapsed().as_secs_f32()
+        );
         (p.html, p.assets)
     });
     let device = crate::device::get_device(&config.device)?;
     let theme = crate::theme::load_theme(&config.theme)?;
     let pdf_path = out_dir.join(format!("{collection}.pdf"));
+    eprintln!(
+        "[rmreader] {collection}: rendering {} fragments...",
+        built.fragments.len()
+    );
+    let t = Instant::now();
     crate::render::render_pdf(&device, &theme, &built.fragments, &built.assets, &pdf_path)?;
+    eprintln!(
+        "[rmreader] {collection}: wrote {} in {:.1}s",
+        pdf_path.display(),
+        t.elapsed().as_secs_f32()
+    );
     built
         .manifest
         .write(&out_dir.join(format!("{collection}.manifest.json")))?;
@@ -79,6 +102,7 @@ pub fn generate(
     std::fs::create_dir_all(&out_dir)?;
     let mut targets = Vec::new();
 
+    eprintln!("[rmreader] fetching library {:?}...", config.library.locations);
     let lib = crate::readwise::fetch_documents(
         transport,
         &config.readwise.token,
@@ -86,10 +110,12 @@ pub fn generate(
         config.library.max_items,
         |s| std::thread::sleep(std::time::Duration::from_secs(s)),
     )?;
+    eprintln!("[rmreader] library: {} docs", lib.len());
     let lib_pdf = build_one("Library", &lib, config, fetcher, &out_dir)?;
     targets.push((lib_pdf, config.deploy.library_folder.clone()));
 
     if config.feed.enabled {
+        eprintln!("[rmreader] fetching feed...");
         let feed = crate::readwise::fetch_documents(
             transport,
             &config.readwise.token,
@@ -97,6 +123,7 @@ pub fn generate(
             config.feed.max_items,
             |s| std::thread::sleep(std::time::Duration::from_secs(s)),
         )?;
+        eprintln!("[rmreader] feed: {} docs", feed.len());
         let feed_pdf = build_one("Feed", &feed, config, fetcher, &out_dir)?;
         targets.push((feed_pdf, config.deploy.feed_folder.clone()));
     }
