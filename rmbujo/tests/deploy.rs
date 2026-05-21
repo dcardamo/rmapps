@@ -39,6 +39,18 @@ fn deploy_mkdirs_then_puts_each_pdf() {
 }
 
 #[test]
+fn deploy_creates_each_ancestor_folder() {
+    let rec = Recorder::default();
+    let d = RmapiDeployer::new("/rmbujo/2027".into(), rec.clone());
+    d.deploy(&[PathBuf::from("/out/a.pdf")]).unwrap();
+    let c = rec.calls.borrow();
+    assert_eq!(c[0], vec!["-ni", "mkdir", "/rmbujo"]);
+    assert_eq!(c[1], vec!["-ni", "mkdir", "/rmbujo/2027"]);
+    assert_eq!(c[2], vec!["-ni", "put", "/out/a.pdf", "/rmbujo/2027"]);
+    assert_eq!(c.len(), 3);
+}
+
+#[test]
 fn refresh_uses_content_only() {
     let rec = Recorder::default();
     let d = RmapiDeployer::new("/2026".into(), rec.clone());

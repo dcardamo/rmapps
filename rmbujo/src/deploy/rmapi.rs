@@ -43,12 +43,13 @@ impl<R: RmapiRunner> RmapiDeployer<R> {
 
 impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
     fn deploy(&self, paths: &[PathBuf]) -> anyhow::Result<()> {
-        // mkdir is idempotent: a pre-existing folder makes rmapi error, which we
-        // ignore (established rmapi practice). A genuine auth/connectivity
+        // rmapi's mkdir is not recursive, so create each ancestor folder in turn
+        // (e.g. /rmbujo, then /rmbujo/2027). mkdir is idempotent: a pre-existing
+        // folder makes rmapi error, which we ignore. A genuine auth/connectivity
         // failure surfaces on the first `put` below.
-        let _ = self
-            .runner
-            .run(&["-ni", "mkdir", self.target_folder.as_str()]);
+        for dir in folder_chain(&self.target_folder) {
+            let _ = self.runner.run(&["-ni", "mkdir", dir.as_str()]);
+        }
         for p in paths {
             self.runner.run(&self.put_args(path_str(p)?, false))?;
         }
@@ -73,6 +74,19 @@ fn path_str(p: &Path) -> anyhow::Result<&str> {
 /// the base is tolerated.
 pub fn cloud_target(base_folder: &str, year: i32) -> String {
     format!("{}/{}", base_folder.trim_end_matches('/'), year)
+}
+
+/// The chain of folders to create for `path`, parents first, so a non-recursive
+/// `mkdir` can build the whole hierarchy: "/rmbujo/2027" -> ["/rmbujo", "/rmbujo/2027"].
+fn folder_chain(path: &str) -> Vec<String> {
+    let mut acc = String::new();
+    let mut chain = Vec::new();
+    for part in path.split('/').filter(|s| !s.is_empty()) {
+        acc.push('/');
+        acc.push_str(part);
+        chain.push(acc.clone());
+    }
+    chain
 }
 
 /// Real runner: invokes the `rmapi` binary. Guards against rmapi's token-clobber
