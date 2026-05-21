@@ -29,14 +29,12 @@ fn builds_linked_document_and_manifest() {
         (html.to_string(), vec![] as Vec<(String, Vec<u8>)>)
     });
     let html = built.fragments.join("\n");
-    // anchors present
-    assert!(html.contains("id=\"item-a\""));
+    // No summary-card tier: index links straight to the article.
     assert!(html.contains("id=\"article-a\""));
-    assert!(html.contains("href=\"#item-a\"")); // index -> card
-    assert!(html.contains("href=\"#article-a\"")); // card -> article
-                                                   // manifest
+    assert!(html.contains("href=\"#article-a\"")); // index -> article
+    assert!(!html.contains("item-a")); // no card section/anchors
+                                       // manifest
     assert_eq!(built.manifest.items.len(), 2);
     assert_eq!(built.manifest.items[0].id, "a");
-    assert_eq!(built.manifest.items[0].card_anchor, "item-a");
     assert_eq!(built.manifest.items[0].article_anchor, "article-a");
 }

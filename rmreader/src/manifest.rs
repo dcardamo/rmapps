@@ -8,7 +8,6 @@ pub struct ManifestItem {
     pub id: String,
     pub title: String,
     pub url: String,
-    pub card_anchor: String,
     pub article_anchor: String,
 }
 

@@ -1,4 +1,8 @@
-//! Build the 3-tier HTML document (index, cards, articles) + manifest.
+//! Build the reading document (index + full articles) + manifest.
+//!
+//! Two tiers: an index page that links straight to each full article, then the
+//! articles themselves. There is no summary-card tier — tapping an index row goes
+//! directly to the article; the article's nav goes Home (index) / Prev / Next.
 use askama::Template;
 
 use crate::manifest::{Manifest, ManifestItem};
@@ -15,7 +19,6 @@ pub struct Built {
 struct Nav {
     prev: Option<String>,
     next: Option<String>,
-    card: Option<String>,
 }
 
 struct IndexRow {
@@ -32,20 +35,6 @@ struct IndexTpl<'a> {
     collection: &'a str,
     count: usize,
     rows: &'a [IndexRow],
-}
-
-#[derive(Template)]
-#[template(path = "card.html")]
-struct CardTpl<'a> {
-    anchor: &'a str,
-    article_anchor: &'a str,
-    nav: &'a str,
-    category: &'a str,
-    title: &'a str,
-    summary: &'a str,
-    author: &'a str,
-    site_name: &'a str,
-    reading_time: &'a str,
 }
 
 #[derive(Template)]
@@ -68,6 +57,17 @@ fn rt(d: &Document) -> String {
     }
 }
 
+/// Heading fallback for the occasional doc that has no title.
+fn title_or(d: &Document) -> String {
+    if !d.title.trim().is_empty() {
+        d.title.clone()
+    } else if !d.site_name.trim().is_empty() {
+        d.site_name.clone()
+    } else {
+        "Untitled".into()
+    }
+}
+
 /// `content_fn(html_content, id) -> (processed_html, assets)` is injected so the
 /// content pipeline (and its network) stays out of assembly (testable).
 pub fn assemble_document(
@@ -79,16 +79,16 @@ pub fn assemble_document(
     let mut items: Vec<ManifestItem> = Vec::new();
     let mut fragments: Vec<String> = Vec::new();
 
-    // Index
+    // Index — each row links straight to the full article.
     let rows: Vec<IndexRow> = docs
         .iter()
         .enumerate()
         .map(|(i, d)| IndexRow {
             num: format!("{:02}", i + 1),
-            title: d.title.clone(),
+            title: title_or(d),
             author: d.author.clone(),
             reading_time: rt(d),
-            anchor: format!("item-{}", d.id),
+            anchor: format!("article-{}", d.id),
         })
         .collect();
     fragments.push(
@@ -101,81 +101,22 @@ pub fn assemble_document(
         .unwrap(),
     );
 
-    // Cards
-    for (i, d) in docs.iter().enumerate() {
-        let card_anchor = format!("item-{}", d.id);
-        let article_anchor = format!("article-{}", d.id);
-        let prev = if i > 0 {
-            Some(format!("item-{}", docs[i - 1].id))
-        } else {
-            None
-        };
-        let next = if i + 1 < docs.len() {
-            Some(format!("item-{}", docs[i + 1].id))
-        } else {
-            None
-        };
-        let nav = Nav {
-            prev,
-            next,
-            card: None,
-        }
-        .render()
-        .unwrap();
-        fragments.push(
-            CardTpl {
-                anchor: &card_anchor,
-                article_anchor: &article_anchor,
-                nav: &nav,
-                category: &d.category,
-                title: &d.title,
-                summary: &d.summary,
-                author: &d.author,
-                site_name: &d.site_name,
-                reading_time: &rt(d),
-            }
-            .render()
-            .unwrap(),
-        );
-        items.push(ManifestItem {
-            id: d.id.clone(),
-            title: d.title.clone(),
-            url: d.url.clone(),
-            card_anchor,
-            article_anchor,
-        });
-    }
-
     // Articles
     for (i, d) in docs.iter().enumerate() {
         let article_anchor = format!("article-{}", d.id);
-        let card_anchor = format!("item-{}", d.id);
-        let prev = if i > 0 {
-            Some(format!("article-{}", docs[i - 1].id))
-        } else {
-            None
-        };
-        let next = if i + 1 < docs.len() {
-            Some(format!("article-{}", docs[i + 1].id))
-        } else {
-            None
-        };
-        let nav = Nav {
-            prev,
-            next,
-            card: Some(card_anchor),
-        }
-        .render()
-        .unwrap();
+        let prev = (i > 0).then(|| format!("article-{}", docs[i - 1].id));
+        let next = (i + 1 < docs.len()).then(|| format!("article-{}", docs[i + 1].id));
+        let nav = Nav { prev, next }.render().unwrap();
         let raw = d.html_content.clone().unwrap_or_default();
         let (processed, mut a) = content_fn(&raw, &d.id);
         assets.append(&mut a);
+        let title = title_or(d);
         fragments.push(
             ArticleTpl {
                 anchor: &article_anchor,
                 nav: &nav,
                 category: &d.category,
-                title: &d.title,
+                title: &title,
                 author: &d.author,
                 site_name: &d.site_name,
                 reading_time: &rt(d),
@@ -184,6 +125,12 @@ pub fn assemble_document(
             .render()
             .unwrap(),
         );
+        items.push(ManifestItem {
+            id: d.id.clone(),
+            title,
+            url: d.url.clone(),
+            article_anchor,
+        });
     }
 
     Built {

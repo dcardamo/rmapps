@@ -47,6 +47,19 @@ impl ImageFetcher for UreqImageFetcher {
     }
 }
 
+/// Drop docs Readwise has no reader text for (e.g. unparsed saves or archive
+/// listing pages) — they would otherwise render as blank articles.
+fn drop_empty(docs: Vec<crate::readwise::Document>) -> Vec<crate::readwise::Document> {
+    docs.into_iter()
+        .filter(|d| {
+            d.html_content
+                .as_deref()
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+        })
+        .collect()
+}
+
 fn build_one(
     collection: &str,
     docs: &[crate::readwise::Document],
@@ -113,6 +126,7 @@ pub fn generate(
         config.library.max_items,
         |s| std::thread::sleep(std::time::Duration::from_secs(s)),
     )?;
+    let lib = drop_empty(lib);
     eprintln!("[rmreader] library: {} docs", lib.len());
     let lib_pdf = build_one("Library", &lib, config, fetcher, &out_dir)?;
     targets.push((lib_pdf, config.deploy.library_folder.clone()));
@@ -126,6 +140,7 @@ pub fn generate(
             config.feed.max_items,
             |s| std::thread::sleep(std::time::Duration::from_secs(s)),
         )?;
+        let feed = drop_empty(feed);
         eprintln!("[rmreader] feed: {} docs", feed.len());
         let feed_pdf = build_one("Feed", &feed, config, fetcher, &out_dir)?;
         targets.push((feed_pdf, config.deploy.feed_folder.clone()));
