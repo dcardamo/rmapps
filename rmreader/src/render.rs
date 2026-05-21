@@ -31,13 +31,10 @@ pub fn build_css(device: &Device, theme: &Palette) -> String {
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; }}\n\
 body {{ font-family: \"Newsreader\", serif; color: var(--ink); }}\n\
-/* top padding reserves the top ~44pt the reMarkable toolbar overlays */\n\
-.page {{ position: relative; width: {w}pt; height: {h}pt; padding: 50pt 26pt 30pt; overflow: hidden; background: var(--paper); break-after: page; }}\n\
+/* top padding reserves the top ~44pt the reMarkable toolbar overlays; bottom 44pt reserves the post-processed nav bar */\n\
+.page {{ position: relative; width: {w}pt; height: {h}pt; padding: 50pt 26pt 44pt; overflow: hidden; background: var(--paper); break-after: page; }}\n\
 .page:last-child {{ break-after: auto; }}\n\
 .article {{ break-before: page; }}\n\
-.nav {{ display:flex; justify-content:space-between; font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); border-bottom:0.5pt solid var(--rule); padding-bottom:6pt; margin-bottom:14pt; }}\n\
-.nav a {{ color:var(--muted); text-decoration:none; margin-left:10pt; }}\n\
-.nav a.home {{ color:var(--accent); font-weight:600; margin-left:0; }}\n\
 .kicker {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:9pt; }}\n\
 .headline {{ font-weight:600; font-size:24pt; line-height:1.05; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
 .byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8.5pt; color:var(--muted); margin-top:10pt; }}\n\

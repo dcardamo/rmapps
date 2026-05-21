@@ -99,6 +99,9 @@ fn build_one(
         pdf_path.display(),
         t.elapsed().as_secs_f32()
     );
+    // Stamp a persistent clickable Home/Prev/Next bar on every article page.
+    // Best-effort: leaves the rendered PDF intact on any failure.
+    crate::postprocess::add_per_page_nav(&pdf_path, docs.len(), device.width_pt())?;
     built
         .manifest
         .write(&out_dir.join(format!("{collection}.manifest.json")))?;

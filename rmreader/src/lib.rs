@@ -7,6 +7,7 @@ pub mod deploy;
 pub mod device;
 pub mod generate;
 pub mod manifest;
+pub mod postprocess;
 pub mod readwise;
 pub mod render;
 pub mod theme;

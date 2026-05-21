@@ -14,13 +14,6 @@ pub struct Built {
     pub manifest: Manifest,
 }
 
-#[derive(Template)]
-#[template(path = "nav.html")]
-struct Nav {
-    prev: Option<String>,
-    next: Option<String>,
-}
-
 struct IndexRow {
     num: String,
     title: String,
@@ -41,7 +34,6 @@ struct IndexTpl<'a> {
 #[template(path = "article.html")]
 struct ArticleTpl<'a> {
     anchor: &'a str,
-    nav: &'a str,
     category: &'a str,
     title: &'a str,
     author: &'a str,
@@ -101,12 +93,11 @@ pub fn assemble_document(
         .unwrap(),
     );
 
-    // Articles
-    for (i, d) in docs.iter().enumerate() {
+    // Articles. Per-page Home/Prev/Next nav is drawn later by the PDF
+    // post-processor (postprocess::add_per_page_nav), not rendered in-flow,
+    // so it can repeat as a clickable bar on every page of a flowing article.
+    for d in docs.iter() {
         let article_anchor = format!("article-{}", d.id);
-        let prev = (i > 0).then(|| format!("article-{}", docs[i - 1].id));
-        let next = (i + 1 < docs.len()).then(|| format!("article-{}", docs[i + 1].id));
-        let nav = Nav { prev, next }.render().unwrap();
         let raw = d.html_content.clone().unwrap_or_default();
         let (processed, mut a) = content_fn(&raw, &d.id);
         assets.append(&mut a);
@@ -114,7 +105,6 @@ pub fn assemble_document(
         fragments.push(
             ArticleTpl {
                 anchor: &article_anchor,
-                nav: &nav,
                 category: &d.category,
                 title: &title,
                 author: &d.author,
