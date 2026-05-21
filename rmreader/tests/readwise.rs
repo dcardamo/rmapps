@@ -70,14 +70,47 @@ fn paginates_and_sorts_desc_and_caps() {
         script,
         idx: RefCell::new(0),
     };
-    let docs = fetch_documents(&fake, "tok", &["new".into()], 2, |_| {}).unwrap();
+    let docs = fetch_documents(&fake, "tok", &["new".into()], 3, |_| {}).unwrap();
     assert_eq!(
         docs.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(),
-        vec!["b", "c"]
+        vec!["b", "c", "a"]
     );
     assert!(fake.calls.borrow()[1].contains("pageCursor=CUR"));
     assert!(fake.calls.borrow()[0].contains("withHtmlContent=true"));
     assert!(fake.calls.borrow()[0].contains("location=new"));
+}
+
+#[test]
+fn stops_paginating_once_max_items_reached() {
+    // The first page already satisfies max_items, so the second page must NOT be
+    // fetched — `feed` has tens of thousands of items and draining it is fatal.
+    let script = vec![
+        (
+            200,
+            None,
+            page(
+                &format!(
+                    "{},{}",
+                    doc("a", "2026-01-01T00:00:00Z"),
+                    doc("b", "2026-02-01T00:00:00Z")
+                ),
+                Some("CUR"),
+            ),
+        ),
+        (200, None, page(&doc("c", "2026-03-01T00:00:00Z"), None)),
+    ];
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script,
+        idx: RefCell::new(0),
+    };
+    let docs = fetch_documents(&fake, "tok", &["new".into()], 2, |_| {}).unwrap();
+    assert_eq!(docs.len(), 2);
+    assert_eq!(
+        fake.calls.borrow().len(),
+        1,
+        "must stop after the first page once max_items is reached"
+    );
 }
 
 #[test]

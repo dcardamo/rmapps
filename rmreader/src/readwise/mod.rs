@@ -126,6 +126,7 @@ pub fn fetch_documents(
     let mut all: Vec<Document> = Vec::new();
     for loc in locations {
         let mut cursor: Option<String> = None;
+        let mut got = 0usize;
         loop {
             let url = list_url(loc, cursor.as_deref());
             let resp = t.get(&url, token)?;
@@ -140,9 +141,15 @@ pub fn fetch_documents(
                 );
             }
             let parsed: ListResponse = serde_json::from_str(&resp.body)?;
+            got += parsed.results.len();
             all.extend(parsed.results);
+            // The API returns each location newest-first, and we sort + cap below, so
+            // the newest `max_items` are covered by the first `max_items` of each
+            // location. Stop once we have enough instead of draining the location —
+            // `feed` alone can hold tens of thousands of items, which is fatal to fetch
+            // in full with html_content.
             match parsed.next_page_cursor {
-                Some(c) if !c.is_empty() => cursor = Some(c),
+                Some(c) if !c.is_empty() && got < max_items as usize => cursor = Some(c),
                 _ => break,
             }
         }
