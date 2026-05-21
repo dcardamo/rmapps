@@ -15,6 +15,8 @@ pub struct Answers {
     pub collection_pages: u32,
     pub spacing_mm: f32,
     pub theme: String,
+    pub deploy_backend: String,
+    pub target_folder: String,
 }
 
 /// Build a Config + paths from gathered answers (no I/O).
@@ -29,8 +31,8 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
         theme: a.theme,
         ics: Vec::new(),
         deploy: DeployConfig {
-            backend: "none".into(),
-            target_folder: format!("/{}", a.year),
+            backend: a.deploy_backend,
+            target_folder: a.target_folder,
         },
     };
     let out_dir = PathBuf::from(a.base).join(a.year.to_string());
@@ -74,6 +76,14 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         .with_prompt("Theme")
         .default("library".into())
         .interact_text()?;
+    let deploy_backend: String = Input::new()
+        .with_prompt("Deploy backend (none|rmapi)")
+        .default("none".into())
+        .interact_text()?;
+    let target_folder: String = Input::new()
+        .with_prompt("reMarkable folder")
+        .default(format!("/{year}"))
+        .interact_text()?;
 
     let (config, out_dir, config_path) = assemble(Answers {
         year,
@@ -84,6 +94,8 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         collection_pages,
         spacing_mm,
         theme,
+        deploy_backend,
+        target_folder,
     });
     // The caller validates and creates the directory after this returns, so
     // invalid input doesn't leave an orphan folder behind.

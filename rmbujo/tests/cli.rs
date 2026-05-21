@@ -25,10 +25,14 @@ fn wizard_assemble() {
         collection_pages: 2,
         spacing_mm: 4.5,
         theme: "library".into(),
+        deploy_backend: "rmapi".into(),
+        target_folder: "/2026".into(),
     });
     assert_eq!(config.year, 2026);
     assert_eq!(config.daily_pages, 3);
     assert_eq!(config.spacing_mm, 4.5);
+    assert_eq!(config.deploy.backend, "rmapi");
+    assert_eq!(config.deploy.target_folder, "/2026");
     assert_eq!(out_dir, base.join("2026"));
     assert_eq!(config_path, base.join("2026").join("rmbujo.toml"));
 }
