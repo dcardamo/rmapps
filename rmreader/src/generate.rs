@@ -9,7 +9,11 @@ use crate::readwise::HttpTransport;
 pub struct UreqImageFetcher;
 impl ImageFetcher for UreqImageFetcher {
     fn fetch(&self, url: &str) -> Option<FetchedImage> {
-        let resp = ureq::get(url).call().ok()?;
+        // Per-request timeout so one slow image server can't stall the whole run.
+        let resp = ureq::get(url)
+            .timeout(std::time::Duration::from_secs(20))
+            .call()
+            .ok()?;
         let ct = resp.header("content-type").unwrap_or("").to_string();
         if !ct.starts_with("image/") {
             return None;

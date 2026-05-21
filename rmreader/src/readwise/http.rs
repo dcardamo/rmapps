@@ -7,7 +7,10 @@ pub struct UreqTransport;
 impl HttpTransport for UreqTransport {
     fn get(&self, url: &str, token: &str) -> anyhow::Result<HttpResponse> {
         let auth = format!("Token {token}");
-        let result = ureq::get(url).set("Authorization", &auth).call();
+        let result = ureq::get(url)
+            .set("Authorization", &auth)
+            .timeout(std::time::Duration::from_secs(30))
+            .call();
         match result {
             Ok(resp) => Ok(HttpResponse {
                 status: resp.status(),
