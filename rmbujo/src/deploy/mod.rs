@@ -1,6 +1,7 @@
 //! Deploy seam (Phase 2 fills in the rmapi backend).
 
 pub mod local;
+pub mod rmapi;
 
 use std::path::PathBuf;
 
