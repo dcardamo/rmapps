@@ -7,20 +7,20 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Run the JS actions on Node 24 (checkout/cache are Node-20 by default until
+    # June 2026); silences the deprecation notice and verifies they work on 24.
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v27
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-      # Cache the /nix/store so the dev-shell toolchain (rustc, poppler, fonts…)
-      # is restored instead of re-fetched. Keyed on the flake lock.
-      - uses: nix-community/cache-nix-action@v6
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
       # Cache compiled crates + downloads so the dependency tree (fulgur/blitz/
-      # krilla) isn't rebuilt each run. Keyed on Cargo.lock.
+      # krilla) isn't rebuilt each run. Keyed on Cargo.lock. (A /nix/store cache
+      # was tried but its tar restore is unreliable and the run is fast without
+      # it — nix re-fetches prebuilt paths from cache.nixos.org quickly.)
       - uses: actions/cache@v4
         with:
           path: |
