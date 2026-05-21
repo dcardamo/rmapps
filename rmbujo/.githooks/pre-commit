@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Block commits that aren't `cargo fmt` clean. Runs in the flake dev shell when
+# available so it uses the pinned rustfmt. Bypass with `git commit --no-verify`.
+set -uo pipefail
+
+run() {
+  if command -v nix >/dev/null 2>&1; then
+    nix develop -c "$@"
+  else
+    "$@"
+  fi
+}
+
+if ! run cargo fmt --check; then
+  echo "✗ cargo fmt check failed — run 'make fmt', stage, and re-commit." >&2
+  echo "  (or 'git commit --no-verify' to skip this check)" >&2
+  exit 1
+fi

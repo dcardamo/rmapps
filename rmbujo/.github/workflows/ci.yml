@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      # All steps run in the flake dev shell so they use the same toolchain as
+      # local dev — including poppler (pdftoppm) for the visual-regression tests.
+      - name: Format
+        run: nix develop -c cargo fmt --check
+      - name: Clippy
+        run: nix develop -c cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: nix develop -c cargo test
