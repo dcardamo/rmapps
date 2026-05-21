@@ -1,0 +1,10 @@
+# Reader theme — "Newsprint"
+# Chosen 2026-05-21 via visuals_picker.html. Color e-ink (Paper Pro / Pro Move).
+# Mapped to CSS custom properties (--paper, --ink, ...) at render time.
+paper   = "#F6F5F1"   # page background
+ink     = "#1A1A18"   # body text
+heading = "#111110"   # headlines
+accent  = "#9E2B1E"   # links, kickers, drop caps, rules-of-emphasis (ink red)
+muted   = "#6E6E68"   # bylines, secondary metadata
+faint   = "#9D9C93"   # page numbers, tertiary labels
+rule    = "#DBD9D1"   # hairlines

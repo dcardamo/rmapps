@@ -126,8 +126,8 @@ src/
     rmapi.rs         # rmapi backend incl. token-clobber guard (copied from rmbujo)
     local.rs         # "none" backend: no-op (copied from rmbujo)
 templates/           # askama: base, index, card, article, nav
-themes/              # reader.toml (reader-optimized palette)
-assets/fonts/        # serif body font + sans UI/metadata font
+themes/              # reader.toml ("Newsprint" palette — chosen)
+assets/fonts/        # Newsreader (display + body) + Hanken Grotesk (nav/meta) TTFs
 nix/overlays/        # rmapi.nix (copied from rmbujo)
 ```
 
@@ -234,10 +234,32 @@ The `Deployer` trait keeps room for a future `fetch` method; not implemented in 
 
 ## Render (`render.rs`)
 
-Copied structure from rmbujo. Reader-optimized CSS: generous measure, serif body font,
-comfortable line-height and margins tuned for e-ink; sans font for nav/metadata. Embed
-fonts in the `AssetBundle`. `Engine::builder().bookmarks(true)`, page size from device
-geometry, color images. Two renders per run: Library, Feed.
+Copied structure from rmbujo. Reader-optimized CSS: generous measure, comfortable
+line-height and margins tuned for e-ink. Embed fonts in the `AssetBundle`.
+`Engine::builder().bookmarks(true)`, page size from device geometry, color images. Two
+renders per run: Library, Feed.
+
+### Reader theme (chosen 2026-05-21)
+
+Selected with `visuals_picker.html`. Palette **"Newsprint"** (`themes/reader.toml`):
+
+| key       | value     | role                                         |
+|-----------|-----------|----------------------------------------------|
+| `paper`   | `#F6F5F1` | page background                              |
+| `ink`     | `#1A1A18` | body text                                    |
+| `heading` | `#111110` | headlines                                   |
+| `accent`  | `#9E2B1E` | links, kickers, drop caps (ink red)         |
+| `muted`   | `#6E6E68` | bylines, secondary metadata                 |
+| `faint`   | `#9D9C93` | page numbers, tertiary labels               |
+| `rule`    | `#DBD9D1` | hairlines                                   |
+
+Fonts (pairing **"Journal"**): **Newsreader** for display *and* body (an optical-size
+serif designed for on-screen reading), **Hanken Grotesk** for nav/metadata. fulgur/krilla
+embed static TTFs, so embed static instances: Newsreader Regular + Italic (emphasis,
+pull quotes) + SemiBold (headings/bold) — a text optical instance (~18pt) for body and a
+display instance (~60–72pt) for headlines if size budget allows, otherwise a single text
+instance; Hanken Grotesk Regular + Medium. Editorial signature elements: uppercase tracked
+kicker, hairline rules, a drop cap on each article's first paragraph, italic pull quotes.
 
 ## Deploy
 
