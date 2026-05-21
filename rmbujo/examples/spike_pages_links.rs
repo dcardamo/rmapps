@@ -52,14 +52,24 @@ fn main() -> anyhow::Result<()> {
     v2.push(page("Page 6 \u{2014} NEW (appended in v2)", ""));
     v2.push(page("Page 7 \u{2014} NEW (appended in v2)", ""));
 
+    // v3: two MORE pages appended, to test page growth AFTER a user has inserted
+    // and annotated a page in the middle on-device.
+    let mut v3 = v2.clone();
+    v3.push(page("Page 8 \u{2014} NEW (appended in v3)", ""));
+    v3.push(page("Page 9 \u{2014} NEW (appended in v3)", ""));
+
     let d1 = Path::new("/tmp/rmbujo-spike");
     let d2 = Path::new("/tmp/rmbujo-spike-v2");
+    let d3 = Path::new("/tmp/rmbujo-spike-v3");
     std::fs::create_dir_all(d1)?;
     std::fs::create_dir_all(d2)?;
+    std::fs::create_dir_all(d3)?;
     render_pdf(&dev, &grid, &theme, &v1, &d1.join("spike.pdf"))?;
     render_pdf(&dev, &grid, &theme, &v2, &d2.join("spike.pdf"))?;
+    render_pdf(&dev, &grid, &theme, &v3, &d3.join("spike.pdf"))?;
 
     println!("v1: {} pages -> {}", v1.len(), d1.join("spike.pdf").display());
     println!("v2: {} pages -> {}", v2.len(), d2.join("spike.pdf").display());
+    println!("v3: {} pages -> {}", v3.len(), d3.join("spike.pdf").display());
     Ok(())
 }

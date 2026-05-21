@@ -39,6 +39,37 @@ Steps:
 PDF-level checks: v1 contains one `/Link` annotation with an `/XYZ` destination
 (fulgur `src/link.rs` → krilla `LinkAnnotation` + `XyzDestination`).
 
+## Root cause: what `--content-only` actually does (from rmapi source)
+
+`shell/put.go` → `ApiCtx.ReplaceDocumentFile` (`api/sync15/apictx.go`): it finds the
+document's `.pdf` file entry, uploads the **new PDF blob**, updates that entry's
+hash/size, rehashes the doc + tree, and re-uploads the doc index. **It never touches
+`.content` (page order / inserted-page positions) or the `.rm` annotation files** —
+those keep their exact hashes. So content-only is purely a PDF-blob swap at the
+storage level.
+
+Consequences (now provable, not just observed):
+- Annotations (`.rm`, keyed by page-UUID) and page order / user-inserted pages
+  (`.content`) are **preserved byte-for-byte**; only the PDF backing changes.
+- New **trailing** PDF pages surface on the device (it shows PDF pages beyond what
+  `.content` references); existing inserted pages stay where `.content` put them.
+- A user-inserted page therefore **cannot be moved by our push** (we don't write
+  `.content`). The "after page 3 → after page 4" observation was a mis-insert, not
+  drift.
+
+**Design invariant (precise):** we may freely change *trailing* PDF pages
+(append/grow/shrink the agenda); we must never change the *meaning of leading PDF
+page indices* the device references (no middle-insert/reorder in our generated PDF).
+
+## Conflicts / sync ordering
+
+`ReplaceDocumentFile` runs inside `Sync(...)`, which fetches the current cloud hash
+tree and handles generation conflicts (the "remote tree has changed, refresh"
+messages). rmapi rewrites only the PDF blob — a different file from `.rm`/`.content` —
+so it won't clobber device-side ink or inserted pages **provided the device synced
+those changes to the cloud first** (rmapi can't see un-synced device edits). Rule:
+**sync device → push → sync device.** No manual download-first needed on our side.
+
 ## Not yet tested (edges)
 
 - **Shrinking** (fewer trailing pages) — expected fine; the agenda section will
