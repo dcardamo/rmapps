@@ -37,11 +37,11 @@ A flat folder per year, one PDF per notebook: `2026 Future Log.pdf`,
 
 ## reMarkable cloud sync (rmapi)
 
-Set `deploy.backend = "rmapi"` and `deploy.target_folder = "/2026"` in `rmbujo.toml`
+Set `deploy.backend = "rmapi"` and `deploy.base_folder = "/rmbujo"` in `rmbujo.toml`
 (the `new` wizard prompts for both). Pair once: run `rmapi` and paste a code from
 <https://my.remarkable.com/device/desktop/connect>. Then:
 
-- `rmbujo new` uploads the year's PDFs to the cloud folder.
+- `rmbujo new` uploads the year's PDFs to `<base_folder>/<year>` (e.g. `/rmbujo/2026`).
 - `rmbujo path/to/rmbujo.toml` regenerates and re-syncs with `rmapi put --content-only`,
   which replaces each PDF's background **without touching your handwriting**.
 

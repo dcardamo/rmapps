@@ -68,6 +68,13 @@ fn path_str(p: &Path) -> anyhow::Result<&str> {
         .ok_or_else(|| anyhow::anyhow!("non-UTF-8 path: {}", p.display()))
 }
 
+/// Resolve the cloud folder for a given year under a configured base folder,
+/// e.g. `cloud_target("/rmbujo", 2026) == "/rmbujo/2026"`. A trailing slash on
+/// the base is tolerated.
+pub fn cloud_target(base_folder: &str, year: i32) -> String {
+    format!("{}/{}", base_folder.trim_end_matches('/'), year)
+}
+
 /// Real runner: invokes the `rmapi` binary. Guards against rmapi's token-clobber
 /// bug (it can zero its own conf on a transient failure, bricking later calls) by
 /// snapshotting a good conf at construction and restoring it if a call empties it.

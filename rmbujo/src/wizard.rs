@@ -16,7 +16,7 @@ pub struct Answers {
     pub spacing_mm: f32,
     pub theme: String,
     pub deploy_backend: String,
-    pub target_folder: String,
+    pub base_folder: String,
 }
 
 /// Build a Config + paths from gathered answers (no I/O).
@@ -32,7 +32,7 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
         ics: Vec::new(),
         deploy: DeployConfig {
             backend: a.deploy_backend,
-            target_folder: a.target_folder,
+            base_folder: a.base_folder,
         },
     };
     let out_dir = PathBuf::from(a.base).join(a.year.to_string());
@@ -80,9 +80,9 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         .with_prompt("Deploy backend (none|rmapi)")
         .default("none".into())
         .interact_text()?;
-    let target_folder: String = Input::new()
-        .with_prompt("reMarkable folder")
-        .default(format!("/{year}"))
+    let base_folder: String = Input::new()
+        .with_prompt("reMarkable base folder")
+        .default("/rmbujo".into())
         .interact_text()?;
 
     let (config, out_dir, config_path) = assemble(Answers {
@@ -95,7 +95,7 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         spacing_mm,
         theme,
         deploy_backend,
-        target_folder,
+        base_folder,
     });
     // The caller validates and creates the directory after this returns, so
     // invalid input doesn't leave an orphan folder behind.

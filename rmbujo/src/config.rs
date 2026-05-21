@@ -19,7 +19,7 @@ pub struct DeployConfig {
     #[serde(default = "default_backend")]
     pub backend: String,
     #[serde(default)]
-    pub target_folder: String,
+    pub base_folder: String,
 }
 fn default_backend() -> String {
     "none".into()
@@ -28,7 +28,7 @@ impl Default for DeployConfig {
     fn default() -> Self {
         Self {
             backend: "none".into(),
-            target_folder: String::new(),
+            base_folder: String::new(),
         }
     }
 }

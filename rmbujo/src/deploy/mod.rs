@@ -18,12 +18,15 @@ pub fn get_deployer(config: &Config) -> anyhow::Result<Box<dyn Deployer>> {
         "rmapi" => {
             // Validate config before touching rmapi, so a misconfig fails the same
             // way regardless of whether rmapi is installed/paired.
-            if config.deploy.target_folder.trim().is_empty() {
-                anyhow::bail!("deploy.target_folder is required for the rmapi backend");
+            let base = config.deploy.base_folder.trim();
+            if base.is_empty() {
+                anyhow::bail!("deploy.base_folder is required for the rmapi backend");
             }
+            // A year's PDFs go in a per-year subfolder under the base, e.g. base
+            // "/rmbujo" + year 2026 -> "/rmbujo/2026".
             let runner = rmapi::ProcessRmapi::new()?;
             Ok(Box::new(rmapi::RmapiDeployer::new(
-                config.deploy.target_folder.clone(),
+                rmapi::cloud_target(base, config.year),
                 runner,
             )))
         }

@@ -92,7 +92,7 @@ fn validate_deploy_backend() {
     assert!(Config {
         deploy: config::DeployConfig {
             backend: "rmapi".into(),
-            target_folder: "/2026".into(),
+            base_folder: "/2026".into(),
         },
         ..Config::new(2026)
     }
@@ -101,7 +101,7 @@ fn validate_deploy_backend() {
     assert!(Config {
         deploy: config::DeployConfig {
             backend: "ftp".into(),
-            target_folder: "/2026".into(),
+            base_folder: "/2026".into(),
         },
         ..Config::new(2026)
     }

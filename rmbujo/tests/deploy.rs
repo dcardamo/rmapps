@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use rmbujo::config::Config;
 use rmbujo::deploy::get_deployer;
-use rmbujo::deploy::rmapi::{ProcessRmapi, RmapiDeployer, RmapiRunner};
+use rmbujo::deploy::rmapi::{cloud_target, ProcessRmapi, RmapiDeployer, RmapiRunner};
 use rmbujo::deploy::Deployer;
 
 /// Records the args of every rmapi call so tests can assert the sequence.
@@ -163,19 +163,26 @@ fn get_deployer_routes_backends() {
     let bogus = Config {
         deploy: rmbujo::config::DeployConfig {
             backend: "bogus".into(),
-            target_folder: "/2026".into(),
+            base_folder: "/rmbujo".into(),
         },
         ..Config::new(2026)
     };
     assert!(get_deployer(&bogus).is_err());
-    // rmapi with empty target_folder → err before any rmapi preflight
+    // rmapi with empty base_folder → err before any rmapi preflight
     let no_folder = Config {
         deploy: rmbujo::config::DeployConfig {
             backend: "rmapi".into(),
-            target_folder: "  ".into(),
+            base_folder: "  ".into(),
         },
         ..Config::new(2026)
     };
     let err = get_deployer(&no_folder).unwrap_err();
-    assert!(err.to_string().contains("target_folder"), "got: {err}");
+    assert!(err.to_string().contains("base_folder"), "got: {err}");
+}
+
+#[test]
+fn cloud_target_appends_year_under_base() {
+    assert_eq!(cloud_target("/rmbujo", 2026), "/rmbujo/2026");
+    assert_eq!(cloud_target("/rmbujo/", 2026), "/rmbujo/2026");
+    assert_eq!(cloud_target("/", 2026), "/2026");
 }

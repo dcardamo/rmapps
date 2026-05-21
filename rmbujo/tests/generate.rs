@@ -40,7 +40,7 @@ fn deployer_none_ok_unknown_errs() {
     let bad = Config {
         deploy: DeployConfig {
             backend: "rmapi".into(),
-            target_folder: String::new(),
+            base_folder: String::new(),
         },
         ..Config::new(2026)
     };
