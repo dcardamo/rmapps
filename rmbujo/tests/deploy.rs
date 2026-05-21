@@ -1,8 +1,9 @@
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use rmbujo::deploy::rmapi::{RmapiDeployer, RmapiRunner};
+use rmbujo::deploy::rmapi::{ProcessRmapi, RmapiDeployer, RmapiRunner};
 use rmbujo::deploy::Deployer;
 
 /// Records the args of every rmapi call so tests can assert the sequence.
@@ -63,4 +64,91 @@ fn every_call_is_non_interactive() {
     for call in rec.calls.borrow().iter() {
         assert_eq!(call[0], "-ni", "every rmapi call must pass -ni");
     }
+}
+
+// Unique temp dir without an extra crate (matches the project's test style).
+fn tmp_dir() -> PathBuf {
+    let mut p = std::env::temp_dir();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    p.push(format!("rmbujo-deploy-{n}"));
+    std::fs::create_dir_all(&p).unwrap();
+    p
+}
+
+const GOOD_CONF: &str = "devicetoken: \"dev-abc\"\nusertoken: \"usr-xyz\"\n";
+
+/// Write an executable `rmapi` shim into `dir`. It logs each call to
+/// `dir/calls.log`. If `dir/clobber-trigger` exists, it truncates the conf named
+/// in `dir/conf-path`, deletes the trigger, and exits 1 (simulating rmapi's
+/// token-clobber-on-failure bug). Otherwise it exits 0.
+fn write_shim(dir: &Path) -> PathBuf {
+    let shim = dir.join("rmapi");
+    std::fs::write(
+        &shim,
+        "#!/bin/sh\n\
+         d=$(dirname \"$0\")\n\
+         echo \"$*\" >> \"$d/calls.log\"\n\
+         if [ -f \"$d/clobber-trigger\" ]; then\n\
+         : > \"$(cat \"$d/conf-path\")\"\n\
+         rm -f \"$d/clobber-trigger\"\n\
+         exit 1\n\
+         fi\n\
+         exit 0\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).unwrap();
+    shim
+}
+
+#[test]
+fn process_rmapi_rejects_missing_binary() {
+    let dir = tmp_dir();
+    let conf = dir.join("rmapi.conf");
+    std::fs::write(&conf, GOOD_CONF).unwrap();
+    let err = ProcessRmapi::with(dir.join("does-not-exist"), conf).unwrap_err();
+    assert!(err.to_string().contains("not"), "got: {err}");
+}
+
+#[test]
+fn process_rmapi_rejects_unpaired_conf() {
+    let dir = tmp_dir();
+    let shim = write_shim(&dir);
+    let conf = dir.join("rmapi.conf");
+    std::fs::write(&conf, "devicetoken: \"\"\nusertoken: \"\"\n").unwrap();
+    let err = ProcessRmapi::with(shim, conf).unwrap_err();
+    assert!(err.to_string().contains("pair"), "got: {err}");
+}
+
+#[test]
+fn process_rmapi_runs_and_logs() {
+    let dir = tmp_dir();
+    let shim = write_shim(&dir);
+    let conf = dir.join("rmapi.conf");
+    std::fs::write(&conf, GOOD_CONF).unwrap();
+    let r = ProcessRmapi::with(shim, conf).unwrap();
+    r.run(&["-ni", "put", "/out/a.pdf", "/2026"]).unwrap();
+    let log = std::fs::read_to_string(dir.join("calls.log")).unwrap();
+    assert_eq!(log.trim(), "-ni put /out/a.pdf /2026");
+}
+
+#[test]
+fn process_rmapi_restores_clobbered_conf_and_retries() {
+    let dir = tmp_dir();
+    let shim = write_shim(&dir);
+    let conf = dir.join("rmapi.conf");
+    std::fs::write(&conf, GOOD_CONF).unwrap();
+    // Arm the shim to clobber the conf + fail on its first call.
+    std::fs::write(dir.join("conf-path"), conf.to_str().unwrap()).unwrap();
+    std::fs::write(dir.join("clobber-trigger"), "").unwrap();
+
+    let r = ProcessRmapi::with(shim, conf.clone()).unwrap();
+    r.run(&["-ni", "put", "/out/a.pdf", "/2026"]).unwrap();
+
+    // Conf was restored to the good snapshot, and the call was retried (2 lines).
+    assert_eq!(std::fs::read_to_string(&conf).unwrap(), GOOD_CONF);
+    let log = std::fs::read_to_string(dir.join("calls.log")).unwrap();
+    assert_eq!(log.lines().count(), 2);
 }
