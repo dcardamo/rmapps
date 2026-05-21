@@ -10,7 +10,7 @@
     {
       "id": 8,
       "subject": "Task 1: Lifecycle spike — verify non-destructive refresh (manual, go/no-go gate)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Goal:** Prove on the real Move that rmapi put --content-only preserves handwriting + a mid-doc inserted page across a regenerate. Manual, Dan-in-the-loop. GO/NO-GO gate.\n\n**Files:** Create docs/superpowers/spikes/2026-05-21-rmapi-lifecycle-spike.md.\n\n**Verify:** manual on-device, captured in committed spike doc.\n\n```json:metadata\n{\"files\": [\"docs/superpowers/spikes/2026-05-21-rmapi-lifecycle-spike.md\"], \"verifyCommand\": \"manual on-device\", \"acceptanceCriteria\": [\"paired+verified no 400\", \"ink+inserted page survive content-only refresh\", \"failure mode recorded\", \"GO decision\"]}\n```"
     },
@@ -49,5 +49,5 @@
       "description": "**Goal:** README documents rmapi sync; full suite + clippy + fmt-check pass.\n\n**Files:** Modify README.md.\n\n**Verify:** make test && make clippy && make fmt-check\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"make test && make clippy && make fmt-check\", \"acceptanceCriteria\": [\"README rmapi section\", \"test+clippy+fmt-check pass\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-21T07:40:00-04:00"
+  "lastUpdated": "2026-05-21T08:40:00-04:00"
 }
