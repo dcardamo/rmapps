@@ -9,5 +9,6 @@ pub mod content;
 pub mod manifest;
 pub mod assemble;
 pub mod render;
+pub mod deploy;
 // Added in later tasks:
-// pub mod deploy; pub mod generate;
+// pub mod generate;
