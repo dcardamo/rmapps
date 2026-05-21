@@ -1,0 +1,11 @@
+<section class="page index" id="index">
+  <h1 class="index-title">{{ collection }}</h1>
+  <div class="index-sub">{{ count }} articles · newest first</div>
+  {% for row in rows %}
+  <a class="index-row" href="#{{ row.anchor }}">
+    <span class="n">{{ row.num }}</span>
+    <span class="t">{{ row.title }} — {{ row.author }}</span>
+    <span class="rt">{{ row.reading_time }}</span>
+  </a>
+  {% endfor %}
+</section>
