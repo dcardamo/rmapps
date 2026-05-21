@@ -129,11 +129,22 @@ pub fn fetch_documents(
         let mut got = 0usize;
         loop {
             let url = list_url(loc, cursor.as_deref());
-            let resp = t.get(&url, token)?;
-            if resp.status == 429 {
-                sleep(resp.retry_after.unwrap_or(60));
-                continue; // retry same cursor
-            }
+            // Retry transient failures (429 rate-limit, 5xx server errors like the
+            // occasional 502) a few times before giving up; other non-200s are fatal.
+            let mut attempt = 0u32;
+            let resp = loop {
+                let r = t.get(&url, token)?;
+                let transient = r.status == 429 || (500..=599).contains(&r.status);
+                if transient && attempt < 5 {
+                    attempt += 1;
+                    let wait = r
+                        .retry_after
+                        .unwrap_or(if r.status == 429 { 60 } else { 3 });
+                    sleep(wait);
+                    continue;
+                }
+                break r;
+            };
             if resp.status != 200 {
                 anyhow::bail!(
                     "Readwise list failed (HTTP {}) for location {loc}",

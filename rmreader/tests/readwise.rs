@@ -131,6 +131,24 @@ fn retries_after_429() {
 }
 
 #[test]
+fn retries_after_5xx() {
+    // A transient 502 should be retried (fixed backoff), not fatal.
+    let mut slept = 0u64;
+    let script = vec![
+        (502, None, String::new()),
+        (200, None, page(&doc("a", "2026-01-01T00:00:00Z"), None)),
+    ];
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script,
+        idx: RefCell::new(0),
+    };
+    let docs = fetch_documents(&fake, "tok", &["new".into()], 10, |s| slept += s).unwrap();
+    assert_eq!(docs.len(), 1);
+    assert_eq!(slept, 3);
+}
+
+#[test]
 fn dedupes_across_locations() {
     let script = vec![
         (200, None, page(&doc("a", "2026-01-01T00:00:00Z"), None)), // new
