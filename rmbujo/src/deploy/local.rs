@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use super::Deployer;
 
+#[derive(Debug)]
 pub struct LocalDeployer;
 
 impl Deployer for LocalDeployer {

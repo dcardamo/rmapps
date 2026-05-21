@@ -87,6 +87,28 @@ fn unknown_keys_ignored() {
     assert_eq!(config::load(&p).unwrap().year, 2026);
 }
 
+#[test]
+fn validate_deploy_backend() {
+    assert!(Config {
+        deploy: config::DeployConfig {
+            backend: "rmapi".into(),
+            target_folder: "/2026".into(),
+        },
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_ok());
+    assert!(Config {
+        deploy: config::DeployConfig {
+            backend: "ftp".into(),
+            target_folder: "/2026".into(),
+        },
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+}
+
 // Minimal unique temp dir without an extra crate dependency.
 fn tempdir() -> std::path::PathBuf {
     let mut p = std::env::temp_dir();

@@ -3,11 +3,13 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use rmbujo::config::Config;
+use rmbujo::deploy::get_deployer;
 use rmbujo::deploy::rmapi::{ProcessRmapi, RmapiDeployer, RmapiRunner};
 use rmbujo::deploy::Deployer;
 
 /// Records the args of every rmapi call so tests can assert the sequence.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 struct Recorder {
     calls: Rc<RefCell<Vec<Vec<String>>>>,
 }
@@ -151,4 +153,29 @@ fn process_rmapi_restores_clobbered_conf_and_retries() {
     assert_eq!(std::fs::read_to_string(&conf).unwrap(), GOOD_CONF);
     let log = std::fs::read_to_string(dir.join("calls.log")).unwrap();
     assert_eq!(log.lines().count(), 2);
+}
+
+#[test]
+fn get_deployer_routes_backends() {
+    // none → ok
+    assert!(get_deployer(&Config::new(2026)).is_ok());
+    // unknown → err
+    let bogus = Config {
+        deploy: rmbujo::config::DeployConfig {
+            backend: "bogus".into(),
+            target_folder: "/2026".into(),
+        },
+        ..Config::new(2026)
+    };
+    assert!(get_deployer(&bogus).is_err());
+    // rmapi with empty target_folder → err before any rmapi preflight
+    let no_folder = Config {
+        deploy: rmbujo::config::DeployConfig {
+            backend: "rmapi".into(),
+            target_folder: "  ".into(),
+        },
+        ..Config::new(2026)
+    };
+    let err = get_deployer(&no_folder).unwrap_err();
+    assert!(err.to_string().contains("target_folder"), "got: {err}");
 }

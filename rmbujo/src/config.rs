@@ -98,6 +98,10 @@ impl Config {
             "sun" | "mon" => {}
             other => anyhow::bail!("week_start must be 'sun' or 'mon', got {other:?}"),
         }
+        match self.deploy.backend.as_str() {
+            "none" | "rmapi" => {}
+            other => anyhow::bail!("deploy.backend must be 'none' or 'rmapi', got {other:?}"),
+        }
         // Keep dot pitch in a sane, writable range so a typo can't produce a
         // single dot or a solid field. 2–10 mm spans far tighter and far looser
         // than any usable grid.

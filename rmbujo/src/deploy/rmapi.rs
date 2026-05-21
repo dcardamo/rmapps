@@ -7,12 +7,13 @@ use super::Deployer;
 
 /// Runs a single `rmapi` subcommand. Abstracted so the deploy/refresh command
 /// sequences are unit-testable without shelling out to the real binary.
-pub trait RmapiRunner {
+pub trait RmapiRunner: std::fmt::Debug {
     /// Run `rmapi <args...>`; `args` never includes the binary name.
     fn run(&self, args: &[&str]) -> anyhow::Result<()>;
 }
 
 /// Uploads / refreshes a year of PDFs via an [`RmapiRunner`].
+#[derive(Debug)]
 pub struct RmapiDeployer<R: RmapiRunner> {
     target_folder: String,
     runner: R,
@@ -39,7 +40,7 @@ impl<R: RmapiRunner> RmapiDeployer<R> {
     }
 }
 
-impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
+impl<R: RmapiRunner + std::fmt::Debug> Deployer for RmapiDeployer<R> {
     fn deploy(&self, paths: &[PathBuf]) -> anyhow::Result<()> {
         // mkdir is idempotent: a pre-existing folder makes rmapi error, which we
         // ignore (established rmapi practice). A genuine auth/connectivity
