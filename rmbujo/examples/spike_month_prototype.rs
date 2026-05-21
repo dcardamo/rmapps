@@ -59,15 +59,24 @@ const EVENTS: &[Ev] = &[
     (30, None, "Mom's birthday", None, None),
 ];
 
-fn has_events(day: u32) -> bool {
-    EVENTS.iter().any(|e| e.0 == day)
+fn event_count(day: u32) -> usize {
+    EVENTS.iter().filter(|e| e.0 == day).count()
 }
 
-/// A small calendar glyph: a box with a thick navy top edge (no nested absolute
-/// element, so it renders reliably). Used as a link affordance.
-fn cal_icon() -> &'static str {
-    "<span style=\"display:inline-block;width:9pt;height:9pt;border:0.7pt solid #1B365D;\
-     border-top:3pt solid #1B365D;border-radius:1.5pt;vertical-align:-1.5pt;\"></span>"
+/// A tappable navy circle badge showing the day's event count, linking to the
+/// agenda for that date. ~90% of the dot-line height; horizontal padding widens
+/// the tap target. Empty when the day has no events.
+fn agenda_badge(day: u32) -> String {
+    let c = event_count(day);
+    if c == 0 {
+        return String::new();
+    }
+    format!(
+        "<a href=\"#agenda-{day}\" style=\"text-decoration:none;padding:0 3pt;\">\
+         <span style=\"display:inline-flex;align-items:center;justify-content:center;\
+         width:10pt;height:10pt;border-radius:50%;background:#1B365D;color:#fff;\
+         font-size:6.5pt;font-weight:bold;line-height:1;vertical-align:-2pt;\">{c}</span></a>"
+    )
 }
 
 fn page(id: Option<&str>, class: &str, inner: &str) -> String {
@@ -104,23 +113,15 @@ fn main() -> anyhow::Result<()> {
     let mut rows = String::new();
     for d in &m.days {
         let ws = if d.week_start { " weekstart" } else { "" };
-        let icon = if has_events(d.day) {
-            format!(
-                "<a href=\"#agenda-{}\" style=\"text-decoration:none;\">{}</a>",
-                d.day,
-                cal_icon()
-            )
-        } else {
-            String::new()
-        };
-        // Fixed-width date link => calendar icons line up in a column.
+        // Fixed-width date link => event-count badges line up in a column.
         rows.push_str(&format!(
             "<div class=\"day{ws}\">\
              <a href=\"#day-{day}\" style=\"text-decoration:none;color:inherit;\
              display:inline-flex;gap:6pt;align-items:center;width:44pt;\">\
-             <span class=\"num\">{day}</span><span class=\"wd\">{wd}</span></a>{icon}</div>",
+             <span class=\"num\">{day}</span><span class=\"wd\">{wd}</span></a>{badge}</div>",
             day = d.day,
             wd = d.weekday,
+            badge = agenda_badge(d.day),
         ));
     }
     frags.push(page(
@@ -138,22 +139,14 @@ fn main() -> anyhow::Result<()> {
 
     // --- Per-day log pages ---
     for d in &m.days {
-        let icon = if has_events(d.day) {
-            format!(
-                "<a href=\"#agenda-{}\" style=\"text-decoration:none;\">{}</a>",
-                d.day,
-                cal_icon()
-            )
-        } else {
-            String::new()
-        };
         let header = format!(
             "<div style=\"display:flex;justify-content:space-between;align-items:center;\">\
              <a href=\"#monthly\" class=\"h-month\" style=\"font-size:13pt;text-decoration:none;\
-             color:var(--navy);\">{mn}.{day:02} {wd}</a><div>{icon}</div></div>",
+             color:var(--navy);\">{mn}.{day:02} {wd}</a><div>{badge}</div></div>",
             mn = MONTH,
             day = d.day,
             wd = d.weekday,
+            badge = agenda_badge(d.day),
         );
         frags.push(page(Some(&format!("day-{}", d.day)), "dotpage", &header));
     }
