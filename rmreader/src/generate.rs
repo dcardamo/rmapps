@@ -9,9 +9,10 @@ use crate::readwise::HttpTransport;
 pub struct UreqImageFetcher;
 impl ImageFetcher for UreqImageFetcher {
     fn fetch(&self, url: &str) -> Option<FetchedImage> {
-        // Per-request timeout so one slow image server can't stall the whole run.
+        // Tight per-request timeout: images are small, and feed content pulls from
+        // many hosts — a slow/dead server must fail fast so it can't stall the run.
         let resp = ureq::get(url)
-            .timeout(std::time::Duration::from_secs(20))
+            .timeout(std::time::Duration::from_secs(8))
             .call()
             .ok()?;
         let ct = resp.header("content-type").unwrap_or("").to_string();
