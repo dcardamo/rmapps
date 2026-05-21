@@ -35,5 +35,15 @@ A flat folder per year, one PDF per notebook: `2026 Future Log.pdf`,
     make clippy           # lints
     make build            # nix build the rmbujo package
 
-ICS calendar feeds (incl. holidays) and reMarkable cloud sync (via rmapi) are Phase 2;
-see `docs/superpowers/specs/2026-05-20-rmbujo-design.md`.
+## reMarkable cloud sync (rmapi)
+
+Set `deploy.backend = "rmapi"` and `deploy.target_folder = "/2026"` in `rmbujo.toml`
+(the `new` wizard prompts for both). Pair once: run `rmapi` and paste a code from
+<https://my.remarkable.com/device/desktop/connect>. Then:
+
+- `rmbujo new` uploads the year's PDFs to the cloud folder.
+- `rmbujo path/to/rmbujo.toml` regenerates and re-syncs with `rmapi put --content-only`,
+  which replaces each PDF's background **without touching your handwriting**.
+
+ICS calendar feeds (incl. holidays) are the next phase; see
+`docs/superpowers/specs/2026-05-20-rmbujo-design.md`.
