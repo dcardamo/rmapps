@@ -30,6 +30,24 @@ fn doc(id: &str, saved: &str) -> String {
 }
 
 #[test]
+fn parses_real_world_field_shapes() {
+    // Real API: reading_time is a string ("3 mins"); some fields come back null.
+    let body = r#"{"nextPageCursor":null,"results":[{"id":"x","title":"T","saved_at":"2026-01-01T00:00:00Z","reading_time":"3 mins","word_count":500,"author":null,"image_url":null,"summary":null,"html_content":"<p>hi</p>"}]}"#;
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script: vec![(200, None, body.to_string())],
+        idx: RefCell::new(0),
+    };
+    let docs = fetch_documents(&fake, "tok", &["new".into()], 10, |_| {}).unwrap();
+    assert_eq!(docs.len(), 1);
+    assert_eq!(docs[0].reading_time.as_deref(), Some("3 mins"));
+    assert_eq!(docs[0].author, ""); // null -> default
+    assert_eq!(docs[0].image_url, ""); // null -> default
+    assert_eq!(docs[0].summary, ""); // null -> default
+    assert_eq!(docs[0].word_count, Some(500));
+}
+
+#[test]
 fn paginates_and_sorts_desc_and_caps() {
     // two pages on one location, returned newest-first after sort, capped to 2.
     let script = vec![

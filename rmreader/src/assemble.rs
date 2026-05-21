@@ -62,9 +62,10 @@ struct ArticleTpl<'a> {
 }
 
 fn rt(d: &Document) -> String {
-    d.reading_time
-        .map(|m| format!("{m} min"))
-        .unwrap_or_else(|| "—".into())
+    match d.reading_time.as_deref() {
+        Some(s) if !s.trim().is_empty() => s.to_string(),
+        _ => "—".into(),
+    }
 }
 
 /// `content_fn(html_content, id) -> (processed_html, assets)` is injected so the

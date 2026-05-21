@@ -14,7 +14,7 @@ fn doc(id: &str) -> Document {
         summary: "Sum".into(),
         image_url: String::new(),
         word_count: Some(500),
-        reading_time: Some(3),
+        reading_time: Some("3 min".into()),
         published_date: None,
         saved_at: "2026-01-01T00:00:00Z".into(),
         html_content: Some("<p>Body</p>".into()),

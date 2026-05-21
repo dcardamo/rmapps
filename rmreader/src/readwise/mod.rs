@@ -1,7 +1,7 @@
 //! Readwise Reader API client (https://readwise.io/reader_api).
 pub mod http;
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 const LIST_URL: &str = "https://readwise.io/api/v3/list/";
 const AUTH_URL: &str = "https://readwise.io/api/v2/auth/";
@@ -18,34 +18,69 @@ pub trait HttpTransport {
     fn get(&self, url: &str, token: &str) -> anyhow::Result<HttpResponse>;
 }
 
+/// Deserialize a possibly-`null` value into `T`'s default. The real Readwise API
+/// returns explicit `null` for string fields like `author`/`image_url` on some
+/// documents, which a plain `String` field would reject; this coerces null →
+/// default (and `#[serde(default)]` handles the absent case).
+fn null_to_default<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
+
+/// `reading_time` comes back as a human string ("3 mins") in the real API, but
+/// older docs / other shapes may send a number of minutes. Normalize either into
+/// a display-ready string; null/empty → None.
+fn reading_time_display<'de, D>(d: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde_json::Value;
+    Ok(match Option::<Value>::deserialize(d)? {
+        None | Some(Value::Null) => None,
+        Some(Value::String(s)) => {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        }
+        Some(Value::Number(n)) => Some(format!("{n} min")),
+        Some(v) => Some(v.to_string()),
+    })
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Document {
     pub id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub url: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub source_url: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub title: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub author: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub site_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub category: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub location: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub summary: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub image_url: String,
     #[serde(default)]
     pub word_count: Option<u32>,
-    #[serde(default)]
-    pub reading_time: Option<u32>,
+    #[serde(default, deserialize_with = "reading_time_display")]
+    pub reading_time: Option<String>,
     #[serde(default)]
     pub published_date: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub saved_at: String,
     #[serde(default)]
     pub html_content: Option<String>,
