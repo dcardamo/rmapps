@@ -102,7 +102,10 @@ pub fn generate(
     std::fs::create_dir_all(&out_dir)?;
     let mut targets = Vec::new();
 
-    eprintln!("[rmreader] fetching library {:?}...", config.library.locations);
+    eprintln!(
+        "[rmreader] fetching library {:?}...",
+        config.library.locations
+    );
     let lib = crate::readwise::fetch_documents(
         transport,
         &config.readwise.token,
