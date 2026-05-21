@@ -9,7 +9,7 @@ impl HttpTransport for UreqTransport {
         let auth = format!("Token {token}");
         let result = ureq::get(url)
             .set("Authorization", &auth)
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(120))
             .call();
         match result {
             Ok(resp) => Ok(HttpResponse {

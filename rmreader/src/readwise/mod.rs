@@ -94,7 +94,10 @@ struct ListResponse {
 }
 
 fn list_url(location: &str, cursor: Option<&str>) -> String {
-    let mut u = format!("{LIST_URL}?withHtmlContent=true&limit=100&location={location}");
+    // limit=50 (not the max 100): a withHtmlContent page of 100 full articles is a
+    // multi-MB response that can exceed the read timeout; smaller pages are far more
+    // reliable and still well within the 20-requests/minute list rate limit.
+    let mut u = format!("{LIST_URL}?withHtmlContent=true&limit=50&location={location}");
     if let Some(c) = cursor {
         u.push_str(&format!("&pageCursor={c}"));
     }
