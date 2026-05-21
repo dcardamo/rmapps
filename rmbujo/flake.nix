@@ -4,7 +4,10 @@
   inputs.flake-utils.url = "github:numtide/flake-utils";
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = import nixpkgs { inherit system; };
+      let
+        # flake.nix is at the repo root; the overlay lives at nix/overlays/rmapi.nix.
+        overlays = [ (import ./nix/overlays/rmapi.nix) ];
+        pkgs = import nixpkgs { inherit system overlays; };
       in {
         devShells.default = pkgs.mkShell {
           # python3: the `stylo` build script (pulled in transitively via
@@ -12,7 +15,9 @@
           # shells out to python3. Declared here so the dev shell is self-contained
           # rather than relying on a system Python being on PATH.
           nativeBuildInputs = [ pkgs.rustc pkgs.cargo pkgs.clippy pkgs.rustfmt pkgs.pkg-config pkgs.python3 ];
-          buildInputs = [ pkgs.libiconv pkgs.fontconfig pkgs.poppler-utils pkgs.dejavu_fonts ];
+          # rmapi: reMarkable cloud client, shelled out to by the rmapi deploy
+          # backend (v4-patched via overlays/rmapi.nix).
+          buildInputs = [ pkgs.libiconv pkgs.fontconfig pkgs.poppler-utils pkgs.dejavu_fonts pkgs.rmapi ];
         };
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "rmbujo";
