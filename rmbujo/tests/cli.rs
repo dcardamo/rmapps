@@ -20,10 +20,12 @@ fn wizard_assemble() {
         week_start: "sun".into(),
         daily_pages: 3,
         collection_pages: 2,
+        spacing_mm: 4.5,
         theme: "library".into(),
     });
     assert_eq!(config.year, 2026);
     assert_eq!(config.daily_pages, 3);
+    assert_eq!(config.spacing_mm, 4.5);
     assert_eq!(out_dir, base.join("2026"));
     assert_eq!(config_path, base.join("2026").join("rmbujo.toml"));
 }

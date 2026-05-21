@@ -29,6 +29,9 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
     let h = device.height_pt();
     let m = grid.margin_pt;
     let sp = grid.spacing_pt;
+    // Month-index header occupies exactly two dot rows so the day rows below it
+    // (each one dot-row tall, text vertically centered) line up with the dot grid.
+    let hsp = 2.0 * sp;
     format!(
         "{vars}\n\
 @page {{ size: {w}pt {h}pt; margin: 0; }}\n\
@@ -38,15 +41,18 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .page {{ position: relative; width: {w}pt; height: {h}pt; padding: {m}pt; overflow: hidden; background: #fff; break-after: page; }}\n\
 .page:last-child {{ break-after: auto; }}\n\
 .dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {m}pt; }}\n\
-.dotgrid--below {{ top: 24pt; }}\n\
 .h-month {{ color: var(--navy); font-size: 16pt; font-weight: bold; margin-bottom: 6pt; }}\n\
 .h-section {{ color: var(--navy); font-size: 14pt; font-weight: bold; }}\n\
-.month-list {{ display: flex; flex-direction: column; height: calc(100% - 26pt); margin-top: 4pt; }}\n\
-.day {{ flex: 1 1 0; display: flex; align-items: center; gap: 8pt; min-height: 0; border-bottom: 0.25pt solid #eeeeee; }}\n\
-.day.weekstart {{ border-top: 0.6pt solid var(--rule); }}\n\
+/* Dot grid painted as the page background so headings/labels sit on top. Used by
+   the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
+   a page background resolves correctly even when rendered as a single page. */\n\
+.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {m}pt; }}\n\
+.dotpage .h-month {{ height: {hsp}pt; margin: 0; display: flex; align-items: center; }}\n\
+.month-list {{ display: flex; flex-direction: column; }}\n\
+.day {{ height: {sp}pt; display: flex; align-items: center; gap: 6pt; }}\n\
 .day .num {{ width: 16pt; text-align: right; font-weight: bold; }}\n\
-.day .wd {{ color: var(--navy); font-size: 8pt; width: 30pt; }}\n\
-.day .gutter {{ flex: 1; }}\n\
+.day.weekstart .num {{ color: var(--navy); }}\n\
+.day .wd {{ color: var(--navy); font-size: 8pt; }}\n\
 .cover {{ position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: {m}pt; color: #fff; background-image: url(cover.svg); background-size: 100% 100%; background-repeat: no-repeat; }}\n\
 .cover .year {{ font-size: 9pt; letter-spacing: 3px; }}\n\
 .cover .title {{ font-size: 24pt; font-weight: bold; }}\n\
@@ -56,7 +62,7 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .legend {{ font-size: 9pt; line-height: 1.8; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--navy); }}\n\
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: #fff; background: var(--brick); font-size: 7pt; }}\n",
-        vars = css_vars(theme), w = w, h = h, m = m, sp = sp, family = FONT_FAMILY,
+        vars = css_vars(theme), w = w, h = h, m = m, sp = sp, hsp = hsp, family = FONT_FAMILY,
     )
 }
 

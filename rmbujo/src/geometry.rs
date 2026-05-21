@@ -22,6 +22,13 @@ pub fn dot_grid(device: &Device, spacing_mm: f32, margin_mm: f32) -> GridSpec {
     GridSpec { spacing_pt, margin_pt, cols, rows }
 }
 
+/// Default dot pitch in mm. 4.5 (vs the 5.0 paper-BuJo standard) is tuned for the
+/// small Paper Pro Move: it fits a 31-day monthly log one-per-row and gives more
+/// columns for trackers without crowding handwriting. Overridable per-year via config.
+pub const DEFAULT_SPACING_MM: f32 = 4.5;
+/// Default page margin in mm.
+pub const DEFAULT_MARGIN_MM: f32 = 6.0;
+
 pub fn default_grid(device: &Device) -> GridSpec {
-    dot_grid(device, 5.0, 6.0)
+    dot_grid(device, DEFAULT_SPACING_MM, DEFAULT_MARGIN_MM)
 }

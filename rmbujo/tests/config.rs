@@ -10,6 +10,8 @@ fn validate_rejects_bad_fields() {
     assert!(Config { device: "nope".into(), ..Config::new(2026) }.validate().is_err());
     assert!(Config { week_start: "xyz".into(), ..Config::new(2026) }.validate().is_err());
     assert!(Config { theme: "nope".into(), ..Config::new(2026) }.validate().is_err());
+    assert!(Config { spacing_mm: 0.0, ..Config::new(2026) }.validate().is_err());
+    assert!(Config { spacing_mm: 50.0, ..Config::new(2026) }.validate().is_err());
 }
 
 #[test]
@@ -34,6 +36,7 @@ fn minimal_defaults() {
     assert_eq!(c.week_start, "sun");
     assert_eq!(c.daily_pages, 60);
     assert_eq!(c.collection_pages, 20);
+    assert_eq!(c.spacing_mm, 4.5);
     assert_eq!(c.theme, "library");
     assert!(c.ics.is_empty());
     assert_eq!(c.deploy.backend, "none");

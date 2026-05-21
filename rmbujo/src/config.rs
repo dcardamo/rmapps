@@ -35,6 +35,8 @@ pub struct Config {
     pub daily_pages: u32,
     #[serde(default = "default_collection")]
     pub collection_pages: u32,
+    #[serde(default = "default_spacing")]
+    pub spacing_mm: f32,
     #[serde(default = "default_theme")]
     pub theme: String,
     #[serde(default)]
@@ -46,6 +48,7 @@ fn default_device() -> String { "paper-pro-move".into() }
 fn default_week_start() -> String { "sun".into() }
 fn default_daily() -> u32 { 60 }
 fn default_collection() -> u32 { 20 }
+fn default_spacing() -> f32 { crate::geometry::DEFAULT_SPACING_MM }
 fn default_theme() -> String { "library".into() }
 
 impl Config {
@@ -57,6 +60,7 @@ impl Config {
             week_start: default_week_start(),
             daily_pages: default_daily(),
             collection_pages: default_collection(),
+            spacing_mm: default_spacing(),
             theme: default_theme(),
             ics: Vec::new(),
             deploy: DeployConfig::default(),
@@ -72,6 +76,12 @@ impl Config {
         match self.week_start.as_str() {
             "sun" | "mon" => {}
             other => anyhow::bail!("week_start must be 'sun' or 'mon', got {other:?}"),
+        }
+        // Keep dot pitch in a sane, writable range so a typo can't produce a
+        // single dot or a solid field. 2–10 mm spans far tighter and far looser
+        // than any usable grid.
+        if !(self.spacing_mm.is_finite() && (2.0..=10.0).contains(&self.spacing_mm)) {
+            anyhow::bail!("spacing_mm must be between 2.0 and 10.0, got {}", self.spacing_mm);
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
 use askama::Template;
 use rmbujo::calendar::build_month;
-use rmbujo::templates::{Cover, DayView, FutureLog, MonthIndex, Reference};
+use rmbujo::templates::{Cover, DayView, FutureLog, MonthIndex, Reference, Tasks};
 
 #[test]
 fn month_index_rows() {
@@ -12,6 +12,9 @@ fn month_index_rows() {
     assert_eq!(html.matches("class=\"day").count(), 31);
     assert!(html.contains("weekstart"));
     assert!(html.contains(">18<") && html.contains("Mon"));
+    // Month index sits on the dot grid (consistent with daily pages), not ruled rows.
+    assert!(html.contains("dotpage"));
+    assert!(!html.contains("gutter"));
 }
 
 #[test]
@@ -21,6 +24,16 @@ fn cover_blank_vs_titled() {
     assert!(!blank.contains("class=\"title\""));
     let titled = Cover { year: 2026, title: "Reference", blank_title: false }.render().unwrap();
     assert!(titled.contains("Reference"));
+}
+
+#[test]
+fn tasks_uses_dot_page() {
+    let html = Tasks.render().unwrap();
+    // Background dot grid (renders reliably even as a single page), not the old
+    // absolutely-positioned overlay that collapsed when rendered in isolation.
+    assert!(html.contains("dotpage"));
+    assert!(!html.contains("dotgrid--below"));
+    assert!(html.contains("Tasks"));
 }
 
 #[test]
