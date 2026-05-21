@@ -30,24 +30,24 @@
     {
       "id": 11,
       "subject": "Task 4: Wire get_deployer and validate the backend",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9, 10],
       "description": "**Goal:** get_deployer returns RmapiDeployer<ProcessRmapi> for backend=rmapi; Config::validate rejects unknown backends.\n\n**Files:** Modify src/deploy/mod.rs, src/config.rs; Test tests/deploy.rs, tests/config.rs.\n\n**Verify:** nix develop -c cargo test\n\n```json:metadata\n{\"files\": [\"src/deploy/mod.rs\", \"src/config.rs\", \"tests/deploy.rs\", \"tests/config.rs\"], \"verifyCommand\": \"nix develop -c cargo test\", \"acceptanceCriteria\": [\"routing none/unknown\", \"rmapi empty target_folder errors\", \"validate backend\"]}\n```"
     },
     {
       "id": 12,
       "subject": "Task 5: Wizard prompts for deploy backend + target folder",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Goal:** rmbujo new asks for deploy backend + reMarkable folder, written into rmbujo.toml.\n\n**Files:** Modify src/wizard.rs (Answers fields, assemble, run_wizard prompts); Test tests/cli.rs.\n\n**Verify:** nix develop -c cargo test --test cli\n\n```json:metadata\n{\"files\": [\"src/wizard.rs\", \"tests/cli.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test cli\", \"acceptanceCriteria\": [\"Answers deploy fields\", \"prompts with defaults\", \"assemble round-trip\"]}\n```"
     },
     {
       "id": 13,
       "subject": "Task 6: Documentation + final green",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11, 12],
       "description": "**Goal:** README documents rmapi sync; full suite + clippy + fmt-check pass.\n\n**Files:** Modify README.md.\n\n**Verify:** make test && make clippy && make fmt-check\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"make test && make clippy && make fmt-check\", \"acceptanceCriteria\": [\"README rmapi section\", \"test+clippy+fmt-check pass\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-21T08:40:00-04:00"
+  "lastUpdated": "2026-05-21T09:10:00-04:00"
 }

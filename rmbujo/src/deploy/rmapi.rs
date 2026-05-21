@@ -2,6 +2,7 @@
 //! content non-destructively (preserving on-device handwriting).
 
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 use super::Deployer;
 
@@ -66,8 +67,6 @@ fn path_str(p: &Path) -> anyhow::Result<&str> {
     p.to_str()
         .ok_or_else(|| anyhow::anyhow!("non-UTF-8 path: {}", p.display()))
 }
-
-use std::process::{Command, Stdio};
 
 /// Real runner: invokes the `rmapi` binary. Guards against rmapi's token-clobber
 /// bug (it can zero its own conf on a transient failure, bricking later calls) by
