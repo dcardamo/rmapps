@@ -193,8 +193,11 @@ fn get_deployer_routes_backends() {
 }
 
 #[test]
-fn cloud_target_appends_year_under_base() {
+fn cloud_target_normalizes_base() {
     assert_eq!(cloud_target("/rmbujo", 2026), "/rmbujo/2026");
-    assert_eq!(cloud_target("/rmbujo/", 2026), "/rmbujo/2026");
+    assert_eq!(cloud_target("rmbujo", 2026), "/rmbujo/2026"); // no leading slash
+    assert_eq!(cloud_target("rmbujo/", 2026), "/rmbujo/2026"); // trailing slash
+    assert_eq!(cloud_target("  /rmbujo  ", 2026), "/rmbujo/2026"); // whitespace
+    assert_eq!(cloud_target("/journals/bujo", 2026), "/journals/bujo/2026"); // nested
     assert_eq!(cloud_target("/", 2026), "/2026");
 }

@@ -69,11 +69,17 @@ fn path_str(p: &Path) -> anyhow::Result<&str> {
         .ok_or_else(|| anyhow::anyhow!("non-UTF-8 path: {}", p.display()))
 }
 
-/// Resolve the cloud folder for a given year under a configured base folder,
-/// e.g. `cloud_target("/rmbujo", 2026) == "/rmbujo/2026"`. A trailing slash on
-/// the base is tolerated.
+/// Resolve the cloud folder for a given year under a configured base folder.
+/// The base is normalized to a single leading slash and no trailing slash, so
+/// `"rmbujo"`, `"/rmbujo"`, and `"rmbujo/"` all map to `/rmbujo/<year>`. An empty
+/// or `"/"` base yields `/<year>` at the cloud root.
 pub fn cloud_target(base_folder: &str, year: i32) -> String {
-    format!("{}/{}", base_folder.trim_end_matches('/'), year)
+    let base = base_folder.trim().trim_matches('/');
+    if base.is_empty() {
+        format!("/{year}")
+    } else {
+        format!("/{base}/{year}")
+    }
 }
 
 /// The chain of folders to create for `path`, parents first, so a non-recursive
