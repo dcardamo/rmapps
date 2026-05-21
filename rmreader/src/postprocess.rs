@@ -14,14 +14,24 @@ use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 /// Draw a clickable `< Prev   Home   Next >` bar on the bottom of every article
 /// page. `num_articles` = index-row count; `page_w` = device.width_pt(). Best-effort:
 /// on any error, log to stderr and leave the rendered PDF intact (do not lose it).
-pub fn add_per_page_nav(path: &Path, num_articles: usize, page_w: f32) -> anyhow::Result<()> {
-    if let Err(e) = try_add_per_page_nav(path, num_articles, page_w) {
+pub fn add_per_page_nav(
+    path: &Path,
+    num_articles: usize,
+    page_w: f32,
+    page_h: f32,
+) -> anyhow::Result<()> {
+    if let Err(e) = try_add_per_page_nav(path, num_articles, page_w, page_h) {
         eprintln!("[rmreader] postprocess: nav bar skipped ({e:#}); rendered PDF left intact");
     }
     Ok(())
 }
 
-fn try_add_per_page_nav(path: &Path, num_articles: usize, page_w: f32) -> anyhow::Result<()> {
+fn try_add_per_page_nav(
+    path: &Path,
+    num_articles: usize,
+    page_w: f32,
+    page_h: f32,
+) -> anyhow::Result<()> {
     if num_articles == 0 {
         return Ok(());
     }
@@ -67,6 +77,11 @@ fn try_add_per_page_nav(path: &Path, num_articles: usize, page_w: f32) -> anyhow
     let home = pages[0];
     let home_x = page_w * 0.5 - 12.0; // ~"Home" centered at midpage
     let next_x = page_w * 0.78;
+    // Nav lives in the top band — just below the ~36pt the device toolbar overlays
+    // and above the content (which starts at the @page top margin, 58pt). The
+    // device's transient page-indicator toolbar covers the BOTTOM, so top it is.
+    let baseline_y = page_h - 51.0;
+    let hairline_y = page_h - 58.0;
 
     for pi in first_article..pages.len() {
         let page_id = pages[pi];
@@ -79,20 +94,22 @@ fn try_add_per_page_nav(path: &Path, num_articles: usize, page_w: f32) -> anyhow
 
         // --- draw the labels (after existing content, so nav is on top) ---
         let mut content = String::new();
-        // optional hairline above the bar
+        // hairline below the nav, separating it from the article content
         content.push_str(&format!(
-            "q 0.86 0.85 0.82 RG 0.5 w 26 38 m {:.2} 38 l S Q\n",
+            "q 0.86 0.85 0.82 RG 0.5 w 26 {hairline_y:.2} m {:.2} {hairline_y:.2} l S Q\n",
             page_w - 26.0
         ));
         if prev.is_some() {
-            content.push_str("q 0.43 0.43 0.40 rg BT /NAVF 9 Tf 26 18 Td (< Prev) Tj ET Q\n");
+            content.push_str(&format!(
+                "q 0.43 0.43 0.40 rg BT /NAVF 9 Tf 26 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
+            ));
         }
         content.push_str(&format!(
-            "q 0.62 0.17 0.12 rg BT /NAVF 9 Tf {home_x:.2} 18 Td (Home) Tj ET Q\n"
+            "q 0.62 0.17 0.12 rg BT /NAVF 9 Tf {home_x:.2} {baseline_y:.2} Td (Home) Tj ET Q\n"
         ));
         if next.is_some() {
             content.push_str(&format!(
-                "q 0.43 0.43 0.40 rg BT /NAVF 9 Tf {next_x:.2} 18 Td (Next >) Tj ET Q\n"
+                "q 0.43 0.43 0.40 rg BT /NAVF 9 Tf {next_x:.2} {baseline_y:.2} Td (Next >) Tj ET Q\n"
             ));
         }
         let stream_id = doc.add_object(Object::Stream(Stream::new(
@@ -107,18 +124,21 @@ fn try_add_per_page_nav(path: &Path, num_articles: usize, page_w: f32) -> anyhow
             new_annots.push(Object::Reference(doc.add_object(link_annot(
                 target,
                 page_w,
+                page_h,
                 NavSlot::Prev,
             ))));
         }
         new_annots.push(Object::Reference(doc.add_object(link_annot(
             home,
             page_w,
+            page_h,
             NavSlot::Home,
         ))));
         if let Some(target) = next {
             new_annots.push(Object::Reference(doc.add_object(link_annot(
                 target,
                 page_w,
+                page_h,
                 NavSlot::Next,
             ))));
         }
@@ -137,13 +157,14 @@ enum NavSlot {
 
 /// Build a /Link annotation covering one nav slot's tap band (`y0=8 .. y1=34`);
 /// rects are derived from the slot + page_w so geometry lives in one place.
-fn link_annot(target: ObjectId, page_w: f32, slot: NavSlot) -> Dictionary {
+fn link_annot(target: ObjectId, page_w: f32, page_h: f32, slot: NavSlot) -> Dictionary {
     let (x0, x1) = match slot {
         NavSlot::Prev => (20.0, page_w * 0.34),
         NavSlot::Home => (page_w * 0.36, page_w * 0.64),
         NavSlot::Next => (page_w * 0.66, page_w - 20.0),
     };
-    let (y0, y1) = (8.0_f32, 34.0_f32);
+    // Top nav band: just below the toolbar, above the content margin.
+    let (y0, y1) = (page_h - 58.0, page_h - 38.0);
     dictionary! {
         "Type" => "Annot",
         "Subtype" => "Link",

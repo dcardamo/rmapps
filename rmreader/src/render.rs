@@ -27,13 +27,14 @@ pub fn build_css(device: &Device, theme: &Palette) -> String {
     let h = device.height_pt();
     format!(
         "{vars}\n\
-@page {{ size: {w}pt {h}pt; margin: 0; }}\n\
+/* The ENGINE margin (set in render_pdf) reserves space on EVERY physical page —\n\
+   top 58pt (~36pt the device toolbar overlays + the post-processed nav bar below\n\
+   it), sides 26pt, bottom 30pt — so flowing articles never reach the toolbar/nav\n\
+   band on any page. @page only carries size + paper background. */\n\
+@page {{ size: {w}pt {h}pt; margin: 0; background: var(--paper); }}\n\
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
-html, body {{ margin: 0; padding: 0; }}\n\
+html, body {{ margin: 0; padding: 0; background: var(--paper); }}\n\
 body {{ font-family: \"Newsreader\", serif; color: var(--ink); }}\n\
-/* top padding reserves the top ~44pt the reMarkable toolbar overlays; bottom 44pt reserves the post-processed nav bar */\n\
-.page {{ position: relative; width: {w}pt; height: {h}pt; padding: 50pt 26pt 44pt; overflow: hidden; background: var(--paper); break-after: page; }}\n\
-.page:last-child {{ break-after: auto; }}\n\
 .article {{ break-before: page; }}\n\
 .kicker {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:9pt; }}\n\
 .headline {{ font-weight:600; font-size:24pt; line-height:1.05; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
@@ -86,7 +87,12 @@ pub fn render_pdf(
             width: device.width_pt(),
             height: device.height_pt(),
         })
-        .margin(Margin::uniform(0.0))
+        .margin(Margin {
+            top: 58.0,
+            right: 26.0,
+            bottom: 30.0,
+            left: 26.0,
+        })
         .assets(assets)
         .bookmarks(true)
         .producer("rmreader")
