@@ -4,7 +4,10 @@ use rmbujo::notebooks::{collection, future_log, month, reference};
 
 fn tmp() -> std::path::PathBuf {
     let mut p = std::env::temp_dir();
-    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     p.push(format!("rmbujo-nb-{n}.pdf"));
     p
 }
@@ -15,7 +18,10 @@ fn pages(p: &std::path::Path) -> usize {
 
 #[test]
 fn month_pages() {
-    let cfg = Config { daily_pages: 5, ..Config::new(2026) };
+    let cfg = Config {
+        daily_pages: 5,
+        ..Config::new(2026)
+    };
     let out = tmp();
     month::build_month_pdf(&cfg, 5, &out).unwrap();
     assert_eq!(pages(&out), 2 + 5);
@@ -30,7 +36,10 @@ fn future_log_pages() {
 
 #[test]
 fn collection_pages() {
-    let cfg = Config { collection_pages: 4, ..Config::new(2026) };
+    let cfg = Config {
+        collection_pages: 4,
+        ..Config::new(2026)
+    };
     let out = tmp();
     collection::build_collection_pdf(&cfg, &out).unwrap();
     assert_eq!(pages(&out), 1 + 4);

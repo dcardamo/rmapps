@@ -17,23 +17,66 @@ fn goldens_dir() -> PathBuf {
 
 fn tmp(tag: &str, ext: &str) -> PathBuf {
     let mut p = std::env::temp_dir();
-    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     p.push(format!("rmbujo-vis-{tag}-{n}.{ext}"));
     p
 }
 
 fn fragment_pages() -> Vec<(&'static str, String)> {
     let m = build_month(2026, 5, "sun").unwrap();
-    let days: Vec<DayView> = m.days.iter()
-        .map(|d| DayView { day: d.day, weekday: d.weekday, week_start: d.week_start })
+    let days: Vec<DayView> = m
+        .days
+        .iter()
+        .map(|d| DayView {
+            day: d.day,
+            weekday: d.weekday,
+            week_start: d.week_start,
+        })
         .collect();
     vec![
-        ("cover", Cover { year: 2026, title: "Future Log", blank_title: false }.render().unwrap()),
-        ("cover_blank", Cover { year: 2026, title: "", blank_title: true }.render().unwrap()),
+        (
+            "cover",
+            Cover {
+                year: 2026,
+                title: "Future Log",
+                blank_title: false,
+            }
+            .render()
+            .unwrap(),
+        ),
+        (
+            "cover_blank",
+            Cover {
+                year: 2026,
+                title: "",
+                blank_title: true,
+            }
+            .render()
+            .unwrap(),
+        ),
         ("dotgrid", DotGrid.render().unwrap()),
         ("tasks", Tasks.render().unwrap()),
-        ("month_index", MonthIndex { month_name: "May", year: 2026, days: &days }.render().unwrap()),
-        ("future_log", FutureLog { months: &["January", "February", "March"] }.render().unwrap()),
+        (
+            "month_index",
+            MonthIndex {
+                month_name: "May",
+                year: 2026,
+                days: &days,
+            }
+            .render()
+            .unwrap(),
+        ),
+        (
+            "future_log",
+            FutureLog {
+                months: &["January", "February", "March"],
+            }
+            .render()
+            .unwrap(),
+        ),
         ("reference", Reference.render().unwrap()),
     ]
 }
@@ -49,7 +92,14 @@ fn render_png(fragment: &str, png: &Path) {
     // pdftoppm writes "<prefix>.png" with -singlefile; use prefix without extension.
     let prefix = png.with_extension("");
     let status = Command::new("pdftoppm")
-        .args(["-png", "-r", "150", "-singlefile", pdf.to_str().unwrap(), prefix.to_str().unwrap()])
+        .args([
+            "-png",
+            "-r",
+            "150",
+            "-singlefile",
+            pdf.to_str().unwrap(),
+            prefix.to_str().unwrap(),
+        ])
         .status()
         .expect("pdftoppm");
     assert!(status.success(), "pdftoppm failed");
@@ -84,8 +134,14 @@ fn visual_regression() {
             std::fs::copy(&shot, &golden).unwrap();
             continue;
         }
-        assert!(golden.exists(), "missing golden {name}; run `make update-goldens`");
+        assert!(
+            golden.exists(),
+            "missing golden {name}; run `make update-goldens`"
+        );
         let ratio = diff_ratio(&shot, &golden);
-        assert!(ratio < TOLERANCE, "{name} differs by {ratio:.4} (> {TOLERANCE})");
+        assert!(
+            ratio < TOLERANCE,
+            "{name} differs by {ratio:.4} (> {TOLERANCE})"
+        );
     }
 }

@@ -7,7 +7,12 @@ use clap::{Parser, Subcommand};
 use crate::{config, deploy, generate, wizard};
 
 #[derive(Parser)]
-#[command(name = "rmbujo", version, about = "Dot-grid bullet journal PDF generator for reMarkable", args_conflicts_with_subcommands = true)]
+#[command(
+    name = "rmbujo",
+    version,
+    about = "Dot-grid bullet journal PDF generator for reMarkable",
+    args_conflicts_with_subcommands = true
+)]
 struct Cli {
     /// Path to an existing rmbujo.toml to regenerate.
     config: Option<PathBuf>,

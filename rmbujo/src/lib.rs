@@ -9,6 +9,6 @@ pub mod geometry;
 pub mod notebooks;
 pub mod render;
 pub mod svg;
-pub mod theme;
 pub mod templates;
+pub mod theme;
 pub mod wizard;

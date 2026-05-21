@@ -1,6 +1,8 @@
 use rmbujo::device::{get_device, MOVE, PRO};
 
-fn approx(a: f32, b: f32) -> bool { (a - b).abs() < 0.01 }
+fn approx(a: f32, b: f32) -> bool {
+    (a - b).abs() < 0.01
+}
 
 #[test]
 fn move_page_size() {

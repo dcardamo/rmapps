@@ -10,7 +10,9 @@ pub struct IcsFeed {
     #[serde(default = "default_color")]
     pub color: String,
 }
-fn default_color() -> String { "navy".into() }
+fn default_color() -> String {
+    "navy".into()
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeployConfig {
@@ -19,9 +21,16 @@ pub struct DeployConfig {
     #[serde(default)]
     pub target_folder: String,
 }
-fn default_backend() -> String { "none".into() }
+fn default_backend() -> String {
+    "none".into()
+}
 impl Default for DeployConfig {
-    fn default() -> Self { Self { backend: "none".into(), target_folder: String::new() } }
+    fn default() -> Self {
+        Self {
+            backend: "none".into(),
+            target_folder: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,12 +53,24 @@ pub struct Config {
     #[serde(default)]
     pub deploy: DeployConfig,
 }
-fn default_device() -> String { "paper-pro-move".into() }
-fn default_week_start() -> String { "sun".into() }
-fn default_daily() -> u32 { 60 }
-fn default_collection() -> u32 { 20 }
-fn default_spacing() -> f32 { crate::geometry::DEFAULT_SPACING_MM }
-fn default_theme() -> String { "library".into() }
+fn default_device() -> String {
+    "paper-pro-move".into()
+}
+fn default_week_start() -> String {
+    "sun".into()
+}
+fn default_daily() -> u32 {
+    60
+}
+fn default_collection() -> u32 {
+    20
+}
+fn default_spacing() -> f32 {
+    crate::geometry::DEFAULT_SPACING_MM
+}
+fn default_theme() -> String {
+    "library".into()
+}
 
 impl Config {
     /// A config with the given year and all other fields defaulted.
@@ -81,7 +102,10 @@ impl Config {
         // single dot or a solid field. 2–10 mm spans far tighter and far looser
         // than any usable grid.
         if !(self.spacing_mm.is_finite() && (2.0..=10.0).contains(&self.spacing_mm)) {
-            anyhow::bail!("spacing_mm must be between 2.0 and 10.0, got {}", self.spacing_mm);
+            anyhow::bail!(
+                "spacing_mm must be between 2.0 and 10.0, got {}",
+                self.spacing_mm
+            );
         }
         Ok(())
     }

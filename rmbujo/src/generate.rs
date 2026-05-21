@@ -16,7 +16,10 @@ pub fn generate_year(config: &Config, out_dir: &Path) -> anyhow::Result<Vec<Path
     paths.push(fl);
 
     for mo in 1..=12u32 {
-        let p = out_dir.join(format!("{y}.{mo:02} {name}.pdf", name = MONTH_NAMES[mo as usize]));
+        let p = out_dir.join(format!(
+            "{y}.{mo:02} {name}.pdf",
+            name = MONTH_NAMES[mo as usize]
+        ));
         month::build_month_pdf(config, mo, &p)?;
         paths.push(p);
     }

@@ -7,18 +7,47 @@ fn validate_accepts_defaults() {
 
 #[test]
 fn validate_rejects_bad_fields() {
-    assert!(Config { device: "nope".into(), ..Config::new(2026) }.validate().is_err());
-    assert!(Config { week_start: "xyz".into(), ..Config::new(2026) }.validate().is_err());
-    assert!(Config { theme: "nope".into(), ..Config::new(2026) }.validate().is_err());
-    assert!(Config { spacing_mm: 0.0, ..Config::new(2026) }.validate().is_err());
-    assert!(Config { spacing_mm: 50.0, ..Config::new(2026) }.validate().is_err());
+    assert!(Config {
+        device: "nope".into(),
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+    assert!(Config {
+        week_start: "xyz".into(),
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+    assert!(Config {
+        theme: "nope".into(),
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+    assert!(Config {
+        spacing_mm: 0.0,
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+    assert!(Config {
+        spacing_mm: 50.0,
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
 }
 
 #[test]
 fn round_trip() {
     let dir = tempdir();
     let cfg = Config {
-        ics: vec![IcsFeed { name: "Holidays".into(), url: "https://x/h.ics".into(), color: "brick".into() }],
+        ics: vec![IcsFeed {
+            name: "Holidays".into(),
+            url: "https://x/h.ics".into(),
+            color: "brick".into(),
+        }],
         ..Config::new(2026)
     };
     let p = dir.join("rmbujo.toml");
@@ -61,7 +90,10 @@ fn unknown_keys_ignored() {
 // Minimal unique temp dir without an extra crate dependency.
 fn tempdir() -> std::path::PathBuf {
     let mut p = std::env::temp_dir();
-    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     p.push(format!("rmbujo-test-{n}"));
     std::fs::create_dir_all(&p).unwrap();
     p

@@ -86,13 +86,26 @@ pub fn render_pdf(
     out_path: &Path,
 ) -> anyhow::Result<()> {
     let css = build_css(device, grid, theme);
-    let html = Base { css: &css, pages: fragments }.render()?;
+    let html = Base {
+        css: &css,
+        pages: fragments,
+    }
+    .render()?;
 
     let mut assets = AssetBundle::new();
-    assets.add_image("dot.svg", svg::dot_tile_svg(grid.spacing_pt, color(theme, "dot", "#CFCDC4")).into_bytes());
+    assets.add_image(
+        "dot.svg",
+        svg::dot_tile_svg(grid.spacing_pt, color(theme, "dot", "#CFCDC4")).into_bytes(),
+    );
     assets.add_image(
         "cover.svg",
-        svg::cover_svg(device.width_pt(), device.height_pt(), color(theme, "navy", "#1B365D"), color(theme, "cover_to", "#0F2444")).into_bytes(),
+        svg::cover_svg(
+            device.width_pt(),
+            device.height_pt(),
+            color(theme, "navy", "#1B365D"),
+            color(theme, "cover_to", "#0F2444"),
+        )
+        .into_bytes(),
     );
     // to_vec() copies ~750 KB of static font data per call; fine for the
     // once-per-run, sequential rendering this tool does (15 PDFs/year).
@@ -100,7 +113,10 @@ pub fn render_pdf(
     assets.add_font_bytes(FONT_BOLD.to_vec())?;
 
     let engine = Engine::builder()
-        .page_size(PageSize { width: device.width_pt(), height: device.height_pt() })
+        .page_size(PageSize {
+            width: device.width_pt(),
+            height: device.height_pt(),
+        })
         .margin(Margin::uniform(0.0))
         .assets(assets)
         .producer("rmbujo")

@@ -14,7 +14,10 @@ const WIDTH_SCALE: f32 = 0.5;
 
 fn tmp(tag: &str) -> std::path::PathBuf {
     let mut p = std::env::temp_dir();
-    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     p.push(format!("rmbujo-layout-{tag}-{n}.pdf"));
     p
 }
@@ -54,7 +57,9 @@ fn assert_no_overlap_and_in_bounds(pdf: &std::path::Path) {
             assert!(
                 !overlaps(&items[i], &items[j]),
                 "text overlap on page {}: {:?} <-> {:?}",
-                items[i].page, items[i].text, items[j].text,
+                items[i].page,
+                items[i].text,
+                items[j].text,
             );
         }
     }
@@ -77,7 +82,10 @@ fn assert_text_present(pdf: &std::path::Path, min_items: usize) {
 
 #[test]
 fn month_layout_clean() {
-    let cfg = Config { daily_pages: 1, ..Config::new(2026) };
+    let cfg = Config {
+        daily_pages: 1,
+        ..Config::new(2026)
+    };
     let out = tmp("month");
     month::build_month_pdf(&cfg, 5, &out).unwrap();
     assert_no_overlap_and_in_bounds(&out);

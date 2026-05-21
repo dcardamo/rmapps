@@ -4,7 +4,10 @@ use rmbujo::wizard::{assemble, Answers};
 
 fn tmp_dir() -> std::path::PathBuf {
     let mut p = std::env::temp_dir();
-    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     p.push(format!("rmbujo-cli-{n}"));
     std::fs::create_dir_all(&p).unwrap();
     p
@@ -34,10 +37,18 @@ fn wizard_assemble() {
 fn regenerate_from_config() {
     let dir = tmp_dir().join("2026");
     std::fs::create_dir_all(&dir).unwrap();
-    let cfg = Config { daily_pages: 1, collection_pages: 1, ..Config::new(2026) };
+    let cfg = Config {
+        daily_pages: 1,
+        collection_pages: 1,
+        ..Config::new(2026)
+    };
     config::dump(&cfg, &dir.join("rmbujo.toml")).unwrap();
 
-    run(vec!["rmbujo".into(), dir.join("rmbujo.toml").to_string_lossy().into_owned()]).unwrap();
+    run(vec![
+        "rmbujo".into(),
+        dir.join("rmbujo.toml").to_string_lossy().into_owned(),
+    ])
+    .unwrap();
 
     assert!(dir.join("2026.05 May.pdf").exists());
     assert!(dir.join("2026 Reference.pdf").exists());

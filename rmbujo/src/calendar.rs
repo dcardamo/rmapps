@@ -3,8 +3,19 @@
 use chrono::{Datelike, NaiveDate, Weekday};
 
 pub const MONTH_NAMES: [&str; 13] = [
-    "", "January", "February", "March", "April", "May", "June", "July", "August",
-    "September", "October", "November", "December",
+    "",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,7 +46,11 @@ fn weekday_abbr(w: Weekday) -> &'static str {
 }
 
 fn days_in_month(year: i32, month: u32) -> u32 {
-    let (ny, nm) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    let (ny, nm) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
     NaiveDate::from_ymd_opt(ny, nm, 1)
         .unwrap()
         .pred_opt()
@@ -64,7 +79,12 @@ pub fn build_month(year: i32, month: u32, week_start: &str) -> anyhow::Result<Mo
             week_start: d != 1 && wd == ws,
         });
     }
-    Ok(Month { year, month, name: MONTH_NAMES[month as usize], days })
+    Ok(Month {
+        year,
+        month,
+        name: MONTH_NAMES[month as usize],
+        days,
+    })
 }
 
 pub fn build_year(year: i32, week_start: &str) -> anyhow::Result<Vec<Month>> {

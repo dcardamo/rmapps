@@ -19,7 +19,12 @@ pub fn dot_grid(device: &Device, spacing_mm: f32, margin_mm: f32) -> GridSpec {
     let usable_h = device.height_pt() - 2.0 * margin_pt;
     let cols = (usable_w / spacing_pt).floor() as u32 + 1;
     let rows = (usable_h / spacing_pt).floor() as u32 + 1;
-    GridSpec { spacing_pt, margin_pt, cols, rows }
+    GridSpec {
+        spacing_pt,
+        margin_pt,
+        cols,
+        rows,
+    }
 }
 
 /// Default dot pitch in mm. 4.5 (vs the 5.0 paper-BuJo standard) is tuned for the

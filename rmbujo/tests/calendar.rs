@@ -18,14 +18,24 @@ fn february_leap() {
 #[test]
 fn week_start_sunday() {
     let m = build_month(2026, 5, "sun").unwrap();
-    let starts: Vec<u32> = m.days.iter().filter(|d| d.week_start).map(|d| d.day).collect();
+    let starts: Vec<u32> = m
+        .days
+        .iter()
+        .filter(|d| d.week_start)
+        .map(|d| d.day)
+        .collect();
     assert_eq!(starts, vec![3, 10, 17, 24, 31]);
 }
 
 #[test]
 fn week_start_monday() {
     let m = build_month(2026, 5, "mon").unwrap();
-    let starts: Vec<u32> = m.days.iter().filter(|d| d.week_start).map(|d| d.day).collect();
+    let starts: Vec<u32> = m
+        .days
+        .iter()
+        .filter(|d| d.week_start)
+        .map(|d| d.day)
+        .collect();
     assert_eq!(starts, vec![4, 11, 18, 25]);
 }
 

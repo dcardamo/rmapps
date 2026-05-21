@@ -4,7 +4,10 @@ use rmbujo::generate::generate_year;
 
 fn tmp_dir() -> std::path::PathBuf {
     let mut p = std::env::temp_dir();
-    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     p.push(format!("rmbujo-gen-{n}"));
     std::fs::create_dir_all(&p).unwrap();
     p
@@ -12,7 +15,11 @@ fn tmp_dir() -> std::path::PathBuf {
 
 #[test]
 fn writes_15_named_pdfs() {
-    let cfg = Config { daily_pages: 1, collection_pages: 1, ..Config::new(2026) };
+    let cfg = Config {
+        daily_pages: 1,
+        collection_pages: 1,
+        ..Config::new(2026)
+    };
     let dir = tmp_dir();
     let paths = generate_year(&cfg, &dir).unwrap();
     assert_eq!(paths.len(), 15);
@@ -30,6 +37,12 @@ fn writes_15_named_pdfs() {
 fn deployer_none_ok_unknown_errs() {
     let _: LocalDeployer = LocalDeployer; // type exists
     assert!(get_deployer(&Config::new(2026)).is_ok());
-    let bad = Config { deploy: DeployConfig { backend: "rmapi".into(), target_folder: String::new() }, ..Config::new(2026) };
+    let bad = Config {
+        deploy: DeployConfig {
+            backend: "rmapi".into(),
+            target_folder: String::new(),
+        },
+        ..Config::new(2026)
+    };
     assert!(get_deployer(&bad).is_err());
 }

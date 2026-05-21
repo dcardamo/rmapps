@@ -28,7 +28,10 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
         spacing_mm: a.spacing_mm,
         theme: a.theme,
         ics: Vec::new(),
-        deploy: DeployConfig { backend: "none".into(), target_folder: format!("/{}", a.year) },
+        deploy: DeployConfig {
+            backend: "none".into(),
+            target_folder: format!("/{}", a.year),
+        },
     };
     let out_dir = PathBuf::from(a.base).join(a.year.to_string());
     let config_path = out_dir.join("rmbujo.toml");
@@ -43,19 +46,44 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         .with_prompt("Year")
         .default(chrono::Local::now().year())
         .interact_text()?;
-    let base: String = Input::new().with_prompt("Base directory").default(".".into()).interact_text()?;
-    let device: String = Input::new().with_prompt("Device").default("paper-pro-move".into()).interact_text()?;
-    let week_start: String = Input::new().with_prompt("Week start (sun|mon)").default("sun".into()).interact_text()?;
-    let daily_pages: u32 = Input::new().with_prompt("Daily pages per month").default(60).interact_text()?;
-    let collection_pages: u32 = Input::new().with_prompt("Collection pages").default(20).interact_text()?;
+    let base: String = Input::new()
+        .with_prompt("Base directory")
+        .default(".".into())
+        .interact_text()?;
+    let device: String = Input::new()
+        .with_prompt("Device")
+        .default("paper-pro-move".into())
+        .interact_text()?;
+    let week_start: String = Input::new()
+        .with_prompt("Week start (sun|mon)")
+        .default("sun".into())
+        .interact_text()?;
+    let daily_pages: u32 = Input::new()
+        .with_prompt("Daily pages per month")
+        .default(60)
+        .interact_text()?;
+    let collection_pages: u32 = Input::new()
+        .with_prompt("Collection pages")
+        .default(20)
+        .interact_text()?;
     let spacing_mm: f32 = Input::new()
         .with_prompt("Dot spacing (mm)")
         .default(crate::geometry::DEFAULT_SPACING_MM)
         .interact_text()?;
-    let theme: String = Input::new().with_prompt("Theme").default("library".into()).interact_text()?;
+    let theme: String = Input::new()
+        .with_prompt("Theme")
+        .default("library".into())
+        .interact_text()?;
 
     let (config, out_dir, config_path) = assemble(Answers {
-        year, base, device, week_start, daily_pages, collection_pages, spacing_mm, theme,
+        year,
+        base,
+        device,
+        week_start,
+        daily_pages,
+        collection_pages,
+        spacing_mm,
+        theme,
     });
     // The caller validates and creates the directory after this returns, so
     // invalid input doesn't leave an orphan folder behind.

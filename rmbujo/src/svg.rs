@@ -6,7 +6,9 @@ pub fn dot_tile_svg(spacing_pt: f32, dot_color: &str) -> String {
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{s}\" height=\"{s}\">\
          <circle cx=\"{c}\" cy=\"{c}\" r=\"0.7\" fill=\"{col}\"/></svg>",
-        s = spacing_pt, c = c, col = dot_color,
+        s = spacing_pt,
+        c = c,
+        col = dot_color,
     )
 }
 
@@ -18,6 +20,9 @@ pub fn cover_svg(width_pt: f32, height_pt: f32, from: &str, to: &str) -> String 
          <stop offset=\"0%\" stop-color=\"{from}\"/>\
          <stop offset=\"100%\" stop-color=\"{to}\"/></linearGradient></defs>\
          <rect width=\"{w}\" height=\"{h}\" fill=\"url(#g)\"/></svg>",
-        w = width_pt, h = height_pt, from = from, to = to,
+        w = width_pt,
+        h = height_pt,
+        from = from,
+        to = to,
     )
 }
