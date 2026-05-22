@@ -57,11 +57,16 @@ impl Scene {
     }
 
     /// All ink strokes (`Line` items) in the scene.
+    ///
+    /// Uses `filter_map` so adding new `SceneItem` variants in the future
+    /// does not require updating this function.
     pub fn strokes(&self) -> Vec<&Stroke> {
         self.items
             .iter()
-            .map(|item| match item {
-                SceneItem::Line(stroke) => stroke,
+            .filter_map(|item| match item {
+                SceneItem::Line(stroke) => Some(stroke),
+                #[allow(unreachable_patterns)]
+                _ => None,
             })
             .collect()
     }

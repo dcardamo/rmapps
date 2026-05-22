@@ -45,13 +45,18 @@ pub enum Pen {
     Calligraphy,
     /// Shader.
     Shader,
-    /// Any tool id not yet recognized.
-    Other(u8),
+    /// Any tool id not yet recognized. Stored as `u32` to avoid truncation of
+    /// ids outside the 0–255 range.
+    Other(u32),
 }
 
 impl Pen {
     /// Map a raw tool id to a [`Pen`]. Ids follow rmscene's `Pen` enum.
-    pub fn from_id(id: u8) -> Pen {
+    ///
+    /// Accepts the full `u32` returned by the wire decoder so that ids >255
+    /// are preserved losslessly in [`Pen::Other`] rather than silently
+    /// truncated by an `as u8` cast.
+    pub fn from_id(id: u32) -> Pen {
         match id {
             0 => Pen::Paintbrush1,
             12 => Pen::Paintbrush2,
@@ -114,13 +119,18 @@ pub enum PenColor {
     Magenta,
     /// Yellow, variant 2.
     Yellow2,
-    /// Any color id not yet recognized.
-    Other(u8),
+    /// Any color id not yet recognized. Stored as `u32` to avoid truncation of
+    /// ids outside the 0–255 range.
+    Other(u32),
 }
 
 impl PenColor {
     /// Map a raw color id to a [`PenColor`]. Ids follow rmscene's `PenColor`.
-    pub fn from_id(id: u8) -> PenColor {
+    ///
+    /// Accepts the full `u32` returned by the wire decoder so that ids >255
+    /// are preserved losslessly in [`PenColor::Other`] rather than silently
+    /// truncated by an `as u8` cast.
+    pub fn from_id(id: u32) -> PenColor {
         match id {
             0 => PenColor::Black,
             1 => PenColor::Gray,
@@ -210,8 +220,10 @@ fn read_point(r: &mut Reader, version: u8) -> Result<Point> {
 /// Trailing fields (timestamp, move_id, color_rgba) are tolerated but ignored;
 /// the caller seeks past any unread bytes using the value sub-block length.
 pub fn read_line(r: &mut Reader, version: u8) -> Result<Stroke> {
-    let tool = Pen::from_id(r.read_int(1)? as u8);
-    let color = PenColor::from_id(r.read_int(2)? as u8);
+    // Pass the raw u32 directly — from_id handles any value, including ids
+    // >255 that would have been silently truncated by an `as u8` cast.
+    let tool = Pen::from_id(r.read_int(1)?);
+    let color = PenColor::from_id(r.read_int(2)?);
     let _thickness_scale = r.read_double(3)?;
     let _starting_length = r.read_float(4)?;
 
