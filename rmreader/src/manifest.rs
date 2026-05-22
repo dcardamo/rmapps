@@ -37,6 +37,31 @@ impl Manifest {
         std::fs::write(path, serde_json::to_string_pretty(self)?)?;
         Ok(())
     }
+
+    /// Build the embeddable manifest. `page_range` defaults to (0,0) here and is
+    /// overwritten by postprocess once page numbers are known.
+    pub fn to_embedded(&self) -> EmbeddedManifest {
+        EmbeddedManifest {
+            schema_version: 1,
+            collection: self.collection.clone(),
+            docs: self
+                .items
+                .iter()
+                .map(|i| EmbeddedDoc {
+                    id: i.id.clone(),
+                    title: i.title.clone(),
+                    url: if i.source_url.is_empty() {
+                        i.url.clone()
+                    } else {
+                        i.source_url.clone()
+                    },
+                    author: i.author.clone(),
+                    category: i.category.clone(),
+                    page_range: i.page_range.unwrap_or(PageRange { first: 0, last: 0 }),
+                })
+                .collect(),
+        }
+    }
 }
 
 /// Per-doc record embedded in the PDF for read-back.
