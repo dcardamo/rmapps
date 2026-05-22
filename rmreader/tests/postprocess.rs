@@ -6,7 +6,7 @@ use lopdf::{Document, Object, ObjectId};
 
 use rmreader::assemble::assemble_document;
 use rmreader::device::get_device;
-use rmreader::postprocess::add_per_page_nav;
+use rmreader::postprocess::finalize_pdf;
 use rmreader::readwise::Document as RwDoc;
 use rmreader::render::render_pdf;
 use rmreader::theme::load_theme;
@@ -159,11 +159,12 @@ fn nav_bar_adds_links_to_every_article_page_including_flow_pages() {
     );
 
     // Run the post-processor.
-    add_per_page_nav(
+    finalize_pdf(
         &out,
         docs.len(),
         device.width_pt(),
         device.height_pt(),
+        "#F3F1EA",
         "#2A2F6B",
         "#F4F1E8",
     )

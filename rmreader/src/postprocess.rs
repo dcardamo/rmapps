@@ -1,5 +1,7 @@
-//! Post-process the rendered PDF to draw a persistent, clickable nav bar
-//! (`< Prev   Home   Next >`) across the top of every article page.
+//! Post-process the rendered PDF: paint a full-bleed paper background on every
+//! page (fulgur only fills the content box, leaving the margins unpainted), then
+//! draw a persistent, clickable full-width nav bar (`< Prev   Home   Next >`)
+//! across the top of every article page.
 //!
 //! fulgur cannot repeat a clickable element across the pages of a flowing
 //! article (running headers render but emit zero link annotations), so we render
@@ -11,21 +13,30 @@ use std::path::Path;
 
 use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 
-/// Draw a filled, clickable `< Prev   Home   Next >` bar across the top of every
+/// Paint a full-bleed paper background on every page, then draw a filled,
+/// clickable full-width `< Prev   Home   Next >` bar across the top of every
 /// article page. `num_articles` = index-row count; colours come from the theme
-/// (`nav_bg_hex`/`nav_fg_hex`). Best-effort: on any error, log to stderr and leave
-/// the rendered PDF intact (do not lose it).
-pub fn add_per_page_nav(
+/// (`paper_hex`/`nav_bg_hex`/`nav_fg_hex`). Best-effort: on any error, log to
+/// stderr and leave the rendered PDF intact (do not lose it).
+pub fn finalize_pdf(
     path: &Path,
     num_articles: usize,
     page_w: f32,
     page_h: f32,
+    paper_hex: &str,
     nav_bg_hex: &str,
     nav_fg_hex: &str,
 ) -> anyhow::Result<()> {
-    if let Err(e) = try_add_per_page_nav(path, num_articles, page_w, page_h, nav_bg_hex, nav_fg_hex)
-    {
-        eprintln!("[rmreader] postprocess: nav bar skipped ({e:#}); rendered PDF left intact");
+    if let Err(e) = try_finalize_pdf(
+        path,
+        num_articles,
+        page_w,
+        page_h,
+        paper_hex,
+        nav_bg_hex,
+        nav_fg_hex,
+    ) {
+        eprintln!("[rmreader] postprocess: finalize skipped ({e:#}); rendered PDF left intact");
     }
     Ok(())
 }
@@ -44,22 +55,41 @@ fn hex_rgb(s: &str) -> Option<(f32, f32, f32)> {
     Some((c(0)?, c(2)?, c(4)?))
 }
 
-fn try_add_per_page_nav(
+fn try_finalize_pdf(
     path: &Path,
     num_articles: usize,
     page_w: f32,
     page_h: f32,
+    paper_hex: &str,
     nav_bg_hex: &str,
     nav_fg_hex: &str,
 ) -> anyhow::Result<()> {
-    if num_articles == 0 {
-        return Ok(());
-    }
     let mut doc = Document::load(path)?;
 
     // BTreeMap is ordered by page number, so into_values() yields page order.
     let pages: Vec<ObjectId> = doc.get_pages().into_values().collect();
     if pages.is_empty() {
+        return Ok(());
+    }
+
+    // Full-bleed paper background, behind everything, on EVERY page. fulgur only
+    // fills the content box (leaving the margins the default colour, so the page
+    // looks like a tinted box in a neutral frame); prepend a page-sized fill in
+    // the theme's paper colour so the whole sheet is one colour.
+    let (pr, pg, pb) = hex_rgb(paper_hex).unwrap_or((0.95, 0.95, 0.93));
+    let bg_fill = format!("q {pr:.3} {pg:.3} {pb:.3} rg 0 0 {page_w:.2} {page_h:.2} re f Q\n");
+    for &page_id in &pages {
+        let sid = doc.add_object(Object::Stream(Stream::new(
+            dictionary! {},
+            bg_fill.clone().into_bytes(),
+        )));
+        prepend_content_stream(&mut doc, page_id, sid)?;
+    }
+
+    // The nav bar only applies when there are article pages; save the background
+    // work either way.
+    if num_articles == 0 {
+        doc.save(path)?;
         return Ok(());
     }
     // ref -> page index, for resolving a /Dest target page to its order.
@@ -83,6 +113,7 @@ fn try_add_per_page_nav(
         }
     }
     if starts.is_empty() {
+        doc.save(path)?;
         return Ok(());
     }
     let first_article = starts[0];
@@ -102,8 +133,8 @@ fn try_add_per_page_nav(
     // transient page-indicator toolbar covers the BOTTOM, so the nav goes up top.
     let (br, bg, bb) = hex_rgb(nav_bg_hex).unwrap_or((0.16, 0.18, 0.40));
     let (fr, fg, fb) = hex_rgb(nav_fg_hex).unwrap_or((0.96, 0.95, 0.91));
-    let bar_x = 16.0_f32;
-    let bar_w = page_w - 32.0;
+    let bar_x = 0.0_f32; // full-bleed bar (100% width)
+    let bar_w = page_w;
     let bar_y = page_h - 58.0; // bottom edge of the bar
     let bar_h = 21.0_f32;
     let baseline_y = bar_y + 6.5; // text baseline, centred in the bar
@@ -119,13 +150,13 @@ fn try_add_per_page_nav(
 
         // --- draw the labels (after existing content, so nav is on top) ---
         let mut content = String::new();
-        // filled nav bar across the content width
+        // full-width filled nav bar
         content.push_str(&format!(
             "q {br:.3} {bg:.3} {bb:.3} rg {bar_x:.2} {bar_y:.2} {bar_w:.2} {bar_h:.2} re f Q\n"
         ));
         if prev.is_some() {
             content.push_str(&format!(
-                "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf 26 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
+                "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf 16 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
             ));
         }
         content.push_str(&format!(
@@ -183,9 +214,9 @@ enum NavSlot {
 /// rects are derived from the slot + page_w so geometry lives in one place.
 fn link_annot(target: ObjectId, page_w: f32, page_h: f32, slot: NavSlot) -> Dictionary {
     let (x0, x1) = match slot {
-        NavSlot::Prev => (12.0, page_w * 0.34),
+        NavSlot::Prev => (0.0, page_w * 0.34),
         NavSlot::Home => (page_w * 0.36, page_w * 0.64),
-        NavSlot::Next => (page_w * 0.66, page_w - 12.0),
+        NavSlot::Next => (page_w * 0.66, page_w),
     };
     // Top nav band: just below the toolbar, above the content margin.
     let (y0, y1) = (page_h - 58.0, page_h - 38.0);
@@ -308,6 +339,24 @@ fn append_content_stream(
             );
         }
     }
+    Ok(())
+}
+
+/// Prepend a content stream ref to the page's /Contents so it draws *behind*
+/// existing content (used for the full-page background fill).
+fn prepend_content_stream(
+    doc: &mut Document,
+    page_id: ObjectId,
+    stream_id: ObjectId,
+) -> anyhow::Result<()> {
+    let page = doc.get_dictionary_mut(page_id)?;
+    let mut arr = match page.get(b"Contents").ok().cloned() {
+        Some(Object::Reference(old)) => vec![Object::Reference(old)],
+        Some(Object::Array(a)) => a,
+        _ => Vec::new(),
+    };
+    arr.insert(0, Object::Reference(stream_id));
+    page.set("Contents", Object::Array(arr));
     Ok(())
 }
 
