@@ -17,7 +17,7 @@
 //!   where `dates: Vec<DateTime<rrule::Tz>>`. `rrule::Tz` wraps `chrono_tz::Tz`
 //!   and implements `From<chrono_tz::Tz>`.
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use ical::parser::ical::component::IcalEvent;
 use ical::property::Property;
@@ -180,18 +180,79 @@ fn resolve_instant(value: &str, tzid: Option<&str>, tz: &Tz) -> anyhow::Result<D
     let naive = chrono::NaiveDateTime::parse_from_str(value, "%Y%m%dT%H%M%S")
         .map_err(|e| anyhow::anyhow!("bad DATE-TIME {value:?}: {e}"))?;
 
-    let zone: Tz = match tzid {
-        Some(id) => id
-            .parse()
-            .map_err(|_| anyhow::anyhow!("unknown TZID {id:?}"))?,
-        None => *tz,
-    };
-
-    let dt = zone
+    // Named IANA zone if it parses; otherwise a fixed-offset pseudo-zone like
+    // "GMT+0200" (common from iCloud); otherwise the config zone (floating time).
+    if let Some(id) = tzid {
+        if let Ok(zone) = id.parse::<Tz>() {
+            let dt = zone
+                .from_local_datetime(&naive)
+                .earliest()
+                .ok_or_else(|| anyhow::anyhow!("DATE-TIME {value:?} invalid in zone {zone:?}"))?;
+            return Ok(dt.with_timezone(&Utc));
+        }
+        if let Some(off) = parse_fixed_offset(id) {
+            let dt = off
+                .from_local_datetime(&naive)
+                .earliest()
+                .ok_or_else(|| anyhow::anyhow!("DATE-TIME {value:?} invalid at offset {off:?}"))?;
+            return Ok(dt.with_timezone(&Utc));
+        }
+        anyhow::bail!("unknown TZID {id:?}");
+    }
+    let dt = tz
         .from_local_datetime(&naive)
         .earliest()
-        .ok_or_else(|| anyhow::anyhow!("DATE-TIME {value:?} invalid in zone {zone:?}"))?;
+        .ok_or_else(|| anyhow::anyhow!("DATE-TIME {value:?} invalid in zone {tz:?}"))?;
     Ok(dt.with_timezone(&Utc))
+}
+
+/// Parse a fixed-offset pseudo-TZID like `GMT+0200`, `UTC-05:00`, or `GMT+2`.
+/// iCloud emits these for events that have no named IANA zone.
+fn parse_fixed_offset(tzid: &str) -> Option<FixedOffset> {
+    let rest = tzid
+        .trim()
+        .strip_prefix("GMT")
+        .or_else(|| tzid.trim().strip_prefix("UTC"))
+        .unwrap_or_else(|| tzid.trim());
+    let (sign, body) = match rest.strip_prefix('+') {
+        Some(b) => (1, b),
+        None => (-1, rest.strip_prefix('-')?),
+    };
+    let digits: String = body.chars().filter(|c| c.is_ascii_digit()).collect();
+    let (h, m) = match digits.len() {
+        1 | 2 => (digits.parse::<i32>().ok()?, 0),
+        3 => (digits[..1].parse().ok()?, digits[1..].parse().ok()?),
+        4 => (digits[..2].parse().ok()?, digits[2..].parse().ok()?),
+        _ => return None,
+    };
+    if m >= 60 {
+        return None;
+    }
+    FixedOffset::east_opt(sign * (h * 3600 + m * 60))
+}
+
+/// rrule 0.14 requires `UNTIL` to be UTC when DTSTART is UTC or carries a TZID.
+/// Real feeds often give a date-only or floating `UNTIL`; rewrite it to a UTC
+/// datetime so the rule parses.
+fn normalize_until_utc(rrule_str: &str) -> String {
+    rrule_str
+        .split(';')
+        .map(|part| {
+            let p = part.trim();
+            match p.find('=') {
+                Some(eq) if p[..eq].eq_ignore_ascii_case("UNTIL") => {
+                    let v = p[eq + 1..].trim().trim_end_matches(['Z', 'z']);
+                    if v.len() == 8 {
+                        format!("UNTIL={v}T000000Z")
+                    } else {
+                        format!("UNTIL={v}Z")
+                    }
+                }
+                _ => p.to_string(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(";")
 }
 
 /// Expand an all-day recurring event into in-year dates.
@@ -206,7 +267,7 @@ fn expand_all_day_rrule(
     year: i32,
 ) -> anyhow::Result<Vec<NaiveDate>> {
     let dtstart_line = format!("DTSTART:{}T000000Z", start.format("%Y%m%d"));
-    let input = format!("{dtstart_line}\nRRULE:{}", rrule_str.trim());
+    let input = format!("{dtstart_line}\nRRULE:{}", normalize_until_utc(rrule_str));
     let set: RRuleSet = input
         .parse()
         .map_err(|e| anyhow::anyhow!("bad all-day RRULE {rrule_str:?}: {e}"))?;
@@ -239,7 +300,7 @@ fn expand_timed_rrule(
         tz.name(),
         local.format("%Y%m%dT%H%M%S")
     );
-    let input = format!("{dtstart_line}\nRRULE:{}", rrule_str.trim());
+    let input = format!("{dtstart_line}\nRRULE:{}", normalize_until_utc(rrule_str));
     let set: RRuleSet = input
         .parse()
         .map_err(|e| anyhow::anyhow!("bad timed RRULE {rrule_str:?}: {e}"))?;

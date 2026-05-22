@@ -27,6 +27,19 @@ fn all_day_dated_multiday_rrule_yearclip() {
 }
 
 #[test]
+fn fixed_offset_tzid_and_bounded_rrule() {
+    let evs = parse("quirky.ics", "America/Toronto");
+    // GMT+0200 14:00 = 12:00 UTC = 08:00 EDT (Toronto, May)
+    assert!(evs.iter().any(|e| e.title == "Berlin call"
+        && e.date == NaiveDate::from_ymd_opt(2027, 5, 19).unwrap()
+        && e.time == Some(NaiveTime::from_hms_opt(8, 0, 0).unwrap())));
+    // yearly RRULE with a date-only UNTIL (2030) still expands the 2027 instance
+    assert!(evs.iter().any(|e| e.title.contains("Bounded")
+        && e.date == NaiveDate::from_ymd_opt(2027, 1, 15).unwrap()
+        && e.time.is_none()));
+}
+
+#[test]
 fn timed_convert_to_config_tz_with_day_shift() {
     let evs = parse("timed.ics", "America/Toronto");
     assert!(evs.iter().any(|e| e.title == "Dentist"
