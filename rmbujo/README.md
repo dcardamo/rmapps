@@ -22,6 +22,10 @@ Regenerate an existing year from its config:
 
     rmbujo path/to/2026/rmbujo.toml
 
+Re-fetch ICS feeds and regenerate (otherwise the cached snapshot is reused):
+
+    rmbujo path/to/2026/rmbujo.toml --refresh-feeds
+
 ## Output
 
 A flat folder per year, one PDF per notebook: `2026 Future Log.pdf`,
@@ -35,6 +39,30 @@ A flat folder per year, one PDF per notebook: `2026 Future Log.pdf`,
     make clippy           # lints
     make build            # nix build the rmbujo package
 
+## ICS calendar feeds
+
+Add calendar feeds to `rmbujo.toml` and they will be overlaid on monthly spreads:
+
+```toml
+timezone = "America/Toronto"   # IANA timezone — used for all event rendering
+
+[[ics]]
+name    = "Holidays"
+url     = "https://example.com/holidays.ics"
+color   = "brick"              # any theme color name
+
+[[ics]]
+name    = "Work"
+url     = "https://example.com/work.ics"
+color   = "navy"
+```
+
+Fetched feeds are cached under `<year>/.ics-cache/`. On a plain `rmbujo
+path/to/rmbujo.toml` run the cache is reused — regeneration is fast, reproducible,
+and works offline. Pass `--refresh-feeds` to force a re-fetch:
+
+    rmbujo path/to/2026/rmbujo.toml --refresh-feeds
+
 ## reMarkable cloud sync (rmapi)
 
 Set `deploy.backend = "rmapi"` and `deploy.base_folder = "/rmbujo"` in `rmbujo.toml`
@@ -45,5 +73,12 @@ Set `deploy.backend = "rmapi"` and `deploy.base_folder = "/rmbujo"` in `rmbujo.t
 - `rmbujo path/to/rmbujo.toml` regenerates and re-syncs with `rmapi put --content-only`,
   which replaces each PDF's background **without touching your handwriting**.
 
-ICS calendar feeds (incl. holidays) are the next phase; see
-`docs/superpowers/specs/2026-05-20-rmbujo-design.md`.
+**Device sync rule:** always sync the device *before* running rmbujo, then sync again
+after. This ensures any handwriting you added on the device reaches the cloud before
+the content-only push, so nothing is lost.
+
+## Adding pages on the device
+
+To insert an extra page directly on the reMarkable, tap **+** and choose the built-in
+**Dots Small** template — its dot grid matches rmbujo's spacing exactly. No sideloaded
+template is needed.

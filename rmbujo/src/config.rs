@@ -40,8 +40,6 @@ pub struct Config {
     pub device: String,
     #[serde(default = "default_week_start")]
     pub week_start: String,
-    #[serde(default = "default_daily")]
-    pub daily_pages: u32,
     #[serde(default = "default_collection")]
     pub collection_pages: u32,
     #[serde(default = "default_spacing")]
@@ -62,9 +60,6 @@ fn default_device() -> String {
 }
 fn default_week_start() -> String {
     "sun".into()
-}
-fn default_daily() -> u32 {
-    60
 }
 fn default_collection() -> u32 {
     20
@@ -89,7 +84,6 @@ impl Config {
             year,
             device: default_device(),
             week_start: default_week_start(),
-            daily_pages: default_daily(),
             collection_pages: default_collection(),
             spacing_mm: default_spacing(),
             theme: default_theme(),

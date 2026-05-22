@@ -21,17 +21,16 @@ fn wizard_assemble() {
         base: base.to_string_lossy().into_owned(),
         device: "paper-pro-move".into(),
         week_start: "sun".into(),
-        daily_pages: 3,
+        pages_per_day: 2,
         collection_pages: 2,
         spacing_mm: 4.5,
         theme: "library".into(),
         deploy_backend: "rmapi".into(),
         base_folder: "/2026".into(),
-        pages_per_day: 1,
         timezone: "America/Toronto".into(),
     });
     assert_eq!(config.year, 2026);
-    assert_eq!(config.daily_pages, 3);
+    assert_eq!(config.pages_per_day, 2);
     assert_eq!(config.spacing_mm, 4.5);
     assert_eq!(config.deploy.backend, "rmapi");
     assert_eq!(config.deploy.base_folder, "/2026");
@@ -44,7 +43,6 @@ fn regenerate_from_config() {
     let dir = tmp_dir().join("2026");
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = Config {
-        daily_pages: 1,
         collection_pages: 1,
         ..Config::new(2026)
     };
@@ -58,4 +56,19 @@ fn regenerate_from_config() {
 
     assert!(dir.join("2026.05 May.pdf").exists());
     assert!(dir.join("2026 Reference.pdf").exists());
+}
+
+#[test]
+fn refresh_feeds_flag_parses() {
+    let dir = tmp_dir().join("2026");
+    std::fs::create_dir_all(&dir).unwrap();
+    let cfg = Config::new(2026);
+    config::dump(&cfg, &dir.join("rmbujo.toml")).unwrap();
+    run(vec![
+        "rmbujo".into(),
+        dir.join("rmbujo.toml").to_string_lossy().into_owned(),
+        "--refresh-feeds".into(),
+    ])
+    .unwrap();
+    assert!(dir.join("2026.05 May.pdf").exists());
 }

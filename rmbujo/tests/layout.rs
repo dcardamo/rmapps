@@ -82,10 +82,7 @@ fn assert_text_present(pdf: &std::path::Path, min_items: usize) {
 
 #[test]
 fn month_layout_clean() {
-    let cfg = Config {
-        daily_pages: 1,
-        ..Config::new(2026)
-    };
+    let cfg = Config::new(2026);
     let out = tmp("month");
     month::build_month_pdf(&cfg, 5, &std::collections::BTreeMap::new(), &out).unwrap();
     assert_no_overlap_and_in_bounds(&out);

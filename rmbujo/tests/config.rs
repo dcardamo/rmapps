@@ -63,7 +63,7 @@ fn minimal_defaults() {
     let c = config::load(&p).unwrap();
     assert_eq!(c.device, "paper-pro-move");
     assert_eq!(c.week_start, "sun");
-    assert_eq!(c.daily_pages, 60);
+    assert_eq!(c.pages_per_day, 1);
     assert_eq!(c.collection_pages, 20);
     assert_eq!(c.spacing_mm, rmbujo::geometry::DEFAULT_SPACING_MM);
     assert_eq!(c.theme, "library");

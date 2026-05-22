@@ -16,7 +16,6 @@ fn tmp_dir() -> std::path::PathBuf {
 #[test]
 fn writes_15_named_pdfs() {
     let cfg = Config {
-        daily_pages: 1,
         collection_pages: 1,
         ..Config::new(2026)
     };

@@ -11,13 +11,12 @@ pub struct Answers {
     pub base: String,
     pub device: String,
     pub week_start: String,
-    pub daily_pages: u32,
+    pub pages_per_day: u32,
     pub collection_pages: u32,
     pub spacing_mm: f32,
     pub theme: String,
     pub deploy_backend: String,
     pub base_folder: String,
-    pub pages_per_day: u32,
     pub timezone: String,
 }
 
@@ -27,7 +26,6 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
         year: a.year,
         device: a.device,
         week_start: a.week_start,
-        daily_pages: a.daily_pages,
         collection_pages: a.collection_pages,
         spacing_mm: a.spacing_mm,
         theme: a.theme,
@@ -64,9 +62,9 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         .with_prompt("Week start (sun|mon)")
         .default("sun".into())
         .interact_text()?;
-    let daily_pages: u32 = Input::new()
-        .with_prompt("Daily pages per month")
-        .default(60)
+    let pages_per_day: u32 = Input::new()
+        .with_prompt("Daily pages per day")
+        .default(1)
         .interact_text()?;
     let collection_pages: u32 = Input::new()
         .with_prompt("Collection pages")
@@ -88,21 +86,23 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         .with_prompt("reMarkable base folder")
         .default("/rmbujo".into())
         .interact_text()?;
+    let timezone: String = Input::new()
+        .with_prompt("Timezone")
+        .default(iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into()))
+        .interact_text()?;
 
     let (config, out_dir, config_path) = assemble(Answers {
         year,
         base,
         device,
         week_start,
-        daily_pages,
+        pages_per_day,
         collection_pages,
         spacing_mm,
         theme,
         deploy_backend,
         base_folder,
-        // pages_per_day and timezone prompts are added in a later task; use defaults for now.
-        pages_per_day: 1,
-        timezone: iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into()),
+        timezone,
     });
     // The caller validates and creates the directory after this returns, so
     // invalid input doesn't leave an orphan folder behind.
