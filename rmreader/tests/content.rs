@@ -1,5 +1,8 @@
-use rmreader::content::{process_html, FetchedImage, ImageFetcher};
+use rmreader::content::{
+    assemble_processed, collect_doc_urls, process_html, FetchedImage, ImageFetcher,
+};
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 struct FakeFetcher {
     map: std::collections::HashMap<String, Option<FetchedImage>>,
@@ -240,4 +243,55 @@ fn fetch_many_default_preserves_order() {
 
     // Confirm the fetch calls happened in input order (sequential default).
     assert_eq!(*f.fetched.borrow(), vec![url_a, url_b, url_c]);
+}
+
+#[test]
+fn collect_doc_urls_dedups_and_respects_images_flag() {
+    let html =
+        r#"<img src="https://x/a.png"><img src="https://x/a.png"><img src="https://x/b.png">"#;
+    let (out_html, truncated, urls) = collect_doc_urls(html, 80_000, true);
+    assert!(!truncated);
+    assert_eq!(out_html, html);
+    assert_eq!(
+        urls,
+        vec!["https://x/a.png".to_string(), "https://x/b.png".to_string()]
+    );
+
+    let (_h, _t, none): (String, bool, Vec<String>) = collect_doc_urls(html, 80_000, false);
+    assert!(none.is_empty(), "images disabled => no urls collected");
+}
+
+#[test]
+fn collect_doc_urls_truncates_oversize() {
+    let big = format!("<p>{}</p>", "word ".repeat(40_000)); // ~200 KB
+    let (out_html, truncated, _urls): (String, bool, Vec<String>) =
+        collect_doc_urls(&big, 80_000, false);
+    assert!(truncated);
+    assert!(out_html.len() <= 80_000);
+}
+
+#[test]
+fn assemble_processed_matches_legacy_keys_and_sanitizes() {
+    let url = "https://x/p.png".to_string();
+    let mut fetched = HashMap::new();
+    fetched.insert(
+        url.clone(),
+        rmreader::content::FetchedImage {
+            bytes: png_8x8(),
+            ext: "png".into(),
+        },
+    );
+    let html = r#"<p onclick="x()" style="font-family:Georgia"><img src="https://x/p.png"></p><script>e()</script>"#;
+    let (thtml, truncated, urls) = collect_doc_urls(html, 80_000, true);
+    let out = assemble_processed("d1", &thtml, truncated, true, &urls, &fetched);
+    assert_eq!(out.assets.len(), 1);
+    assert_eq!(out.assets[0].0, "img-d1-0.png");
+    assert!(out.html.contains("img-d1-0.png"));
+    assert!(!out.html.contains("https://x/p.png"));
+    assert!(!out.html.contains("script"));
+    assert!(!out.html.contains("onclick"));
+    assert!(
+        !out.html.contains("style="),
+        "inline style must still be stripped after the split"
+    );
 }

@@ -83,19 +83,46 @@ fn normalize_image(bytes: &[u8]) -> Option<(Vec<u8>, String)> {
     }
 }
 
-/// Sanitise `html` and embed images as local assets.
-///
-/// `doc_id` is included in every asset key so that keys remain globally unique
-/// when assets from multiple documents are merged into a single `AssetBundle`.
-///
-/// `max_bytes` caps pathologically large articles so fulgur's layout time
-/// can't blow up and freeze the render. Comes from `config.content.max_article_bytes`.
-pub fn process_html(
+/// Truncate at the byte cap (on a UTF-8 boundary) and collect the document's
+/// deduplicated `<img>` URLs (first-seen order). When images are disabled the URL
+/// list is empty. Returns `(possibly-truncated HTML, truncated flag, urls)`.
+pub fn collect_doc_urls(
     html: &str,
-    doc_id: &str,
-    images_enabled: bool,
     max_bytes: usize,
-    fetcher: &dyn ImageFetcher,
+    images_enabled: bool,
+) -> (String, bool, Vec<String>) {
+    let (html, truncated) = if html.len() > max_bytes {
+        let mut end = max_bytes;
+        while end > 0 && !html.is_char_boundary(end) {
+            end -= 1;
+        }
+        (&html[..end], true)
+    } else {
+        (html, false)
+    };
+    let urls = if images_enabled {
+        let mut seen = std::collections::HashSet::new();
+        collect_img_urls(html)
+            .into_iter()
+            .filter(|u| seen.insert(u.clone()))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    (html.to_string(), truncated, urls)
+}
+
+/// Build sanitized HTML + normalized image assets for one document, given the
+/// already-truncated HTML, its deduped image URLs (first-seen order), and a
+/// shared `url -> fetched bytes` map. Asset keys are `img-{safe_id}-{i}` over
+/// `urls`, matching the legacy single-document path byte-for-byte.
+pub fn assemble_processed(
+    doc_id: &str,
+    truncated_html: &str,
+    truncated: bool,
+    images_enabled: bool,
+    urls: &[String],
+    fetched: &std::collections::HashMap<String, FetchedImage>,
 ) -> Processed {
     use std::collections::HashMap;
     // Sanitise doc_id so the key is always filename-safe.
@@ -110,56 +137,29 @@ pub fn process_html(
         })
         .collect();
 
-    // Cap pathologically large articles so fulgur's layout time can't blow up and
-    // freeze the render. Truncate at a UTF-8 boundary; a note (appended below) sends
-    // the reader to Readwise for the full text.
-    let (html, truncated) = if html.len() > max_bytes {
-        let mut end = max_bytes;
-        while end > 0 && !html.is_char_boundary(end) {
-            end -= 1;
-        }
-        (&html[..end], true)
-    } else {
-        (html, false)
-    };
-
-    // Pass 1: collect deduplicated <img> URLs (first-seen order), fetch them
-    // all at once (concurrently if the fetcher supports it), then build
-    // url_to_key + assets in deterministic index order so asset keys
-    // (img-{safe_id}-{i}) are stable across runs.
     let mut url_to_key: HashMap<String, String> = HashMap::new();
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     if images_enabled {
-        // Deduplicate while preserving first-seen order.
-        let mut seen = std::collections::HashSet::new();
-        let urls: Vec<String> = collect_img_urls(html)
-            .into_iter()
-            .filter(|u| seen.insert(u.clone()))
-            .collect();
-
-        let results = fetcher.fetch_many(&urls);
-
-        for (i, (url, fetched_opt)) in urls.into_iter().zip(results).enumerate() {
-            if let Some(fetched) = fetched_opt {
-                let normalized = if fetched.ext == "svg" {
-                    Some((fetched.bytes.clone(), "svg".into()))
-                } else {
-                    normalize_image(&fetched.bytes)
-                };
-                if let Some((bytes, ext)) = normalized {
-                    // Include doc_id so keys are unique across articles when
-                    // assets from multiple documents are merged into one bundle.
-                    let key = format!("img-{safe_id}-{i}.{ext}");
-                    url_to_key.insert(url.clone(), key.clone());
-                    assets.push((key, bytes));
-                }
+        for (i, url) in urls.iter().enumerate() {
+            let Some(f) = fetched.get(url) else { continue };
+            let normalized = if f.ext == "svg" {
+                Some((f.bytes.clone(), "svg".to_string()))
+            } else {
+                normalize_image(&f.bytes)
+            };
+            if let Some((bytes, ext)) = normalized {
+                // Include doc_id so keys are unique across articles when assets
+                // from multiple documents are merged into one bundle.
+                let key = format!("img-{safe_id}-{i}.{ext}");
+                url_to_key.insert(url.clone(), key.clone());
+                assets.push((key, bytes));
             }
         }
     }
 
     // Pass 2: rewrite img src -> key (drop unresolved/disabled), strip dangerous nodes/attrs.
     let mut cleaned = rewrite_str(
-        html,
+        truncated_html,
         RewriteStrSettings {
             element_content_handlers: vec![
                 element!("script,iframe,noscript,style,object,embed,form", |el| {
@@ -210,7 +210,7 @@ pub fn process_html(
             ..RewriteStrSettings::default()
         },
     )
-    .unwrap_or_else(|_| html.to_string());
+    .unwrap_or_else(|_| truncated_html.to_string());
 
     if truncated {
         cleaned.push_str(
@@ -222,4 +222,37 @@ pub fn process_html(
         html: cleaned,
         assets,
     }
+}
+
+/// Sanitise `html` and embed images as local assets (single-document path used by
+/// tests and any caller without a shared fetch pool). Delegates to
+/// `collect_doc_urls` + `fetch_many` + `assemble_processed`.
+///
+/// `doc_id` is included in every asset key so that keys remain globally unique
+/// when assets from multiple documents are merged into a single `AssetBundle`.
+/// `max_bytes` caps pathologically large articles so fulgur's layout time can't
+/// blow up. Comes from `config.content.max_article_bytes`.
+pub fn process_html(
+    html: &str,
+    doc_id: &str,
+    images_enabled: bool,
+    max_bytes: usize,
+    fetcher: &dyn ImageFetcher,
+) -> Processed {
+    let (truncated_html, truncated, urls) = collect_doc_urls(html, max_bytes, images_enabled);
+    let results = fetcher.fetch_many(&urls);
+    let fetched: std::collections::HashMap<String, FetchedImage> = urls
+        .iter()
+        .cloned()
+        .zip(results)
+        .filter_map(|(u, r)| r.map(|f| (u, f)))
+        .collect();
+    assemble_processed(
+        doc_id,
+        &truncated_html,
+        truncated,
+        images_enabled,
+        &urls,
+        &fetched,
+    )
 }
