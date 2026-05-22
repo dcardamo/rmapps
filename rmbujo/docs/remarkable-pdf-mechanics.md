@@ -77,14 +77,19 @@ With the pen toolbar shown, it obscures roughly the **top ~36–40pt (~13–14mm
 page (measured with a ruler page). Start real content below that on every page (cover
 pages excepted — full-bleed color behind the toolbar is fine).
 
-## 8. Inserted pages use device templates (need SSH)
+## 8. Inserted pages use device templates — so match a built-in one
 
 A page inserted on the tablet is blank/lined per the device's selected **template**,
-not your PDF background. reMarkable has **no** official way to add a custom template
-(not via cloud, USB web UI, or rmapi); even GUI tools drive it over the device's SSH.
-So shipping a matching dot-grid template requires SSH, and **firmware updates can wipe
-custom templates**. Mitigations: pre-allocate dotted pages (`pages_per_day`), or
-duplicate an existing dotted page (untested workaround).
+not your PDF background. reMarkable has **no** official way to add a *custom* template
+(not via cloud, USB web UI, or rmapi; even GUI tools drive it over SSH), and firmware
+updates can wipe sideloaded ones.
+
+**rmbujo's approach: match a built-in template instead of sideloading.** We set our
+dot grid to the pitch of reMarkable's built-in **"Dots Small"** template, so a user who
+inserts a page and picks "Dots Small" gets a page that lines up with our generated
+pages — no sideloading, no SSH for users. The "Dots Small" pitch is measured once
+on-device during development and becomes rmbujo's default dot spacing. (`pages_per_day`
+still lets you pre-allocate dotted pages so inserting is rarely needed.)
 
 ## 9. Sync ordering / conflicts
 
