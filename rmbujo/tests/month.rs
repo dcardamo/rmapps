@@ -77,14 +77,14 @@ fn events_only_add_trailing_pages() {
 }
 
 #[test]
-fn busy_month_paginates_agenda_and_details() {
+fn busy_month_paginates_per_day_pages() {
     use std::collections::BTreeMap;
     let cfg = Config {
         pages_per_day: 1,
         ..Config::new(2027)
     };
-    // 28 days, 3 events each -> agenda + details each overflow a single page and
-    // must paginate (the bug was a single clipped section).
+    // 28 busy days each produce one or more combined per-day event pages, so the
+    // month paginates well beyond a single trailing page.
     let mut ev: BTreeMap<chrono::NaiveDate, Vec<rmbujo::ics::EventOccurrence>> = BTreeMap::new();
     for day in 1..=28u32 {
         let d = chrono::NaiveDate::from_ymd_opt(2027, 1, day).unwrap();
@@ -111,48 +111,6 @@ fn busy_month_paginates_agenda_and_details() {
         pages > 33 + 1,
         "busy month should paginate per-day event pages beyond one page (got {pages})"
     );
-}
-
-#[test]
-fn busy_day_splits_across_pages_with_repeated_header() {
-    use rmbujo::notebooks::month::agenda::{paginate, HEADER_PT};
-    use rmbujo::templates::{AgendaDay, AgendaEvent};
-    let mk = |i| AgendaEvent {
-        idx: i,
-        label: "09:00".into(),
-        end_label: None,
-        title: "Event".into(),
-        location: None,
-        description: None,
-        attendees: vec![],
-        color: "cal1".into(),
-        is_all_day: false,
-    };
-    // A single day with far more events than fit on one page.
-    let day = AgendaDay {
-        day: 1,
-        weekday: "Mon",
-        events: (0..30).map(mk).collect(),
-    };
-    let usable = 380.0;
-    let pages = paginate(&[day], usable, HEADER_PT, |_| 30.0);
-    assert!(pages.len() > 1, "a busy day must split across pages");
-    for page in &pages {
-        let h: f32 = page
-            .iter()
-            .map(|d| HEADER_PT + 30.0 * d.events.len() as f32)
-            .sum();
-        assert!(
-            h <= usable + 0.01,
-            "each page stays within the usable height"
-        );
-        assert!(
-            page.iter().all(|d| d.day == 1),
-            "header repeats for the split day"
-        );
-    }
-    let total: usize = pages.iter().flatten().map(|d| d.events.len()).sum();
-    assert_eq!(total, 30, "no events lost when splitting");
 }
 
 #[test]

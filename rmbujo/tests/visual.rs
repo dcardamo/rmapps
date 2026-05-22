@@ -7,8 +7,8 @@ use rmbujo::device::get_device;
 use rmbujo::geometry::{default_grid, monthly_row_pt, TOOLBAR_SAFE_PT};
 use rmbujo::render::render_pdf;
 use rmbujo::templates::{
-    Agenda, AgendaDay, AgendaEvent, Cover, DailyPage, DayRow, Details, DotGrid, FutureLog,
-    MonthlyView, Reference, Tasks,
+    AgendaEvent, Cover, DailyPage, DayEvents, DayRow, DotGrid, FutureLog, MonthlyView, Reference,
+    Tasks,
 };
 use rmbujo::theme::load_theme;
 
@@ -79,46 +79,42 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
     .render()
     .unwrap();
 
-    // agenda + details share the same sample data
-    let agenda_days = vec![AgendaDay {
+    // day_events — one combined page: Agenda list + Details for a single day.
+    let day_evts = vec![
+        AgendaEvent {
+            idx: 0,
+            label: "All Day".into(),
+            end_label: None,
+            title: "Victoria Day".into(),
+            location: None,
+            description: None,
+            attendees: vec![],
+            color: "accent".into(),
+            is_all_day: true,
+        },
+        AgendaEvent {
+            idx: 1,
+            label: "14:00".into(),
+            end_label: Some("15:00".into()),
+            title: "Dentist".into(),
+            location: Some("Downtown".into()),
+            description: Some("Bring card".into()),
+            attendees: vec!["Dr. Lee".into()],
+            color: "rust".into(),
+            is_all_day: false,
+        },
+    ];
+    let day_events = DayEvents {
+        month_num: 5,
         day: 19,
+        day_pad: "19".into(),
         weekday: "Tue",
-        events: vec![
-            AgendaEvent {
-                idx: 0,
-                label: "All Day".into(),
-                end_label: None,
-                title: "Victoria Day".into(),
-                location: None,
-                description: None,
-                attendees: vec![],
-                color: "accent".into(),
-                is_all_day: true,
-            },
-            AgendaEvent {
-                idx: 1,
-                label: "14:00".into(),
-                end_label: Some("15:00".into()),
-                title: "Dentist".into(),
-                location: Some("Downtown".into()),
-                description: Some("Bring card".into()),
-                attendees: vec!["Dr. Lee".into()],
-                color: "rust".into(),
-                is_all_day: false,
-            },
-        ],
-    }];
-    let agenda = Agenda {
-        month_name: "May",
-        year: 2026,
-        days: &agenda_days,
-    }
-    .render()
-    .unwrap();
-    let details = Details {
-        month_name: "May",
-        year: 2026,
-        days: &agenda_days,
+        agenda: &day_evts,
+        details: &day_evts,
+        show_agenda_heading: true,
+        show_details_heading: true,
+        continued: false,
+        first_page: true,
     }
     .render()
     .unwrap();
@@ -157,8 +153,7 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
         ("reference", Reference.render().unwrap()),
         ("monthly_view", monthly_view),
         ("daily_page", daily_page),
-        ("agenda", agenda),
-        ("details", details),
+        ("day_events", day_events),
     ]
 }
 

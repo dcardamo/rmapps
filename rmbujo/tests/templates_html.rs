@@ -1,8 +1,7 @@
 use askama::Template;
 use rmbujo::calendar::build_month;
 use rmbujo::templates::{
-    Agenda, AgendaDay, AgendaEvent, Cover, DayEvents, DayRow, Details, FutureLog, MonthlyView,
-    Reference, Tasks,
+    AgendaEvent, Cover, DayEvents, DayRow, FutureLog, MonthlyView, Reference, Tasks,
 };
 
 #[test]
@@ -103,110 +102,6 @@ fn reference_legend() {
     let html = Reference.render().unwrap();
     assert!(html.contains("Feeling / mood"));
     assert_eq!(html.matches("class=\"page\"").count(), 2);
-}
-
-/// Two days, three events total: one with a location+notes, one bare, one timed.
-fn sample_agenda_days() -> Vec<AgendaDay> {
-    vec![
-        AgendaDay {
-            day: 19,
-            weekday: "Wed",
-            events: vec![
-                AgendaEvent {
-                    idx: 0,
-                    label: "All Day".into(),
-                    end_label: None,
-                    title: "Victoria Day".into(),
-                    location: None,
-                    description: None,
-                    attendees: vec![],
-                    color: "accent".into(),
-                    is_all_day: true,
-                },
-                AgendaEvent {
-                    idx: 1,
-                    label: "14:00".into(),
-                    end_label: Some("15:00".into()),
-                    title: "Dentist".into(),
-                    location: Some("Downtown".into()),
-                    description: Some("Bring insurance card".into()),
-                    attendees: vec!["Dr. Lee".into()],
-                    color: "rust".into(),
-                    is_all_day: false,
-                },
-            ],
-        },
-        AgendaDay {
-            day: 24,
-            weekday: "Mon",
-            events: vec![AgendaEvent {
-                idx: 2,
-                label: "09:00".into(),
-                end_label: Some("10:30".into()),
-                title: "Flight".into(),
-                location: None,
-                description: None,
-                attendees: vec![],
-                color: "primary".into(),
-                is_all_day: false,
-            }],
-        },
-    ]
-}
-
-#[test]
-fn agenda_links_and_swatches() {
-    let days = sample_agenda_days();
-    let html = Agenda {
-        month_name: "May",
-        year: 2027,
-        days: &days,
-    }
-    .render()
-    .unwrap();
-    // Title "2027 May" links back to the monthly view.
-    assert!(html.contains("href=\"#monthly\""));
-    assert!(html.contains("2027 May"));
-    // Two date headers -> #day-N, two day blocks with #agenda-N anchors.
-    assert_eq!(html.matches("href=\"#day-19\"").count(), 1);
-    assert_eq!(html.matches("href=\"#day-24\"").count(), 1);
-    assert!(html.contains("id=\"agenda-19\""));
-    assert!(html.contains("id=\"agenda-24\""));
-    // Three events -> three #evt-K links and three swatches.
-    assert_eq!(html.matches("href=\"#evt-").count(), 3);
-    assert_eq!(html.matches("class=\"swatch\"").count(), 3);
-    // Color swatch resolves a theme var.
-    assert!(html.contains("var(--accent)"));
-    // Location appended on the agenda line.
-    assert!(html.contains("Downtown"));
-}
-
-#[test]
-fn details_omit_empty_fields() {
-    let days = sample_agenda_days();
-    let html = Details {
-        month_name: "May",
-        year: 2027,
-        days: &days,
-    }
-    .render()
-    .unwrap();
-    assert!(html.contains("href=\"#monthly\""));
-    // Three event blocks with stable ids.
-    assert!(html.contains("id=\"evt-0\""));
-    assert!(html.contains("id=\"evt-1\""));
-    assert!(html.contains("id=\"evt-2\""));
-    // The populated event shows Where/Notes/Who exactly once each.
-    assert_eq!(html.matches("Where:").count(), 1);
-    assert_eq!(html.matches("Notes:").count(), 1);
-    assert_eq!(html.matches("Who:").count(), 1);
-    assert!(html.contains("Bring insurance card"));
-    assert!(html.contains("Dr. Lee"));
-    // Timed events show a start–end range (en dash); all-day shows no range.
-    assert!(html.contains("14:00&#8211;15:00"));
-    assert!(html.contains("09:00&#8211;10:30"));
-    // The bare all-day event must not emit empty meta lines.
-    assert!(html.contains("Victoria Day"));
 }
 
 fn sample_day_events() -> Vec<AgendaEvent> {

@@ -87,22 +87,6 @@ pub struct AgendaDay {
     pub events: Vec<AgendaEvent>,
 }
 
-#[derive(Template)]
-#[template(path = "agenda.html")]
-pub struct Agenda<'a> {
-    pub month_name: &'a str,
-    pub year: i32,
-    pub days: &'a [AgendaDay],
-}
-
-#[derive(Template)]
-#[template(path = "details.html")]
-pub struct Details<'a> {
-    pub month_name: &'a str,
-    pub year: i32,
-    pub days: &'a [AgendaDay],
-}
-
 /// One page of a single day's events: a compact agenda list followed by expanded
 /// details. `agenda`/`details` hold only the events on THIS page; the heading and
 /// continuation flags come from `notebooks::month::agenda::DayPagePlan`.

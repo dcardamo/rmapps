@@ -128,58 +128,6 @@ pub fn detail_event_pt(width_pt: f32, e: &AgendaEvent) -> f32 {
     h + 8.0
 }
 
-/// Paginate `days` into page-sized chunks at the EVENT level: a day with more
-/// events than fit on a page is split across pages, repeating its date header.
-/// `header_pt` is the per-day header cost; `event_pt` gives each event's height.
-pub fn paginate(
-    days: &[AgendaDay],
-    usable_pt: f32,
-    header_pt: f32,
-    event_pt: impl Fn(&AgendaEvent) -> f32,
-) -> Vec<Vec<AgendaDay>> {
-    let new_day = |d: &AgendaDay| AgendaDay {
-        day: d.day,
-        weekday: d.weekday,
-        events: Vec::new(),
-    };
-    let mut pages: Vec<Vec<AgendaDay>> = Vec::new();
-    let mut page: Vec<AgendaDay> = Vec::new();
-    let mut h = 0.0;
-    for day in days {
-        let mut cur = new_day(day);
-        let mut header_counted = false;
-        for ev in &day.events {
-            let eh = event_pt(ev);
-            let need = if header_counted { eh } else { header_pt + eh };
-            // Flush when the next event won't fit and the current page already has
-            // content (this day's events, or earlier days). An oversized lone event
-            // on an otherwise-empty page is placed as-is (bounded by field capping).
-            let has_content = !cur.events.is_empty() || !page.is_empty();
-            if h + need > usable_pt && has_content {
-                if !cur.events.is_empty() {
-                    page.push(std::mem::replace(&mut cur, new_day(day)));
-                }
-                pages.push(std::mem::take(&mut page));
-                h = 0.0;
-                header_counted = false;
-            }
-            if !header_counted {
-                h += header_pt;
-                header_counted = true;
-            }
-            cur.events.push(ev.clone());
-            h += eh;
-        }
-        if !cur.events.is_empty() {
-            page.push(cur);
-        }
-    }
-    if !page.is_empty() {
-        pages.push(page);
-    }
-    pages
-}
-
 /// One rendered page of a single day's events. A page is always laid out as
 /// `[agenda lines] [detail blocks]` (agenda always precedes details within a
 /// day), so two slices plus the heading/continuation flags fully describe it:
