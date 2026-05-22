@@ -22,7 +22,7 @@
     {
       "id": 4,
       "subject": "Task 3: Wire cache + global concurrent fetch into build pipeline",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2, 3],
       "description": "Rewrite build_one (cache classify -> global fetch -> assemble -> cache put); thread Cache through generate + sweep once; assemble_document Fn->FnMut. Cold==warm transparency test.\n\n```json:metadata\n{\"files\": [\"src/assemble.rs\", \"src/generate.rs\", \"tests/generate.rs\"], \"verifyCommand\": \"nix develop -c cargo test && make clippy\", \"acceptanceCriteria\": [\"cold==warm bytes\", \"cache built+swept once\", \"clippy clean\"]}\n```"
     },
