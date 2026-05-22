@@ -40,14 +40,29 @@ impl<R: RmapiRunner> RmapiDeployer<R> {
         a.push(folder);
         a
     }
+
+    /// Idempotently create every ancestor of `folder` (mkdir -p semantics).
+    /// rmapi mkdir errors on an existing dir; ignore those.
+    fn mkdir_p(&self, folder: &str) {
+        let mut path = String::new();
+        for comp in folder
+            .trim_matches('/')
+            .split('/')
+            .filter(|c| !c.is_empty())
+        {
+            path.push('/');
+            path.push_str(comp);
+            let _ = self.runner.run(&["-ni", "mkdir", &path]);
+        }
+    }
 }
 
 impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
     fn deploy(&self, targets: &[(PathBuf, String)]) -> anyhow::Result<()> {
-        // mkdir is idempotent: a pre-existing folder makes rmapi error, which we
-        // ignore. A genuine auth/connectivity failure surfaces on the first `put`.
+        // mkdir_p is idempotent: rmapi errors on existing dirs, which we ignore.
+        // A genuine auth/connectivity failure surfaces on the first `put`.
         for (pdf, folder) in targets {
-            let _ = self.runner.run(&["-ni", "mkdir", folder.as_str()]);
+            self.mkdir_p(folder);
             self.runner
                 .run(&self.put_args(path_str(pdf)?, folder, false))?;
         }
@@ -87,6 +102,8 @@ impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
             .file_stem()
             .and_then(|s| s.to_str())
             .ok_or_else(|| anyhow::anyhow!("bad pdf path: {}", pdf.display()))?;
+        // Ensure the target folder exists (mkdir -p) before removing/uploading.
+        self.mkdir_p(folder);
         // rm is best-effort: a missing doc is fine.
         let _ = self.runner.run(&["-ni", "rm", &format!("{folder}/{name}")]);
         self.runner.run(&["-ni", "put", path_str(pdf)?, folder])

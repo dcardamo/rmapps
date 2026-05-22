@@ -105,8 +105,10 @@ fn replace_removes_then_puts() {
     d.replace(Path::new("/o/Library.pdf"), "/RMDev/Reader")
         .unwrap();
     let c = calls.borrow();
-    assert_eq!(c[0], vec!["-ni", "rm", "/RMDev/Reader/Library"]);
-    assert_eq!(c[1], vec!["-ni", "put", "/o/Library.pdf", "/RMDev/Reader"]);
+    assert_eq!(c[0], vec!["-ni", "mkdir", "/RMDev"]);
+    assert_eq!(c[1], vec!["-ni", "mkdir", "/RMDev/Reader"]);
+    assert_eq!(c[2], vec!["-ni", "rm", "/RMDev/Reader/Library"]);
+    assert_eq!(c[3], vec!["-ni", "put", "/o/Library.pdf", "/RMDev/Reader"]);
 }
 
 #[test]
