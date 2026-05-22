@@ -237,44 +237,68 @@ fn build_one(
 /// Returns deploy targets: (pdf_path, remarkable_folder).
 pub fn generate(
     config: &Config,
-    transport: &dyn HttpTransport,
-    fetcher: &dyn ImageFetcher,
+    transport: &(dyn HttpTransport + Sync),
+    fetcher: &(dyn ImageFetcher + Sync),
 ) -> anyhow::Result<Vec<(PathBuf, String)>> {
     let out_dir = PathBuf::from(&config.output_dir);
     std::fs::create_dir_all(&out_dir)?;
+
     let cache = crate::cache::Cache::from_config(&config.cache);
     cache.sweep();
-    let mut targets = Vec::new();
 
-    eprintln!(
-        "[rmreader] fetching library {:?}...",
-        config.library.locations
-    );
-    let lib = crate::readwise::fetch_documents(
-        transport,
-        &config.readwise.token,
-        &config.library.locations,
-        config.library.max_items,
-        |s| std::thread::sleep(std::time::Duration::from_secs(s)),
-    )?;
-    let lib = drop_empty(lib);
-    eprintln!("[rmreader] library: {} docs", lib.len());
-    let lib_pdf = build_one("Library", &lib, config, fetcher, &out_dir, &cache)?;
-    targets.push((lib_pdf, config.deploy.library_folder.clone()));
+    // Both collections are independent: fetch + build each on its own thread.
+    let (lib_res, feed_res) = std::thread::scope(|s| {
+        let out_dir = &out_dir;
+        let cache = &cache;
+        let lib_h = s.spawn(move || -> anyhow::Result<(PathBuf, String)> {
+            eprintln!(
+                "[rmreader] fetching library {:?}...",
+                config.library.locations
+            );
+            let lib = crate::readwise::fetch_documents(
+                transport,
+                &config.readwise.token,
+                &config.library.locations,
+                config.library.max_items,
+                sleep_secs,
+            )?;
+            let lib = drop_empty(lib);
+            eprintln!("[rmreader] library: {} docs", lib.len());
+            let pdf = build_one("Library", &lib, config, fetcher, out_dir, cache)?;
+            Ok((pdf, config.deploy.library_folder.clone()))
+        });
+        let feed_h = if config.feed.enabled {
+            Some(s.spawn(move || -> anyhow::Result<(PathBuf, String)> {
+                eprintln!("[rmreader] fetching feed...");
+                let feed = crate::readwise::fetch_documents(
+                    transport,
+                    &config.readwise.token,
+                    &["feed".into()],
+                    config.feed.max_items,
+                    sleep_secs,
+                )?;
+                let feed = drop_empty(feed);
+                eprintln!("[rmreader] feed: {} docs", feed.len());
+                let pdf = build_one("Feed", &feed, config, fetcher, out_dir, cache)?;
+                Ok((pdf, config.deploy.feed_folder.clone()))
+            }))
+        } else {
+            None
+        };
+        let lib_res = lib_h.join().expect("library build thread panicked");
+        let feed_res = feed_h.map(|h| h.join().expect("feed build thread panicked"));
+        (lib_res, feed_res)
+    });
 
-    if config.feed.enabled {
-        eprintln!("[rmreader] fetching feed...");
-        let feed = crate::readwise::fetch_documents(
-            transport,
-            &config.readwise.token,
-            &["feed".into()],
-            config.feed.max_items,
-            |s| std::thread::sleep(std::time::Duration::from_secs(s)),
-        )?;
-        let feed = drop_empty(feed);
-        eprintln!("[rmreader] feed: {} docs", feed.len());
-        let feed_pdf = build_one("Feed", &feed, config, fetcher, &out_dir, &cache)?;
-        targets.push((feed_pdf, config.deploy.feed_folder.clone()));
+    let mut targets = vec![lib_res?];
+    if let Some(fr) = feed_res {
+        targets.push(fr?);
     }
     Ok(targets)
+}
+
+/// Rate-limit sleep used by `fetch_documents` (a plain fn item so both build
+/// threads can share it; it is `Copy` and `Sync`).
+fn sleep_secs(s: u64) {
+    std::thread::sleep(std::time::Duration::from_secs(s));
 }
