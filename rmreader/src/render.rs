@@ -14,6 +14,7 @@ const LORA_IT: &[u8] = include_bytes!("../assets/fonts/Lora-Italic.ttf");
 const LORA_SB: &[u8] = include_bytes!("../assets/fonts/Lora-SemiBold.ttf");
 const HANKEN: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Regular.ttf");
 const HANKEN_MD: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Medium.ttf");
+const HANKEN_SB: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-SemiBold.ttf");
 // Display serif used only for the index masthead ("Feed" / "Library").
 const FRAUNCES: &[u8] = include_bytes!("../assets/fonts/Fraunces-Regular.ttf");
 const FRAUNCES_SB: &[u8] = include_bytes!("../assets/fonts/Fraunces-SemiBold.ttf");
@@ -40,7 +41,7 @@ html, body {{ margin: 0; padding: 0; background: var(--paper); }}\n\
 body {{ font-family: \"Lora\", serif; color: var(--ink); font-size:9.5pt; }}\n\
 .article {{ break-before: page; }}\n\
 .headline {{ font-weight:600; font-size:16pt; line-height:1.12; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
-.byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; color:var(--byline); margin-top:6pt; }}\n\
+.byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:9pt; font-weight:600; color:var(--byline); margin-top:6pt; }}\n\
 .hr {{ height:0.5pt; background:var(--rule); margin:8pt 0; }}\n\
 .body {{ font-size:9.5pt; line-height:1.4; color:var(--ink); }}\n\
 .body p {{ margin:0 0 4.5pt; }}\n\
@@ -83,6 +84,7 @@ pub fn render_pdf(
     assets.add_font_bytes(LORA_SB.to_vec())?;
     assets.add_font_bytes(HANKEN.to_vec())?;
     assets.add_font_bytes(HANKEN_MD.to_vec())?;
+    assets.add_font_bytes(HANKEN_SB.to_vec())?;
     assets.add_font_bytes(FRAUNCES.to_vec())?;
     assets.add_font_bytes(FRAUNCES_SB.to_vec())?;
 
