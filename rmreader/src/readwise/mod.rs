@@ -85,8 +85,9 @@ pub fn update_location(
 pub fn delete_document(t: &dyn HttpTransport, token: &str, id: &str) -> anyhow::Result<()> {
     let url = format!("{DELETE_URL}{id}/");
     let r = t.request(HttpMethod::Delete, &url, token, None)?;
+    // Readwise returns 204 on delete; accept any 2xx defensively.
     anyhow::ensure!(
-        r.status == 204 || (200..300).contains(&r.status),
+        (200..300).contains(&r.status),
         "delete {id} failed: HTTP {}",
         r.status
     );

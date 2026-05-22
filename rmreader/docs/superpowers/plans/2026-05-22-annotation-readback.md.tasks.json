@@ -24,7 +24,7 @@
     {
       "id": 4,
       "subject": "Task 4: rmreader — embedded PDF manifest write/read (in-process)",
-      "status": "pending",
+      "status": "completed",
       "description": "Define the embedded manifest; read/write inside a PDF with lopdf; in-process round trip survives save+reload.\n\n```json:metadata\n{\"files\":[\"src/manifest.rs\",\"src/embed.rs\",\"src/lib.rs\",\"tests/embed.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test embed\",\"acceptanceCriteria\":[\"write+read round trip through save/reload\",\"read None when absent\"]}\n```"
     },
     {
@@ -37,7 +37,7 @@
     {
       "id": 6,
       "subject": "Task 6: rmreader — manifest plumbing through assemble + generate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "Carry author/source_url/category into ManifestItem; Manifest::to_embedded() builds EmbeddedManifest (placeholder page ranges).\n\n```json:metadata\n{\"files\":[\"src/assemble.rs\",\"src/manifest.rs\",\"tests/assemble.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test assemble\",\"acceptanceCriteria\":[\"new ManifestItem fields populated\",\"to_embedded() works\"]}\n```"
     },
