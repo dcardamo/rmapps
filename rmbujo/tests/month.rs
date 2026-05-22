@@ -204,8 +204,10 @@ fn paginate_day_agenda_overflows_then_details() {
         weekday: "Wed",
         events: (0..3).map(mk).collect(),
     };
-    // header 20, subhead 0, each item 40, usable 100.
-    // p0: a0(60),a1(100) -> flush. p1: a2(60),d0(100) -> flush. p2: d1(60),d2(100).
+    // header 20, subhead 0, each item 40, usable 100. Numbers below are the
+    // running page height *after* placing each item (header included).
+    // p0: a0->60, a1->100 (full); a2 needs 40 -> 140>100 flush.
+    // p1: a2->60, d0->100 (full); d1 needs 40 -> flush. p2: d1->60, d2->100.
     let pages = paginate_day(&day, 100.0, 20.0, 0.0, |_| 40.0, |_| 40.0);
     assert_eq!(pages.len(), 3);
     assert!(pages[0].first_page && pages[0].show_agenda_heading);
@@ -279,8 +281,11 @@ fn paginate_day_oversized_lone_item_placed() {
         events: (0..1).map(mk).collect(),
     };
     // One agenda item far taller than the page: must be placed, not dropped/looped.
+    // The oversized item stays alone on p0; the detail item flushes onto p1.
     let pages = paginate_day(&day, 100.0, 20.0, 5.0, |_| 500.0, |_| 10.0);
+    assert_eq!(pages.len(), 2);
     assert_eq!(pages[0].agenda.len(), 1);
+    assert!(pages[0].details.is_empty());
     assert_eq!(pages.iter().map(|p| p.agenda.len()).sum::<usize>(), 1);
     assert_eq!(pages.iter().map(|p| p.details.len()).sum::<usize>(), 1);
 }
