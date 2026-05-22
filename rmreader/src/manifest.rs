@@ -60,8 +60,27 @@ impl Manifest {
                     page_range: i.page_range.unwrap_or(PageRange { first: 0, last: 0 }),
                 })
                 .collect(),
+            // Filled by postprocess::finalize_pdf once page geometry is known.
+            label_rects: Vec::new(),
         }
     }
+}
+
+/// Axis-aligned rectangle in PDF points, bottom-left origin (matches readback coords).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ManifestRect {
+    pub x0: f64,
+    pub y0: f64,
+    pub x1: f64,
+    pub y1: f64,
+}
+
+/// One stamped action-label column with its tap rect.
+/// `kind` is one of `"inbox"`, `"archive"`, `"later"`, `"delete"`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LabelRect {
+    pub kind: String,
+    pub rect: ManifestRect,
 }
 
 /// Per-doc record embedded in the PDF for read-back.
@@ -84,6 +103,10 @@ pub struct EmbeddedManifest {
     pub schema_version: u32, // embedded-manifest schema version
     pub collection: String, // "Library" | "Feed"
     pub docs: Vec<EmbeddedDoc>,
+    /// Stamped action-label column rects (inbox/archive/later/delete), filled by
+    /// postprocess. Empty until postprocess runs.
+    #[serde(default)]
+    pub label_rects: Vec<LabelRect>,
 }
 
 impl EmbeddedManifest {

@@ -24,6 +24,7 @@ fn manifest() -> EmbeddedManifest {
                 page_range: PageRange { first: 2, last: 2 },
             },
         ],
+        label_rects: Vec::new(),
     }
 }
 

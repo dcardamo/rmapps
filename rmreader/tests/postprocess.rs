@@ -6,10 +6,32 @@ use lopdf::{Document, Object, ObjectId};
 
 use rmreader::assemble::assemble_document;
 use rmreader::device::get_device;
+use rmreader::embed;
+use rmreader::manifest::{EmbeddedDoc, EmbeddedManifest, PageRange};
 use rmreader::postprocess::finalize_pdf;
 use rmreader::readwise::Document as RwDoc;
 use rmreader::render::render_pdf;
 use rmreader::theme::load_theme;
+
+/// Build a minimal `EmbeddedManifest` with `n` placeholder docs (page_range all
+/// zeros). `finalize_pdf` overwrites `page_range` once starts are resolved.
+fn stub_embedded(n: usize) -> EmbeddedManifest {
+    EmbeddedManifest {
+        schema_version: 1,
+        collection: "Library".into(),
+        docs: (0..n)
+            .map(|i| EmbeddedDoc {
+                id: format!("doc{i}"),
+                title: format!("Title {i}"),
+                url: format!("https://ex/doc{i}"),
+                author: "Auth".into(),
+                category: "article".into(),
+                page_range: PageRange { first: 0, last: 0 },
+            })
+            .collect(),
+        label_rects: Vec::new(),
+    }
+}
 
 fn doc(id: &str, html: &str) -> RwDoc {
     RwDoc {
@@ -159,6 +181,7 @@ fn nav_bar_adds_links_to_every_article_page_including_flow_pages() {
     );
 
     // Run the post-processor.
+    let mut embedded = stub_embedded(docs.len());
     finalize_pdf(
         &out,
         docs.len(),
@@ -167,6 +190,7 @@ fn nav_bar_adds_links_to_every_article_page_including_flow_pages() {
         "#F3F1EA",
         "#2A2F6B",
         "#F4F1E8",
+        &mut embedded,
     )
     .unwrap();
 
@@ -210,5 +234,221 @@ fn nav_bar_adds_links_to_every_article_page_including_flow_pages() {
     assert!(
         found_next_to_b,
         "expected a Next link on the flow page whose /Dest resolves to the next article's start"
+    );
+}
+
+/// After `finalize_pdf`, the embedded manifest must contain 4 label rects
+/// tiling the full page width in the top band, and each doc's `page_range`
+/// must reflect the article page spans detected from the link annotations.
+#[test]
+fn embeds_manifest_with_page_ranges_and_label_rects() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+
+    let long = "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
+        eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>"
+        .repeat(60);
+    let docs = vec![doc("a", &long), doc("b", "<p>Short article.</p>")];
+
+    let built = assemble_document("Library", &docs, |html, _id| {
+        (html.to_string(), vec![] as Vec<(String, Vec<u8>)>)
+    });
+
+    let out = std::env::temp_dir().join("rmreader_postprocess_manifest_test.pdf");
+    render_pdf(&device, &theme, &built.fragments, &built.assets, &out).unwrap();
+
+    let mut embedded = stub_embedded(docs.len());
+    finalize_pdf(
+        &out,
+        docs.len(),
+        device.width_pt(),
+        device.height_pt(),
+        "#F3F1EA",
+        "#2A2F6B",
+        "#F4F1E8",
+        &mut embedded,
+    )
+    .unwrap();
+
+    // Reload and read back the embedded manifest.
+    let reloaded = Document::load(&out).unwrap();
+    let got = embed::read(&reloaded)
+        .expect("embed::read should not error")
+        .expect("embedded manifest should be present");
+
+    let page_w = f64::from(device.width_pt());
+    let page_h = f64::from(device.height_pt());
+
+    // --- label rects ---
+    assert_eq!(got.label_rects.len(), 4, "expected 4 label rects");
+    let kinds: Vec<&str> = got.label_rects.iter().map(|l| l.kind.as_str()).collect();
+    assert_eq!(kinds, ["inbox", "archive", "later", "delete"]);
+
+    // Columns must tile the full page width.
+    let eps = 0.5_f64; // tolerance for floating-point representation
+    assert!(
+        (got.label_rects[0].rect.x0 - 0.0).abs() < eps,
+        "first column x0 should be ~0, got {}",
+        got.label_rects[0].rect.x0
+    );
+    assert!(
+        (got.label_rects[3].rect.x1 - page_w).abs() < eps,
+        "last column x1 should be ~{page_w}, got {}",
+        got.label_rects[3].rect.x1
+    );
+    // Adjacent columns must meet.
+    for i in 0..3 {
+        let gap = (got.label_rects[i + 1].rect.x0 - got.label_rects[i].rect.x1).abs();
+        assert!(
+            gap < eps,
+            "columns {i} and {} do not meet: x1={} x0={}",
+            i + 1,
+            got.label_rects[i].rect.x1,
+            got.label_rects[i + 1].rect.x0
+        );
+    }
+    // Rects must lie in the top band (y values within the top 100pt).
+    for lr in &got.label_rects {
+        assert!(
+            lr.rect.y1 < page_h,
+            "label rect y1={} should be below page top {}",
+            lr.rect.y1,
+            page_h
+        );
+        assert!(
+            lr.rect.y0 > page_h - 100.0,
+            "label rect y0={} should be within 100pt of page top {}",
+            lr.rect.y0,
+            page_h
+        );
+    }
+
+    // --- page ranges ---
+    // Both docs should have non-trivial page ranges (last >= first).
+    for (i, d) in got.docs.iter().enumerate() {
+        assert!(
+            d.page_range.last >= d.page_range.first,
+            "doc {i} page_range is invalid: {:?}",
+            d.page_range
+        );
+    }
+    // Doc 'a' (long) must span at least 2 pages; doc 'b' (short) exactly 1.
+    assert!(
+        got.docs[0].page_range.last > got.docs[0].page_range.first,
+        "doc 'a' should span multiple pages, got {:?}",
+        got.docs[0].page_range
+    );
+    // Pages are consecutive: doc 'b' starts right after doc 'a' ends.
+    assert_eq!(
+        got.docs[1].page_range.first,
+        got.docs[0].page_range.last + 1,
+        "doc 'b' should start immediately after doc 'a' ends"
+    );
+
+    // Print label rects so the caller can sanity-check the column/band geometry.
+    for lr in &got.label_rects {
+        eprintln!(
+            "[test] label_rect {:8} x=[{:.1},{:.1}] y=[{:.1},{:.1}]",
+            lr.kind, lr.rect.x0, lr.rect.x1, lr.rect.y0, lr.rect.y1
+        );
+    }
+}
+
+/// After `finalize_pdf`, every article page's content stream must contain the
+/// label words INBOX, ARCHIVE, LATER, DELETE.
+#[test]
+fn stamps_label_text_on_article_pages() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+
+    let docs = vec![
+        doc("x", "<p>Article X content.</p>"),
+        doc("y", "<p>Article Y content.</p>"),
+    ];
+
+    let built = assemble_document("Library", &docs, |html, _id| {
+        (html.to_string(), vec![] as Vec<(String, Vec<u8>)>)
+    });
+
+    let out = std::env::temp_dir().join("rmreader_postprocess_labels_test.pdf");
+    render_pdf(&device, &theme, &built.fragments, &built.assets, &out).unwrap();
+
+    let mut embedded = stub_embedded(docs.len());
+    finalize_pdf(
+        &out,
+        docs.len(),
+        device.width_pt(),
+        device.height_pt(),
+        "#F3F1EA",
+        "#2A2F6B",
+        "#F4F1E8",
+        &mut embedded,
+    )
+    .unwrap();
+
+    // Collect raw content-stream bytes from all article pages and search for
+    // each label word (uppercase, as stamped by the postprocessor).
+    let doc = Document::load(&out).unwrap();
+    let all_pages = pages(&doc);
+
+    // Article pages start at the second page (index 1; index page is page 0).
+    // We just need to confirm at least one article page contains the labels.
+    let mut found_inbox = false;
+    let mut found_archive = false;
+    let mut found_later = false;
+    let mut found_delete = false;
+
+    for &pid in all_pages.iter().skip(1) {
+        // Collect all content stream bytes for this page.
+        let page_dict = doc.get_dictionary(pid).unwrap();
+        let contents = match page_dict.get(b"Contents") {
+            Ok(Object::Array(a)) => a.clone(),
+            Ok(Object::Reference(id)) => vec![Object::Reference(*id)],
+            _ => continue,
+        };
+        let mut page_bytes = Vec::new();
+        for item in &contents {
+            let sid = match item {
+                Object::Reference(id) => *id,
+                _ => continue,
+            };
+            if let Ok(stream) = doc.get_object(sid).and_then(|o| o.as_stream()) {
+                if let Ok(b) = stream.decompressed_content() {
+                    page_bytes.extend_from_slice(&b);
+                } else {
+                    page_bytes.extend_from_slice(&stream.content);
+                }
+            }
+        }
+        let text = String::from_utf8_lossy(&page_bytes);
+        if text.contains("INBOX") {
+            found_inbox = true;
+        }
+        if text.contains("ARCHIVE") {
+            found_archive = true;
+        }
+        if text.contains("LATER") {
+            found_later = true;
+        }
+        if text.contains("DELETE") {
+            found_delete = true;
+        }
+    }
+
+    assert!(
+        found_inbox,
+        "expected INBOX label in article page content streams"
+    );
+    assert!(
+        found_archive,
+        "expected ARCHIVE label in article page content streams"
+    );
+    assert!(
+        found_later,
+        "expected LATER label in article page content streams"
+    );
+    assert!(
+        found_delete,
+        "expected DELETE label in article page content streams"
     );
 }

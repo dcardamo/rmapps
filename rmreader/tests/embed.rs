@@ -14,6 +14,7 @@ fn sample() -> EmbeddedManifest {
             category: "article".into(),
             page_range: PageRange { first: 1, last: 3 },
         }],
+        label_rects: Vec::new(),
     }
 }
 

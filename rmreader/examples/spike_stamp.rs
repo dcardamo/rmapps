@@ -65,6 +65,7 @@ fn main() -> anyhow::Result<()> {
                 category: "articles".into(),
                 page_range: PageRange { first: 0, last: 0 },
             }],
+            label_rects: Vec::new(),
         },
     )?;
 

@@ -215,10 +215,12 @@ fn build_one(
         pdf_path.display(),
         t.elapsed().as_secs_f32()
     );
-    // Paint the full-page paper background and stamp the clickable nav bar.
+    // Paint the full-page paper background, stamp the clickable nav bar and action
+    // labels, fill page ranges, and embed the manifest in the PDF.
     let paper = theme.get("paper").map(|s| s.as_str()).unwrap_or("#F3F1EA");
     let navbg = theme.get("navbg").map(|s| s.as_str()).unwrap_or("#2A2F6B");
     let navfg = theme.get("navfg").map(|s| s.as_str()).unwrap_or("#F4F1E8");
+    let mut embedded = built.manifest.to_embedded();
     crate::postprocess::finalize_pdf(
         &pdf_path,
         docs.len(),
@@ -227,7 +229,9 @@ fn build_one(
         paper,
         navbg,
         navfg,
+        &mut embedded,
     )?;
+    // Sidecar JSON: non-authoritative debug artifact (the PDF embed is canonical).
     built
         .manifest
         .write(&out_dir.join(format!("{collection}.manifest.json")))?;

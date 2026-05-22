@@ -32,7 +32,7 @@ pub fn build_css(device: &Device, theme: &Palette) -> String {
     format!(
         "{vars}\n\
 /* The ENGINE margin (set in render_pdf) reserves space on EVERY physical page —\n\
-   top 58pt (~36pt the device toolbar overlays + the post-processed nav bar below\n\
+   top 92pt (~36pt the device toolbar overlays + nav bar + action-label band below\n\
    it), sides 16pt, bottom 30pt — so flowing articles never reach the toolbar/nav\n\
    band on any page. @page only carries size + paper background. */\n\
 @page {{ size: {w}pt {h}pt; margin: 0; background: var(--paper); }}\n\
@@ -94,7 +94,10 @@ pub fn render_pdf(
             height: device.height_pt(),
         })
         .margin(Margin {
-            top: 58.0,
+            // Nav bar occupies ~[page_h-58, page_h-37]; label band occupies
+            // ~[page_h-86, page_h-62].  Reserve 92pt so article body starts
+            // below both.
+            top: 92.0,
             right: 16.0,
             bottom: 30.0,
             left: 16.0,
