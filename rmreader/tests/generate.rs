@@ -41,7 +41,12 @@ fn generate_writes_pdfs_and_manifests() {
             enabled: true,
             max_items: 10,
         },
-        images: ImagesConfig { enabled: false },
+        images: ImagesConfig {
+            enabled: false,
+            timeout_secs: 8,
+            concurrency: 12,
+        },
+        content: ContentConfig::default(),
         deploy: DeployConfig {
             backend: "none".into(),
             library_folder: String::new(),

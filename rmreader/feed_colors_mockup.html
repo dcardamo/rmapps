@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rmreader · colour studies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ui-bg:#ECEEF1; --ui-panel:#fff; --ui-ink:#1c2024; --ui-muted:#6b7280; --ui-line:#dfe3e8; --ui-accent:#1E47C8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Hanken Grotesk",system-ui,sans-serif;background:var(--ui-bg);color:var(--ui-ink);line-height:1.5;padding:28px 32px 80px}
+  header.mast{max-width:1180px;margin:0 auto 22px}
+  .mast h1{font-family:"Newsreader",serif;font-weight:600;font-size:30px;letter-spacing:-.01em}
+  .mast p{font-size:13.5px;color:var(--ui-muted);margin-top:5px;max-width:70ch}
+  main{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:230px 1fr;gap:32px;align-items:start}
+  @media(max-width:920px){main{grid-template-columns:1fr}}
+
+  /* scheme picker */
+  .rail{position:sticky;top:20px;display:flex;flex-direction:column;gap:10px}
+  .rail h2{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ui-muted);margin-bottom:4px}
+  .scheme{cursor:pointer;border:1px solid var(--ui-line);background:var(--ui-panel);border-radius:11px;padding:11px 12px;display:flex;flex-direction:column;gap:9px;text-align:left;font:inherit;color:inherit;transition:transform .12s,border-color .12s,box-shadow .12s}
+  .scheme:hover{transform:translateY(-2px);box-shadow:0 10px 26px -16px rgba(20,24,40,.4)}
+  .scheme.sel{border-color:var(--ui-accent);box-shadow:0 0 0 1px var(--ui-accent)}
+  .scheme .chips{display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid rgba(0,0,0,.07)}
+  .scheme .chips i{flex:1}
+  .scheme .nm{font-size:12.5px;font-weight:600}
+  .scheme .nm small{display:block;font-weight:500;color:var(--ui-muted);font-size:10.5px;margin-top:1px}
+  .readout{margin-top:8px;border:1px solid var(--ui-line);background:var(--ui-panel);border-radius:10px;padding:10px 12px;font-size:10.5px;color:var(--ui-muted);font-family:ui-monospace,monospace;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+
+  /* stage: two device pages */
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .frame{display:flex;flex-direction:column;gap:9px;align-items:center}
+  .frame .cap{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ui-muted)}
+  .page{
+    width:374px;aspect-ratio:0.5625;background:var(--bg);color:var(--ink);
+    border-radius:7px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 2px 4px rgba(20,24,40,.12),0 36px 70px -34px rgba(20,24,40,.5);border:1px solid rgba(0,0,0,.07);
+  }
+  /* faint e-ink grain */
+  .page::after{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.35;background-image:radial-gradient(rgba(40,40,40,.05) .5px,transparent .6px);background-size:3px 3px}
+  .pad{padding:22px 24px}
+
+  /* ---- INDEX (Feed list) ---- */
+  .toprule{height:3px;background:var(--accent);width:46px;border-radius:2px;margin-bottom:14px}
+  .ititle{font-family:"Newsreader",serif;font-weight:600;font-size:34px;line-height:1;color:var(--heading);letter-spacing:-.015em}
+  .isub{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--sub);margin-top:8px;margin-bottom:16px}
+  .irow{display:flex;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--rule)}
+  .irow .n{font-family:"Hanken Grotesk";font-weight:700;font-size:11px;color:var(--accent);width:18px;flex:0 0 auto}
+  .irow .t{flex:1;font-family:"Newsreader",serif;font-size:13.5px;line-height:1.28;color:var(--ink)}
+  .irow .t b{font-weight:600}
+  .irow .t .au{color:var(--sub)}
+  .irow .rt{font-family:"Hanken Grotesk";font-size:9.5px;color:var(--sub);white-space:nowrap;flex:0 0 auto}
+
+  /* ---- ARTICLE first page ---- */
+  .nav{display:flex;align-items:center;justify-content:space-between;background:var(--navbg);color:var(--navfg);padding:9px 20px;font-family:"Hanken Grotesk";font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .nav span{opacity:.92}
+  .nav .home{font-weight:700;letter-spacing:.14em}
+  .nav .mut{opacity:.6}
+  .art{padding:20px 24px}
+  .kicker{display:inline-block;font-family:"Hanken Grotesk";font-size:8.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--kickfg);background:var(--kickbg);padding:3px 8px;border-radius:4px;margin-bottom:11px}
+  .headline{font-family:"Newsreader",serif;font-weight:600;font-size:27px;line-height:1.05;color:var(--heading);letter-spacing:-.012em}
+  .byline{font-family:"Hanken Grotesk";font-size:9.5px;color:var(--sub);margin-top:11px;letter-spacing:.02em}
+  .arthr{height:1px;background:var(--rule);margin:14px 0}
+  .body{font-family:"Newsreader",serif;font-size:12.5px;line-height:1.6;color:var(--ink)}
+  .body p{margin:0 0 9px}
+  .body.drop p:first-of-type::first-letter{font-family:"Newsreader",serif;font-weight:600;color:var(--accent);float:left;font-size:3em;line-height:.78;padding:5px 7px 0 0}
+  .body a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+</style>
+</head>
+<body>
+  <header class="mast">
+    <h1>Colour studies</h1>
+    <p>Black-on-paper body for reading, with richer header + a filled nav bar (it's a colour device). Two pages — the Feed list and an article's first page. Pick a scheme; we'll iterate.</p>
+  </header>
+  <main>
+    <aside class="rail">
+      <h2>Scheme</h2>
+      <div id="schemes"></div>
+      <div class="readout" id="readout"></div>
+    </aside>
+    <section class="stage" id="stage"></section>
+  </main>
+<script>
+function h(tag, props){
+  const e=document.createElement(tag);
+  if(props) for(const k in props){
+    const v=props[k];
+    if(k==='class') e.className=v;
+    else if(k==='style') e.setAttribute('style',v);
+    else if(k==='data'){ for(const d in v) e.dataset[d]=v[d]; }
+    else if(k.slice(0,2)==='on'&&typeof v==='function') e.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(v!=null) e.setAttribute(k,v);
+  }
+  for(let i=2;i<arguments.length;i++){
+    const kid=arguments[i]; if(kid==null||kid===false) continue;
+    if(Array.isArray(kid)) kid.forEach(c=>c!=null&&e.append(c.nodeType?c:document.createTextNode(String(c))));
+    else e.append(kid.nodeType?kid:document.createTextNode(String(kid)));
+  }
+  return e;
+}
+
+const SCHEMES = {
+  cobalt:{ name:"Cobalt", note:"white · bold blue",
+    bg:"#FFFFFF", ink:"#15181E", heading:"#15181E", sub:"#5C616B", rule:"#E2E4EA",
+    accent:"#1E47C8", navbg:"#1E47C8", navfg:"#FFFFFF", kickbg:"#1E47C8", kickfg:"#FFFFFF" },
+  oxblood:{ name:"Press", note:"white · oxblood",
+    bg:"#FFFFFF", ink:"#1A1715", heading:"#5E1620", sub:"#6B635C", rule:"#E8E2DB",
+    accent:"#8A2433", navbg:"#5E1620", navfg:"#F5E9DC", kickbg:"#8A2433", kickfg:"#FBEFE6" },
+  forest:{ name:"Forest", note:"ivory · green",
+    bg:"#FBF8F1", ink:"#191A17", heading:"#173F2E", sub:"#5F6358", rule:"#E4DECF",
+    accent:"#1F6A47", navbg:"#173F2E", navfg:"#F4EFE2", kickbg:"#1F6A47", kickfg:"#F1F7F0" },
+  slate:{ name:"Slate + Amber", note:"white · duotone",
+    bg:"#FFFFFF", ink:"#16181D", heading:"#243456", sub:"#5C616B", rule:"#E3E5EA",
+    accent:"#C2620E", navbg:"#243456", navfg:"#FFFFFF", kickbg:"#C2620E", kickfg:"#FFFFFF" },
+};
+let cur = new URLSearchParams(location.search).get("s") || "cobalt";
+
+const FEED = [
+  ["The Quiet Architecture of a Reading Life","Ellison","7 min"],
+  ["On Slowness and the Engineered Mind","Vohra","11 min"],
+  ["What E-Ink Knows About Patience","Okafor","5 min"],
+  ["The Last Honest Interface","Lindqvist","9 min"],
+  ["Notes Toward a Calmer Inbox","Reyes","6 min"],
+  ["Paper, and the Persistence of Margins","Tanaka","8 min"],
+  ["A Field Guide to Deep Work","Mensah","12 min"],
+  ["The Case for Reading Less, Better","Park","4 min"],
+];
+
+function setVars(el, s){
+  for(const k of ["bg","ink","heading","sub","rule","accent","navbg","navfg","kickbg","kickfg"])
+    el.style.setProperty("--"+k, s[k]);
+}
+
+function indexPage(s){
+  const rows = FEED.map((it,i)=>h("div",{class:"irow"},
+    h("span",{class:"n"}, String(i+1).padStart(2,"0")),
+    h("span",{class:"t"}, h("b",null,it[0]), h("span",{class:"au"}," — "+it[1])),
+    h("span",{class:"rt"}, it[2])));
+  const page = h("div",{class:"page"}, h("div",{class:"pad"},
+    h("div",{class:"toprule"}),
+    h("div",{class:"ititle"},"Feed"),
+    h("div",{class:"isub"},"100 articles · newest first"),
+    rows));
+  setVars(page, s);
+  return h("div",{class:"frame"}, page, h("div",{class:"cap"},"Feed list"));
+}
+
+function articlePage(s){
+  const p1 = h("p",null,"There is a difference between collecting articles and keeping company with them. The first is a logistics problem; the second is an architecture. A queue grows by accretion, indifferent to what it holds.");
+  const p2 = h("p",null,"The device on your desk is not a faster newspaper. It is, if you let it, a ", h("a",{href:"#"},"place to sit"), " with one thing at a time — no banner asking you to subscribe, no related-stories rail tugging your sleeve.");
+  const p3 = h("p",null,"What changes is not how much you read, but how much of it stays.");
+  const page = h("div",{class:"page"},
+    h("div",{class:"nav"},
+      h("span",{class:"mut"},"‹ Prev"),
+      h("span",{class:"home"},"⌂ Home"),
+      h("span",null,"Next ›")),
+    h("div",{class:"art"},
+      h("span",{class:"kicker"},"Article"),
+      h("div",{class:"headline"},"The Quiet Architecture of a Reading Life"),
+      h("div",{class:"byline"},"Mara Ellison · The Marginalian · 7 min"),
+      h("div",{class:"arthr"}),
+      h("div",{class:"body drop"}, p1, p2, p3)));
+  setVars(page, s);
+  return h("div",{class:"frame"}, page, h("div",{class:"cap"},"Article · first page"));
+}
+
+function renderStage(){
+  const s = SCHEMES[cur];
+  document.getElementById("stage").replaceChildren(indexPage(s), articlePage(s));
+  document.querySelectorAll(".scheme").forEach(b=>b.classList.toggle("sel", b.dataset.k===cur));
+  const ro=document.getElementById("readout");
+  ro.replaceChildren(
+    "# "+s.name+"\n",
+    "bg      "+s.bg+"\n",
+    "ink     "+s.ink+"\n",
+    "heading "+s.heading+"\n",
+    "accent  "+s.accent+"\n",
+    "nav     "+s.navbg+" / "+s.navfg+"\n",
+    "rule    "+s.rule);
+}
+
+function buildSchemes(){
+  const wrap=document.getElementById("schemes");
+  wrap.replaceChildren(...Object.entries(SCHEMES).map(([k,s])=>
+    h("button",{class:"scheme",data:{k}},
+      h("span",{class:"chips"},
+        h("i",{style:"background:"+s.bg}),
+        h("i",{style:"background:"+s.heading}),
+        h("i",{style:"background:"+s.accent}),
+        h("i",{style:"background:"+s.navbg})),
+      h("span",{class:"nm"}, s.name, h("small",null,s.note)))));
+  wrap.addEventListener("click", e=>{const b=e.target.closest(".scheme"); if(b){cur=b.dataset.k; renderStage();}});
+}
+
+buildSchemes(); renderStage();
+</script>
+</body>
+</html>

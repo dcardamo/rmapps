@@ -28,13 +28,16 @@ enum Command {
 pub fn run(args: Vec<String>) -> anyhow::Result<()> {
     let cli = Cli::try_parse_from(args).unwrap_or_else(|e| e.exit());
     let transport = readwise::http::UreqTransport;
-    let fetcher = generate::UreqImageFetcher;
     match (cli.command, cli.config) {
         (Some(Command::Init), _) => {
             let (cfg, out_dir, cfg_path) = wizard::run_wizard(&transport)?;
             cfg.validate()?;
             std::fs::create_dir_all(&out_dir)?;
             config::dump(&cfg, &cfg_path)?;
+            let fetcher = generate::UreqImageFetcher {
+                timeout_secs: cfg.images.timeout_secs,
+                concurrency: cfg.images.concurrency,
+            };
             let targets = generate::generate(&cfg, &transport, &fetcher)?;
             deploy::get_deployer(&cfg)?.deploy(&targets)?;
             println!("Wrote {} PDF(s) to {}", targets.len(), out_dir.display());
@@ -43,6 +46,10 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
         (None, Some(path)) => {
             let cfg = config::load(&path)?;
             cfg.validate()?;
+            let fetcher = generate::UreqImageFetcher {
+                timeout_secs: cfg.images.timeout_secs,
+                concurrency: cfg.images.concurrency,
+            };
             let targets = generate::generate(&cfg, &transport, &fetcher)?;
             deploy::get_deployer(&cfg)?.refresh(&targets)?;
             println!("Regenerated {} PDF(s)", targets.len());

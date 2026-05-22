@@ -47,7 +47,7 @@ body {{ font-family: \"Newsreader\", serif; color: var(--ink); }}\n\
 .body.drop p:first-of-type::first-letter {{ font-weight:600; color:var(--accent); float:left; font-size:3em; line-height:.8; padding:4pt 6pt 0 0; }}\n\
 .index-title {{ font-weight:600; font-size:22pt; color:var(--heading); }}\n\
 .index-sub {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:12pt; }}\n\
-.index-row {{ display:flex; gap:8pt; padding:6pt 0; border-bottom:0.5pt solid var(--rule); text-decoration:none; color:var(--ink); }}\n\
+.index-row {{ display:flex; gap:8pt; padding:6pt 0; border-bottom:0.5pt solid var(--rule); text-decoration:none; color:var(--ink); break-inside:avoid; }}\n\
 .index-row .n {{ color:var(--accent); font-weight:600; width:16pt; }}\n\
 .index-row .t {{ flex:1; }}\n\
 .index-row .rt {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; color:var(--muted); }}\n",

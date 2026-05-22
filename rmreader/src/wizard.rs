@@ -2,7 +2,7 @@
 use std::path::PathBuf;
 
 use crate::config::{
-    Config, DeployConfig, FeedConfig, ImagesConfig, LibraryConfig, ReadwiseConfig,
+    Config, ContentConfig, DeployConfig, FeedConfig, ImagesConfig, LibraryConfig, ReadwiseConfig,
 };
 
 pub struct Answers {
@@ -35,7 +35,9 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
         },
         images: ImagesConfig {
             enabled: a.images_enabled,
+            ..ImagesConfig::default()
         },
+        content: ContentConfig::default(),
         deploy: DeployConfig {
             backend: a.deploy_backend,
             library_folder: a.library_folder,

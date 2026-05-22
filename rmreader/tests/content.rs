@@ -41,13 +41,13 @@ fn truncates_monster_articles_with_note() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(&big, "d1", false, &f);
+    let out = process_html(&big, "d1", false, 80_000, &f);
     assert!(out.html.len() < big.len());
     assert!(out.html.contains("truncated"));
 
     // A normal-size article is left intact (no note).
     let small = "<p>just a short article</p>";
-    let out2 = process_html(small, "d1", false, &f);
+    let out2 = process_html(small, "d1", false, 80_000, &f);
     assert!(out2.html.contains("just a short article"));
     assert!(!out2.html.contains("truncated"));
 }
@@ -59,7 +59,7 @@ fn strips_scripts_and_handlers_keeps_text() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(html, "d1", true, &f);
+    let out = process_html(html, "d1", true, 80_000, &f);
     assert!(out.html.contains("Hello"));
     assert!(!out.html.contains("script"));
     assert!(!out.html.contains("iframe"));
@@ -80,7 +80,13 @@ fn embeds_real_image_and_rewrites_src() {
         map,
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(r#"<p><img src="https://x/p.png"></p>"#, "d1", true, &f);
+    let out = process_html(
+        r#"<p><img src="https://x/p.png"></p>"#,
+        "d1",
+        true,
+        80_000,
+        &f,
+    );
     assert_eq!(out.assets.len(), 1);
     let key = &out.assets[0].0;
     assert!(out.html.contains(key));
@@ -101,7 +107,7 @@ fn drops_tracking_pixel() {
         map,
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(r#"<img src="https://x/track.png">"#, "d1", true, &f);
+    let out = process_html(r#"<img src="https://x/track.png">"#, "d1", true, 80_000, &f);
     assert_eq!(out.assets.len(), 0);
     assert!(!out.html.contains("img"));
 }
@@ -112,7 +118,13 @@ fn images_disabled_drops_all_imgs_without_fetch() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(r#"<img src="https://x/p.png">text"#, "d1", false, &f);
+    let out = process_html(
+        r#"<img src="https://x/p.png">text"#,
+        "d1",
+        false,
+        80_000,
+        &f,
+    );
     assert!(out.html.contains("text"));
     assert!(!out.html.contains("img"));
     assert!(f.fetched.borrow().is_empty());
@@ -140,12 +152,69 @@ fn distinct_doc_ids_yield_distinct_asset_keys() {
         map,
         fetched: RefCell::new(vec![]),
     };
-    let a = process_html(r#"<img src="https://x/p.png">"#, "doc-a", true, &fa);
-    let b = process_html(r#"<img src="https://x/p.png">"#, "doc-b", true, &fb);
+    let a = process_html(r#"<img src="https://x/p.png">"#, "doc-a", true, 80_000, &fa);
+    let b = process_html(r#"<img src="https://x/p.png">"#, "doc-b", true, 80_000, &fb);
     assert_eq!(a.assets.len(), 1);
     assert_eq!(b.assets.len(), 1);
     assert_ne!(
         a.assets[0].0, b.assets[0].0,
         "asset keys must differ when doc ids differ to prevent AssetBundle collisions"
     );
+}
+
+/// The default `fetch_many` implementation (used by test fakes) must return
+/// results in the same order as the input URL slice.
+#[test]
+fn fetch_many_default_preserves_order() {
+    // Build a fetcher that maps each URL to a distinct image so we can tell
+    // them apart by byte content after fetch_many returns.
+    let url_a = "https://x/a.png".to_string();
+    let url_b = "https://x/b.png".to_string();
+    let url_c = "https://x/c.png".to_string();
+
+    let make_png = |seed: u8| -> Vec<u8> {
+        use image::{ImageBuffer, Rgba};
+        let img: ImageBuffer<Rgba<u8>, _> =
+            ImageBuffer::from_pixel(8, 8, Rgba([seed, seed, seed, 255]));
+        let mut buf = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut buf, image::ImageFormat::Png)
+            .unwrap();
+        buf.into_inner()
+    };
+
+    let mut map = std::collections::HashMap::new();
+    map.insert(
+        url_a.clone(),
+        Some(FetchedImage {
+            bytes: make_png(10),
+            ext: "png".into(),
+        }),
+    );
+    map.insert(
+        url_b.clone(),
+        Some(FetchedImage {
+            bytes: make_png(20),
+            ext: "png".into(),
+        }),
+    );
+    map.insert(url_c.clone(), None); // simulates a failed fetch
+
+    let f = FakeFetcher {
+        map,
+        fetched: RefCell::new(vec![]),
+    };
+
+    let urls = vec![url_a.clone(), url_b.clone(), url_c.clone()];
+    let results = f.fetch_many(&urls);
+
+    assert_eq!(results.len(), 3);
+    assert!(results[0].is_some(), "first url should succeed");
+    assert_eq!(results[0].as_ref().unwrap().bytes, make_png(10));
+    assert!(results[1].is_some(), "second url should succeed");
+    assert_eq!(results[1].as_ref().unwrap().bytes, make_png(20));
+    assert!(results[2].is_none(), "third url should fail (None)");
+
+    // Confirm the fetch calls happened in input order (sequential default).
+    assert_eq!(*f.fetched.borrow(), vec![url_a, url_b, url_c]);
 }

@@ -20,6 +20,16 @@ pub struct FetchedImage {
 /// Network seam (real impl in render/generate uses ureq).
 pub trait ImageFetcher {
     fn fetch(&self, url: &str) -> Option<FetchedImage>;
+
+    /// Fetch multiple URLs, returning results in the same order as the input.
+    ///
+    /// The default implementation is sequential so that test fakes (which may
+    /// use `RefCell` and are therefore not `Sync`) continue to work without
+    /// change.  The real `UreqImageFetcher` overrides this with a concurrent
+    /// implementation using `std::thread::scope`.
+    fn fetch_many(&self, urls: &[String]) -> Vec<Option<FetchedImage>> {
+        urls.iter().map(|u| self.fetch(u)).collect()
+    }
 }
 
 pub struct Processed {
@@ -70,19 +80,18 @@ fn normalize_image(bytes: &[u8]) -> Option<(Vec<u8>, String)> {
     }
 }
 
-/// Hard cap on article HTML size. Real articles sit well under this; pathological
-/// pages (full Wikipedia dumps with hundreds of footnotes) explode fulgur's layout
-/// time and freeze the render, so we truncate them. Tunable.
-const MAX_HTML_BYTES: usize = 80_000;
-
 /// Sanitise `html` and embed images as local assets.
 ///
 /// `doc_id` is included in every asset key so that keys remain globally unique
 /// when assets from multiple documents are merged into a single `AssetBundle`.
+///
+/// `max_bytes` caps pathologically large articles so fulgur's layout time
+/// can't blow up and freeze the render. Comes from `config.content.max_article_bytes`.
 pub fn process_html(
     html: &str,
     doc_id: &str,
     images_enabled: bool,
+    max_bytes: usize,
     fetcher: &dyn ImageFetcher,
 ) -> Processed {
     use std::collections::HashMap;
@@ -101,8 +110,8 @@ pub fn process_html(
     // Cap pathologically large articles so fulgur's layout time can't blow up and
     // freeze the render. Truncate at a UTF-8 boundary; a note (appended below) sends
     // the reader to Readwise for the full text.
-    let (html, truncated) = if html.len() > MAX_HTML_BYTES {
-        let mut end = MAX_HTML_BYTES;
+    let (html, truncated) = if html.len() > max_bytes {
+        let mut end = max_bytes;
         while end > 0 && !html.is_char_boundary(end) {
             end -= 1;
         }
@@ -111,15 +120,24 @@ pub fn process_html(
         (html, false)
     };
 
-    // Pass 1: fetch + normalize images into a url -> key map.
+    // Pass 1: collect deduplicated <img> URLs (first-seen order), fetch them
+    // all at once (concurrently if the fetcher supports it), then build
+    // url_to_key + assets in deterministic index order so asset keys
+    // (img-{safe_id}-{i}) are stable across runs.
     let mut url_to_key: HashMap<String, String> = HashMap::new();
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     if images_enabled {
-        for (i, url) in collect_img_urls(html).into_iter().enumerate() {
-            if url_to_key.contains_key(&url) {
-                continue;
-            }
-            if let Some(fetched) = fetcher.fetch(&url) {
+        // Deduplicate while preserving first-seen order.
+        let mut seen = std::collections::HashSet::new();
+        let urls: Vec<String> = collect_img_urls(html)
+            .into_iter()
+            .filter(|u| seen.insert(u.clone()))
+            .collect();
+
+        let results = fetcher.fetch_many(&urls);
+
+        for (i, (url, fetched_opt)) in urls.into_iter().zip(results).enumerate() {
+            if let Some(fetched) = fetched_opt {
                 let normalized = if fetched.ext == "svg" {
                     Some((fetched.bytes.clone(), "svg".into()))
                 } else {

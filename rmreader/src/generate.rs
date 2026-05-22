@@ -6,13 +6,19 @@ use crate::content::{process_html, FetchedImage, ImageFetcher};
 use crate::readwise::HttpTransport;
 
 /// Real image fetcher over ureq with guards (size cap; content-type sniff).
-pub struct UreqImageFetcher;
+pub struct UreqImageFetcher {
+    /// Per-request network timeout in seconds.
+    pub timeout_secs: u64,
+    /// Maximum number of concurrent image-fetch threads.
+    pub concurrency: usize,
+}
+
 impl ImageFetcher for UreqImageFetcher {
     fn fetch(&self, url: &str) -> Option<FetchedImage> {
         // Tight per-request timeout: images are small, and feed content pulls from
         // many hosts — a slow/dead server must fail fast so it can't stall the run.
         let resp = ureq::get(url)
-            .timeout(std::time::Duration::from_secs(8))
+            .timeout(std::time::Duration::from_secs(self.timeout_secs))
             .call()
             .ok()?;
         let ct = resp.header("content-type").unwrap_or("").to_string();
@@ -45,6 +51,49 @@ impl ImageFetcher for UreqImageFetcher {
             .ok()?;
         Some(FetchedImage { bytes, ext })
     }
+
+    /// Fetch all URLs concurrently using a bounded thread pool.
+    ///
+    /// Uses `std::thread::scope` (no extra deps) with an `AtomicUsize` work
+    /// cursor so N worker threads each claim the next un-fetched index.
+    /// Results are written into a pre-sized array of `Mutex`-guarded slots,
+    /// guaranteeing output order == input order regardless of completion order.
+    fn fetch_many(&self, urls: &[String]) -> Vec<Option<FetchedImage>> {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Mutex,
+        };
+
+        let n = urls.len();
+        if n == 0 {
+            return Vec::new();
+        }
+
+        // Pre-allocate result slots; each starts as None.
+        let results: Vec<Mutex<Option<FetchedImage>>> = (0..n).map(|_| Mutex::new(None)).collect();
+        let cursor = AtomicUsize::new(0);
+        // Clamp concurrency to at least 1 and at most the number of URLs.
+        let workers = self.concurrency.max(1).min(n);
+
+        std::thread::scope(|s| {
+            for _ in 0..workers {
+                s.spawn(|| loop {
+                    let i = cursor.fetch_add(1, Ordering::Relaxed);
+                    if i >= n {
+                        break;
+                    }
+                    let result = self.fetch(&urls[i]);
+                    *results[i].lock().unwrap() = result;
+                });
+            }
+        });
+
+        // Unwrap each Mutex — all threads have joined, no contention remains.
+        results
+            .into_iter()
+            .map(|m| m.into_inner().unwrap())
+            .collect()
+    }
 }
 
 /// Drop docs Readwise has no reader text for (e.g. unparsed saves or archive
@@ -69,6 +118,7 @@ fn build_one(
 ) -> anyhow::Result<PathBuf> {
     use std::time::Instant;
     let images_enabled = config.images.enabled;
+    let max_bytes = config.content.max_article_bytes;
     let total = docs.len();
     let idx = std::cell::Cell::new(0usize);
     eprintln!("[rmreader] {collection}: processing {total} docs");
@@ -76,7 +126,7 @@ fn build_one(
         let i = idx.get() + 1;
         idx.set(i);
         let t = Instant::now();
-        let p = process_html(html, id, images_enabled, fetcher);
+        let p = process_html(html, id, images_enabled, max_bytes, fetcher);
         eprintln!(
             "[rmreader]   {collection} {i}/{total}: {} KB html, {} imgs, {:.1}s",
             html.len() / 1024,

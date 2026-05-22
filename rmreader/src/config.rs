@@ -52,10 +52,40 @@ impl Default for FeedConfig {
 pub struct ImagesConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default = "default_timeout_secs")]
+    pub timeout_secs: u64,
+    #[serde(default = "default_concurrency")]
+    pub concurrency: usize,
+}
+fn default_timeout_secs() -> u64 {
+    8
+}
+fn default_concurrency() -> usize {
+    12
 }
 impl Default for ImagesConfig {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            timeout_secs: default_timeout_secs(),
+            concurrency: default_concurrency(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContentConfig {
+    #[serde(default = "default_max_article_bytes")]
+    pub max_article_bytes: usize,
+}
+fn default_max_article_bytes() -> usize {
+    80_000
+}
+impl Default for ContentConfig {
+    fn default() -> Self {
+        Self {
+            max_article_bytes: default_max_article_bytes(),
+        }
     }
 }
 
@@ -96,6 +126,8 @@ pub struct Config {
     pub feed: FeedConfig,
     #[serde(default)]
     pub images: ImagesConfig,
+    #[serde(default)]
+    pub content: ContentConfig,
     #[serde(default)]
     pub deploy: DeployConfig,
 }
