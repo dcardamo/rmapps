@@ -68,8 +68,20 @@ fn main() -> anyhow::Result<()> {
     render_pdf(&dev, &grid, &theme, &v2, &d2.join("spike.pdf"))?;
     render_pdf(&dev, &grid, &theme, &v3, &d3.join("spike.pdf"))?;
 
-    println!("v1: {} pages -> {}", v1.len(), d1.join("spike.pdf").display());
-    println!("v2: {} pages -> {}", v2.len(), d2.join("spike.pdf").display());
-    println!("v3: {} pages -> {}", v3.len(), d3.join("spike.pdf").display());
+    println!(
+        "v1: {} pages -> {}",
+        v1.len(),
+        d1.join("spike.pdf").display()
+    );
+    println!(
+        "v2: {} pages -> {}",
+        v2.len(),
+        d2.join("spike.pdf").display()
+    );
+    println!(
+        "v3: {} pages -> {}",
+        v3.len(),
+        d3.join("spike.pdf").display()
+    );
     Ok(())
 }
