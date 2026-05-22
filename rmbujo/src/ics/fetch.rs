@@ -23,8 +23,20 @@ pub struct UreqFetcher;
 impl Fetcher for UreqFetcher {
     fn get(&self, url: &str) -> anyhow::Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ureq::get(url).call()?.into_reader().read_to_end(&mut buf)?;
+        ureq::get(&normalize_url(url))
+            .call()?
+            .into_reader()
+            .read_to_end(&mut buf)?;
         Ok(buf)
+    }
+}
+
+/// `webcal://` is the calendar-subscription scheme used by iCloud/Google/etc.;
+/// it is plain HTTPS over the wire. Rewrite it so feed URLs paste in as-is.
+pub fn normalize_url(url: &str) -> String {
+    match url.strip_prefix("webcal://") {
+        Some(rest) => format!("https://{rest}"),
+        None => url.to_string(),
     }
 }
 
@@ -91,5 +103,17 @@ pub fn feed_bytes(
                 Err(e)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_url;
+
+    #[test]
+    fn webcal_becomes_https() {
+        assert_eq!(normalize_url("webcal://host/p"), "https://host/p");
+        assert_eq!(normalize_url("https://host/p"), "https://host/p");
+        assert_eq!(normalize_url("http://host/p"), "http://host/p");
     }
 }
