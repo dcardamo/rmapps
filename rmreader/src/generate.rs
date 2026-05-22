@@ -150,12 +150,17 @@ fn build_one(
         t.elapsed().as_secs_f32()
     );
     // Stamp a persistent clickable Home/Prev/Next bar on every article page.
-    // Best-effort: leaves the rendered PDF intact on any failure.
+    // Best-effort: leaves the rendered PDF intact on any failure. Nav-bar colours
+    // come from the theme (navbg/navfg), falling back to indigo-on-light.
+    let navbg = theme.get("navbg").map(|s| s.as_str()).unwrap_or("#2A2F6B");
+    let navfg = theme.get("navfg").map(|s| s.as_str()).unwrap_or("#F4F1E8");
     crate::postprocess::add_per_page_nav(
         &pdf_path,
         docs.len(),
         device.width_pt(),
         device.height_pt(),
+        navbg,
+        navfg,
     )?;
     built
         .manifest

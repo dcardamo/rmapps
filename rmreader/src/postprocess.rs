@@ -1,29 +1,47 @@
-//! Post-process the rendered PDF to draw a persistent, clickable bottom nav bar
-//! (`< Prev   Home   Next >`) on every article page.
+//! Post-process the rendered PDF to draw a persistent, clickable nav bar
+//! (`< Prev   Home   Next >`) across the top of every article page.
 //!
 //! fulgur cannot repeat a clickable element across the pages of a flowing
 //! article (running headers render but emit zero link annotations), so we render
-//! normally and then stamp the nav onto each article page here with lopdf:
-//! a content stream draws the labels in the reserved bottom strip, and `/Link`
-//! annotations provide the real tap-targets.
+//! normally and then stamp the nav onto each article page here with lopdf: a
+//! content stream fills the bar (theme navbg) and draws the labels (navfg) in the
+//! reserved top band, and `/Link` annotations provide the real tap-targets.
 use std::collections::HashMap;
 use std::path::Path;
 
 use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 
-/// Draw a clickable `< Prev   Home   Next >` bar on the bottom of every article
-/// page. `num_articles` = index-row count; `page_w` = device.width_pt(). Best-effort:
-/// on any error, log to stderr and leave the rendered PDF intact (do not lose it).
+/// Draw a filled, clickable `< Prev   Home   Next >` bar across the top of every
+/// article page. `num_articles` = index-row count; colours come from the theme
+/// (`nav_bg_hex`/`nav_fg_hex`). Best-effort: on any error, log to stderr and leave
+/// the rendered PDF intact (do not lose it).
 pub fn add_per_page_nav(
     path: &Path,
     num_articles: usize,
     page_w: f32,
     page_h: f32,
+    nav_bg_hex: &str,
+    nav_fg_hex: &str,
 ) -> anyhow::Result<()> {
-    if let Err(e) = try_add_per_page_nav(path, num_articles, page_w, page_h) {
+    if let Err(e) = try_add_per_page_nav(path, num_articles, page_w, page_h, nav_bg_hex, nav_fg_hex)
+    {
         eprintln!("[rmreader] postprocess: nav bar skipped ({e:#}); rendered PDF left intact");
     }
     Ok(())
+}
+
+/// Parse "#RRGGBB" into PDF rgb components (0.0..1.0).
+fn hex_rgb(s: &str) -> Option<(f32, f32, f32)> {
+    let h = s.trim().trim_start_matches('#');
+    if h.len() != 6 {
+        return None;
+    }
+    let c = |a: usize| {
+        u8::from_str_radix(&h[a..a + 2], 16)
+            .ok()
+            .map(|v| v as f32 / 255.0)
+    };
+    Some((c(0)?, c(2)?, c(4)?))
 }
 
 fn try_add_per_page_nav(
@@ -31,6 +49,8 @@ fn try_add_per_page_nav(
     num_articles: usize,
     page_w: f32,
     page_h: f32,
+    nav_bg_hex: &str,
+    nav_fg_hex: &str,
 ) -> anyhow::Result<()> {
     if num_articles == 0 {
         return Ok(());
@@ -75,13 +95,18 @@ fn try_add_per_page_nav(
     });
 
     let home = pages[0];
-    let home_x = page_w * 0.5 - 12.0; // ~"Home" centered at midpage
-    let next_x = page_w * 0.78;
-    // Nav lives in the top band — just below the ~36pt the device toolbar overlays
-    // and above the content (which starts at the @page top margin, 58pt). The
-    // device's transient page-indicator toolbar covers the BOTTOM, so top it is.
-    let baseline_y = page_h - 51.0;
-    let hairline_y = page_h - 58.0;
+    let home_x = page_w * 0.5 - 14.0; // ~"Home" centered at midpage
+    let next_x = page_w * 0.80;
+    // A filled nav bar in the top band — below the ~36pt the device toolbar overlays
+    // and above the content (which starts at the @page top margin, 58pt). The device's
+    // transient page-indicator toolbar covers the BOTTOM, so the nav goes up top.
+    let (br, bg, bb) = hex_rgb(nav_bg_hex).unwrap_or((0.16, 0.18, 0.40));
+    let (fr, fg, fb) = hex_rgb(nav_fg_hex).unwrap_or((0.96, 0.95, 0.91));
+    let bar_x = 26.0_f32;
+    let bar_w = page_w - 52.0;
+    let bar_y = page_h - 58.0; // bottom edge of the bar
+    let bar_h = 21.0_f32;
+    let baseline_y = bar_y + 6.5; // text baseline, centred in the bar
 
     for pi in first_article..pages.len() {
         let page_id = pages[pi];
@@ -94,22 +119,21 @@ fn try_add_per_page_nav(
 
         // --- draw the labels (after existing content, so nav is on top) ---
         let mut content = String::new();
-        // hairline below the nav, separating it from the article content
+        // filled nav bar across the content width
         content.push_str(&format!(
-            "q 0.86 0.85 0.82 RG 0.5 w 26 {hairline_y:.2} m {:.2} {hairline_y:.2} l S Q\n",
-            page_w - 26.0
+            "q {br:.3} {bg:.3} {bb:.3} rg {bar_x:.2} {bar_y:.2} {bar_w:.2} {bar_h:.2} re f Q\n"
         ));
         if prev.is_some() {
             content.push_str(&format!(
-                "q 0.43 0.43 0.40 rg BT /NAVF 9 Tf 26 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
+                "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf 36 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
             ));
         }
         content.push_str(&format!(
-            "q 0.62 0.17 0.12 rg BT /NAVF 9 Tf {home_x:.2} {baseline_y:.2} Td (Home) Tj ET Q\n"
+            "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf {home_x:.2} {baseline_y:.2} Td (Home) Tj ET Q\n"
         ));
         if next.is_some() {
             content.push_str(&format!(
-                "q 0.43 0.43 0.40 rg BT /NAVF 9 Tf {next_x:.2} {baseline_y:.2} Td (Next >) Tj ET Q\n"
+                "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf {next_x:.2} {baseline_y:.2} Td (Next >) Tj ET Q\n"
             ));
         }
         let stream_id = doc.add_object(Object::Stream(Stream::new(

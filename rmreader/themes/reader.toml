@@ -1,10 +1,14 @@
-# Reader theme — "Newsprint"
-# Chosen 2026-05-21 via visuals_picker.html. Color e-ink (Paper Pro / Pro Move).
-# Mapped to CSS custom properties (--paper, --ink, ...) at render time.
-paper   = "#F6F5F1"   # page background
-ink     = "#1A1A18"   # body text
-heading = "#111110"   # headlines
-accent  = "#9E2B1E"   # links, kickers, drop caps, rules-of-emphasis (ink red)
-muted   = "#6E6E68"   # bylines, secondary metadata
-faint   = "#9D9C93"   # page numbers, tertiary labels
-rule    = "#DBD9D1"   # hairlines
+# Reader theme — "Indigo + Tomato"
+# Tuned for the Paper Pro colour e-ink: blues/reds hold their colour while ambers
+# and greens wash out, so the chrome is indigo + a tomato accent. Mapped to CSS
+# custom properties (--paper, --ink, ...) at render time; navbg/navfg are read by
+# the nav-bar post-processor.
+paper   = "#F3F1EA"   # warm paper
+ink     = "#1A1A18"   # body text (near-black)
+heading = "#2A2F6B"   # indigo — headlines + section titles
+accent  = "#CF3A2B"   # tomato — kicker, numbers, drop caps, links, Feed nameplate
+muted   = "#5E6166"   # bylines, secondary metadata
+faint   = "#9D9C93"   # tertiary labels
+rule    = "#E0DDD2"   # hairlines
+navbg   = "#2A2F6B"   # indigo nav-bar fill (per-page nav)
+navfg   = "#F4F1E8"   # light text on the nav bar

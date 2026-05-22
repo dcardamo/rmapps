@@ -159,7 +159,15 @@ fn nav_bar_adds_links_to_every_article_page_including_flow_pages() {
     );
 
     // Run the post-processor.
-    add_per_page_nav(&out, docs.len(), device.width_pt(), device.height_pt()).unwrap();
+    add_per_page_nav(
+        &out,
+        docs.len(),
+        device.width_pt(),
+        device.height_pt(),
+        "#2A2F6B",
+        "#F4F1E8",
+    )
+    .unwrap();
 
     // After: total link count grew.
     let after = Document::load(&out).unwrap();

@@ -9,9 +9,9 @@ use fulgur::engine::Engine;
 use crate::device::Device;
 use crate::theme::{css_vars, Palette};
 
-const NEWSREADER: &[u8] = include_bytes!("../assets/fonts/Newsreader-Regular.ttf");
-const NEWSREADER_IT: &[u8] = include_bytes!("../assets/fonts/Newsreader-Italic.ttf");
-const NEWSREADER_SB: &[u8] = include_bytes!("../assets/fonts/Newsreader-SemiBold.ttf");
+const LORA: &[u8] = include_bytes!("../assets/fonts/Lora-Regular.ttf");
+const LORA_IT: &[u8] = include_bytes!("../assets/fonts/Lora-Italic.ttf");
+const LORA_SB: &[u8] = include_bytes!("../assets/fonts/Lora-SemiBold.ttf");
 const HANKEN: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Regular.ttf");
 const HANKEN_MD: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Medium.ttf");
 
@@ -34,19 +34,19 @@ pub fn build_css(device: &Device, theme: &Palette) -> String {
 @page {{ size: {w}pt {h}pt; margin: 0; background: var(--paper); }}\n\
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; background: var(--paper); }}\n\
-body {{ font-family: \"Newsreader\", serif; color: var(--ink); }}\n\
+body {{ font-family: \"Lora\", serif; color: var(--ink); }}\n\
 .article {{ break-before: page; }}\n\
-.kicker {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:9pt; }}\n\
+.kicker {{ display:inline-block; font-family:\"Hanken Grotesk\",sans-serif; font-size:7pt; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--paper); background:var(--accent); padding:2.5pt 7pt; border-radius:3pt; margin-bottom:10pt; }}\n\
 .headline {{ font-weight:600; font-size:24pt; line-height:1.05; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
 .byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8.5pt; color:var(--muted); margin-top:10pt; }}\n\
 .hr {{ height:0.5pt; background:var(--rule); margin:14pt 0; }}\n\
-.body {{ font-size:11pt; line-height:1.62; color:var(--ink); }}\n\
-.body p {{ margin:0 0 9pt; }}\n\
+.body {{ font-size:11pt; line-height:1.46; color:var(--ink); }}\n\
+.body p {{ margin:0 0 6pt; }}\n\
 .body a {{ color:var(--accent); text-decoration:underline; }}\n\
 .body img {{ max-width:100%; height:auto; }}\n\
 .body.drop p:first-of-type::first-letter {{ font-weight:600; color:var(--accent); float:left; font-size:3em; line-height:.8; padding:4pt 6pt 0 0; }}\n\
-.index-title {{ font-weight:600; font-size:22pt; color:var(--heading); }}\n\
-.index-sub {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:12pt; }}\n\
+.index-title {{ display:inline-block; font-weight:600; font-size:22pt; color:var(--paper); background:var(--accent); padding:4pt 12pt 6pt; border-radius:4pt; letter-spacing:-.01em; }}\n\
+.index-sub {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:14pt 0 12pt; }}\n\
 .index-row {{ display:flex; gap:8pt; padding:6pt 0; border-bottom:0.5pt solid var(--rule); text-decoration:none; color:var(--ink); break-inside:avoid; }}\n\
 .index-row .n {{ color:var(--accent); font-weight:600; width:16pt; }}\n\
 .index-row .t {{ flex:1; }}\n\
@@ -76,9 +76,9 @@ pub fn render_pdf(
         assets.add_image(key, bytes.clone());
     }
     // to_vec() copies static font data; fine for once-per-run rendering.
-    assets.add_font_bytes(NEWSREADER.to_vec())?;
-    assets.add_font_bytes(NEWSREADER_IT.to_vec())?;
-    assets.add_font_bytes(NEWSREADER_SB.to_vec())?;
+    assets.add_font_bytes(LORA.to_vec())?;
+    assets.add_font_bytes(LORA_IT.to_vec())?;
+    assets.add_font_bytes(LORA_SB.to_vec())?;
     assets.add_font_bytes(HANKEN.to_vec())?;
     assets.add_font_bytes(HANKEN_MD.to_vec())?;
 
