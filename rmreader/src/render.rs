@@ -34,23 +34,23 @@ pub fn build_css(device: &Device, theme: &Palette) -> String {
 @page {{ size: {w}pt {h}pt; margin: 0; background: var(--paper); }}\n\
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; background: var(--paper); }}\n\
-body {{ font-family: \"Lora\", serif; color: var(--ink); }}\n\
+body {{ font-family: \"Lora\", serif; color: var(--ink); font-size:9.5pt; }}\n\
 .article {{ break-before: page; }}\n\
-.kicker {{ display:inline-block; font-family:\"Hanken Grotesk\",sans-serif; font-size:7pt; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--paper); background:var(--accent); padding:2.5pt 7pt; border-radius:3pt; margin-bottom:10pt; }}\n\
-.headline {{ font-weight:600; font-size:24pt; line-height:1.05; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
-.byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8.5pt; color:var(--muted); margin-top:10pt; }}\n\
-.hr {{ height:0.5pt; background:var(--rule); margin:14pt 0; }}\n\
-.body {{ font-size:11pt; line-height:1.46; color:var(--ink); }}\n\
-.body p {{ margin:0 0 6pt; }}\n\
+.kicker {{ display:inline-block; font-family:\"Hanken Grotesk\",sans-serif; font-size:6.5pt; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--paper); background:var(--accent); padding:2pt 6pt; border-radius:3pt; margin-bottom:6pt; }}\n\
+.headline {{ font-weight:600; font-size:16pt; line-height:1.12; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
+.byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; color:var(--muted); margin-top:6pt; }}\n\
+.hr {{ height:0.5pt; background:var(--rule); margin:8pt 0; }}\n\
+.body {{ font-size:9.5pt; line-height:1.4; color:var(--ink); }}\n\
+.body p {{ margin:0 0 4.5pt; }}\n\
 .body a {{ color:var(--accent); text-decoration:underline; }}\n\
 .body img {{ max-width:100%; height:auto; }}\n\
-.body.drop p:first-of-type::first-letter {{ font-weight:600; color:var(--accent); float:left; font-size:3em; line-height:.8; padding:4pt 6pt 0 0; }}\n\
-.index-title {{ display:inline-block; font-weight:600; font-size:22pt; color:var(--paper); background:var(--accent); padding:4pt 12pt 6pt; border-radius:4pt; letter-spacing:-.01em; }}\n\
-.index-sub {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:14pt 0 12pt; }}\n\
-.index-row {{ display:flex; gap:8pt; padding:6pt 0; border-bottom:0.5pt solid var(--rule); text-decoration:none; color:var(--ink); break-inside:avoid; }}\n\
-.index-row .n {{ color:var(--accent); font-weight:600; width:16pt; }}\n\
-.index-row .t {{ flex:1; }}\n\
-.index-row .rt {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; color:var(--muted); }}\n",
+.body.drop p:first-of-type::first-letter {{ font-weight:600; color:var(--accent); float:left; font-size:2.7em; line-height:.82; padding:3pt 5pt 0 0; }}\n\
+.index-title {{ display:inline-block; font-weight:600; font-size:16pt; color:var(--paper); background:var(--accent); padding:3pt 10pt 4pt; border-radius:4pt; letter-spacing:-.01em; }}\n\
+.index-sub {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:10pt 0 9pt; }}\n\
+.index-row {{ display:flex; gap:8pt; padding:4pt 0; border-bottom:0.5pt solid var(--rule); text-decoration:none; color:var(--ink); break-inside:avoid; }}\n\
+.index-row .n {{ color:var(--accent); font-weight:600; font-size:9pt; width:14pt; }}\n\
+.index-row .t {{ flex:1; font-size:9.5pt; line-height:1.3; }}\n\
+.index-row .rt {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; color:var(--muted); }}\n",
         vars = css_vars(theme),
         w = w,
         h = h,
