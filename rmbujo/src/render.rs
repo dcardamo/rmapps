@@ -47,11 +47,12 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
     // dots, never astride one (the "dot strikethrough").
     let half_sp = 0.5 * sp;
     let top = crate::geometry::TOOLBAR_SAFE_PT;
-    // Align dots to the device "Dots Small" template phase (dot centers at x≈2.22,
-    // y≈4.52 pt mod pitch on the Move) so on-device inserted Dots-Small pages line up
-    // with ours. The SVG paints the dot at the tile center, so offset by half a pitch.
+    // Align dots to the device "Dots Small" template phase so on-device inserted
+    // Dots-Small pages line up with ours. Phase measured by rasterizing an exported
+    // template page: dot centers at x≈2.16, y≈0.48 pt from the page corner (mod
+    // pitch). The SVG paints the dot at the tile center, so offset by half a pitch.
     let dot_bx = 2.22 - half_sp;
-    let dot_by = 4.52 - half_sp;
+    let dot_by = -0.04 - half_sp;
     format!(
         "{vars}\n\
 @page {{ size: {w}pt {h}pt; margin: 0; }}\n\
@@ -68,7 +69,7 @@ body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; co
 /* Dot grid painted as the page background so headings/labels sit on top. Used by
    the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
    a page background resolves correctly even when rendered as a single page. */\n\
-.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
+.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-origin: border-box; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
 .dotpage .h-section {{ font-size: {head_fs}pt; }}\n\
 .month-index .h-month {{ font-size: {head_fs}pt; margin-bottom: {half_sp}pt; }}\n\
 .month-list {{ display: flex; flex-direction: column; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt var(--row); background-position: 0pt {half_sp}pt; }}\n\
@@ -88,7 +89,7 @@ body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; co
 .legend {{ font-size: 9pt; line-height: 1.8; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--primary); }}\n\
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: var(--paper); background: var(--accent); font-size: 7pt; }}\n\
-.dayhead {{ display: flex; justify-content: space-between; align-items: center; }}\n\
+.dayhead {{ display: flex; justify-content: space-between; align-items: center; background: var(--paper); padding-bottom: 4pt; }}\n\
 .dayhead-date {{ font-size: 13pt; line-height: 1; text-decoration: none; color: var(--primary); border-bottom: 0.75pt solid var(--rule); padding-bottom: 2pt; }}\n\
 /* Agenda + Details: ink body text, indigo underlined date headers, color swatch per event. */\n\
 .h-month a {{ color: var(--primary); text-decoration: none; }}\n\
