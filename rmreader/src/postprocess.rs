@@ -224,10 +224,12 @@ fn try_finalize_pdf(
         }
 
         // Action bar: outlined rectangle (not filled) so it reads as distinct from
-        // the solid nav bar above.  Use the nav foreground colour as stroke.
+        // the SOLID nav bar above. Use the nav BACKGROUND colour (indigo) for the
+        // stroke + text so it is clearly visible on the light paper (navfg is light
+        // and would vanish on paper since the bar is unfilled).
         // 0.6pt line width; stroke the outer border.
         content.push_str(&format!(
-            "q {fr:.3} {fg:.3} {fb:.3} RG 0.6 w {bar_x:.2} {label_bar_y:.2} {bar_w:.2} {label_bar_h:.2} re S Q\n"
+            "q {br:.3} {bg:.3} {bb:.3} RG 0.6 w {bar_x:.2} {label_bar_y:.2} {bar_w:.2} {label_bar_h:.2} re S Q\n"
         ));
 
         // Vertical dividers between the four cells (thin, same stroke colour).
@@ -236,7 +238,7 @@ fn try_finalize_pdf(
         for div in 1..4_u32 {
             let div_x = page_w * div as f32 / 4.0;
             content.push_str(&format!(
-                "q {fr:.3} {fg:.3} {fb:.3} RG 0.4 w {div_x:.2} {label_bar_y:.2} m {div_x:.2} {label_bar_top:.2} l S Q\n"
+                "q {br:.3} {bg:.3} {bb:.3} RG 0.4 w {div_x:.2} {label_bar_y:.2} m {div_x:.2} {label_bar_top:.2} l S Q\n"
             ));
         }
 
@@ -250,7 +252,7 @@ fn try_finalize_pdf(
             let text_w = 0.5 * label_font_size * label.len() as f32;
             let text_x = col_x + (col_w - text_w) / 2.0;
             content.push_str(&format!(
-                "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF {label_font_size:.1} Tf {text_x:.2} {label_baseline_y:.2} Td ({label}) Tj ET Q\n"
+                "q {br:.3} {bg:.3} {bb:.3} rg BT /NAVF {label_font_size:.1} Tf {text_x:.2} {label_baseline_y:.2} Td ({label}) Tj ET Q\n"
             ));
         }
 
