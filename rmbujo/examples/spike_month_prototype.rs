@@ -63,9 +63,9 @@ fn event_count(day: u32) -> usize {
     EVENTS.iter().filter(|e| e.0 == day).count()
 }
 
-/// A tappable navy circle badge showing the day's event count, linking to the
-/// agenda for that date. ~90% of the dot-line height; horizontal padding widens
-/// the tap target. Empty when the day has no events.
+/// A tappable navy pill badge showing the day's event count, linking to the
+/// agenda for that date. About the dot-line height, widened to fit the digit;
+/// horizontal padding widens the tap target. Empty when the day has no events.
 fn agenda_badge(day: u32) -> String {
     let c = event_count(day);
     if c == 0 {
@@ -74,8 +74,8 @@ fn agenda_badge(day: u32) -> String {
     format!(
         "<a href=\"#agenda-{day}\" style=\"text-decoration:none;padding:0 3pt;\">\
          <span style=\"display:inline-flex;align-items:center;justify-content:center;\
-         width:10pt;height:10pt;border-radius:50%;background:#1B365D;color:#fff;\
-         font-size:6.5pt;font-weight:bold;line-height:1;vertical-align:-2pt;\">{c}</span></a>"
+         min-width:13pt;height:11pt;padding:0 4pt;border-radius:5.5pt;background:#1B365D;\
+         color:#fff;font-size:8pt;font-weight:bold;line-height:1;vertical-align:-2.5pt;\">{c}</span></a>"
     )
 }
 
