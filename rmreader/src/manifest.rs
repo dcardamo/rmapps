@@ -55,7 +55,8 @@ pub struct EmbeddedDoc {
 /// The self-describing manifest embedded inside each generated PDF.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EmbeddedManifest {
-    pub v: u32,             // schema version (1)
+    #[serde(rename = "v")]
+    pub schema_version: u32, // embedded-manifest schema version
     pub collection: String, // "Library" | "Feed"
     pub docs: Vec<EmbeddedDoc>,
 }

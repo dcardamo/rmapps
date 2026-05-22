@@ -4,7 +4,7 @@ use rmreader::manifest::{EmbeddedDoc, EmbeddedManifest, PageRange};
 
 fn sample() -> EmbeddedManifest {
     EmbeddedManifest {
-        v: 1,
+        schema_version: 1,
         collection: "Library".into(),
         docs: vec![EmbeddedDoc {
             id: "abc".into(),

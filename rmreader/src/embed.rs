@@ -25,8 +25,6 @@ pub fn read(doc: &Document) -> anyhow::Result<Option<EmbeddedManifest>> {
         _ => return Ok(None),
     };
     let stream = doc.get_object(sid)?.as_stream()?;
-    let bytes = stream
-        .decompressed_content()
-        .unwrap_or_else(|_| stream.content.clone());
+    let bytes = stream.decompressed_content()?;
     Ok(Some(serde_json::from_slice(&bytes)?))
 }
