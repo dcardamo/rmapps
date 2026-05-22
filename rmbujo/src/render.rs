@@ -69,16 +69,16 @@ body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; co
 /* Dot grid painted as the page background so headings/labels sit on top. Used by
    the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
    a page background resolves correctly even when rendered as a single page. */\n\
-.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-origin: border-box; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
+.dotpage, .month-index {{ background-image: url(dot.svg); background-repeat: repeat; background-origin: border-box; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
 .dotpage .h-section {{ font-size: {head_fs}pt; }}\n\
-.month-index .h-month {{ font-size: {head_fs}pt; margin-bottom: {half_sp}pt; }}\n\
-.month-list {{ display: flex; flex-direction: column; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt var(--row); background-position: 0pt {half_sp}pt; }}\n\
+.month-index .h-month {{ width: fit-content; background: var(--paper); padding: 0 4pt; font-size: {head_fs}pt; margin-bottom: {half_sp}pt; }}\n\
+.month-list {{ display: flex; flex-direction: column; }}\n\
 .month-index .day {{ height: var(--row); }}\n\
 .day {{ height: {sp}pt; display: flex; align-items: center; gap: 6pt; font-size: {num_fs}pt; line-height: 1; }}\n\
 .day .num {{ width: 16pt; text-align: right; font-weight: bold; color: var(--accent); }}\n\
 .day.weekstart .num {{ color: var(--primary); }}\n\
 .day .wd {{ color: var(--muted); font-size: {wd_fs}pt; }}\n\
-.daylink {{ text-decoration: none; color: inherit; display: inline-flex; gap: 6pt; align-items: center; width: 44pt; }}\n\
+.daylink {{ text-decoration: none; color: inherit; display: inline-flex; gap: 6pt; align-items: center; width: 44pt; background: var(--paper); }}\n\
 .cbadge {{ display: inline-block; min-width: 14pt; height: 13pt; padding-top: 2.5pt; border-radius: 6.5pt; background: var(--accent); color: var(--paper); font-size: 8pt; font-weight: bold; line-height: 1; text-align: center; text-decoration: none; }}\n\
 .cover {{ position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: {m}pt; color: var(--nav); background-image: url(cover.svg); background-size: 100% 100%; background-repeat: no-repeat; }}\n\
 .cover .year {{ font-size: 9pt; letter-spacing: 3px; }}\n\
@@ -89,8 +89,8 @@ body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; co
 .legend {{ font-size: 9pt; line-height: 1.8; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--primary); }}\n\
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: var(--paper); background: var(--accent); font-size: 7pt; }}\n\
-.dayhead {{ display: flex; justify-content: space-between; align-items: center; background: var(--paper); padding-bottom: 4pt; }}\n\
-.dayhead-date {{ font-size: 13pt; line-height: 1; text-decoration: none; color: var(--primary); border-bottom: 0.75pt solid var(--rule); padding-bottom: 2pt; }}\n\
+.dayhead {{ display: flex; justify-content: space-between; align-items: center; }}\n\
+.dayhead-date {{ display: inline-block; font-size: 13pt; line-height: 1; text-decoration: none; color: var(--primary); background: var(--paper); border-bottom: 0.75pt solid var(--rule); padding: 1pt 3pt 2pt 3pt; }}\n\
 /* Agenda + Details: ink body text, indigo underlined date headers, color swatch per event. */\n\
 .h-month a {{ color: var(--primary); text-decoration: none; }}\n\
 .swatch {{ display: inline-block; width: 7pt; height: 7pt; border-radius: 2pt; margin-right: 4pt; vertical-align: -0.5pt; }}\n\

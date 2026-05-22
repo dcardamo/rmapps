@@ -47,26 +47,26 @@ fn page_count_and_size() {
 }
 
 #[test]
-fn month_index_dots_sit_between_rows() {
-    // The month index paints its dot grid on the day LIST (not the page), offset
-    // half a pitch. With each day row exactly one pitch tall, a dot row then lands
-    // on every row boundary and the centred label falls in the gap between two
-    // dots — never astride one (the "dot strikethrough"). Anchoring the grid to the
-    // list keeps this true regardless of heading height, page count, or spacing,
-    // none of which the engine pins down for a page-fixed grid. Guard the two
-    // values that make it work; the visual golden covers the rendered result.
+fn month_index_shares_device_dot_grid() {
+    // The monthly page uses the SAME device-aligned dot grid as the daily/tasks
+    // pages (so an inserted "Dots Small" page lines up on every page), and each day
+    // label gets a paper knockout so it stays crisp over the dots. The visual golden
+    // covers the rendered result; this guards the CSS that makes it work.
     let dev = get_device("paper-pro-move").unwrap();
     let grid = default_grid(&dev);
     let css = build_css(&dev, &grid, &load_theme("library").unwrap());
     let sp = grid.spacing_pt;
-    let half = 0.5 * sp;
     assert!(
-        css.contains(&format!(".day {{ height: {sp}pt")),
-        "day rows must be one dot pitch tall:\n{css}"
+        css.contains(".dotpage, .month-index {"),
+        "month index must share the device dot grid with .dotpage:\n{css}"
     );
     assert!(
-        css.contains(&format!("background-position: 0pt {half}pt")),
-        "month-list dot grid must be offset half a pitch so labels sit between dots:\n{css}"
+        css.contains(&format!("background-size: {sp}pt {sp}pt")),
+        "dots must tile at the full device pitch (matching the template):\n{css}"
+    );
+    assert!(
+        css.contains("width: 44pt; background: var(--paper)"),
+        "day labels need a paper knockout to stay crisp over the dots:\n{css}"
     );
 }
 
