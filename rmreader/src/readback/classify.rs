@@ -20,11 +20,19 @@ pub struct Plan {
     pub warnings: Vec<String>,
 }
 
+/// Horizontal overlap between `a` and a rect defined by `[b_x0, b_x1]`.
+fn x_overlap(a: &PdfRect, b_x0: f64, b_x1: f64) -> f64 {
+    (a.x1.min(b_x1) - a.x0.max(b_x0)).max(0.0)
+}
+
 /// Classify stroke hits against the embedded manifest.
 ///
-/// - A stroke overlapping an action-label column rect → an action. When a stroke
-///   overlaps multiple columns, the one with the **most** overlap area wins, so a
-///   stroke that barely nicks a neighbour still resolves to the dominant column.
+/// - A stroke whose **center y** falls inside an action-label column rect's y-band,
+///   AND that overlaps the column in X, is classified as an action. When multiple
+///   columns qualify, the one with the greatest horizontal (x) overlap wins.
+///   This prevents inflated bboxes of first-body-line highlights from bleeding into
+///   the label band and being misclassified (the inflation is symmetric, so the bbox
+///   center equals the original stroke center).
 /// - Any other stroke → a content highlight for the doc owning its page; its text is
 ///   reconstructed via `words_under(page, &bbox)`. Empty text → skip + warning.
 /// - Per doc: 0 actions → no location change; exactly 1 distinct action → apply;
@@ -47,13 +55,18 @@ pub fn classify(
             continue;
         };
 
-        // Find the label rect with the greatest positive overlap area.
+        // An action requires the stroke's CENTER y to fall inside the label band.
+        // Inflation is symmetric so bbox center == original stroke center — a first-
+        // body-line highlight whose inflated top edge pokes into the band will have a
+        // center below the band and is correctly ignored here.
+        let cy = (hit.bbox.y0 + hit.bbox.y1) / 2.0;
         let best = m
             .label_rects
             .iter()
-            .map(|lr| (lr, hit.bbox.overlap_area(&lr.rect.to_pdf_rect())))
-            .filter(|(_, area)| *area > 0.0)
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap());
+            .filter(|lr| cy >= lr.rect.y0 && cy <= lr.rect.y1) // center inside y-band
+            .map(|lr| (lr, x_overlap(&hit.bbox, lr.rect.x0, lr.rect.x1)))
+            .filter(|(_, ox)| *ox > 0.0)
+            .max_by(|(_, a), (_, b)| a.total_cmp(b));
 
         match best.and_then(|(lr, _)| ActionKind::parse_label(&lr.kind)) {
             Some(kind) => acted.entry(doc.id.clone()).or_default().push(kind),

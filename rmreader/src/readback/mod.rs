@@ -76,14 +76,13 @@ pub fn sync_collection(
 
 fn execute(t: &dyn HttpTransport, token: &str, plan: &Plan) {
     for (id, kind) in &plan.actions {
+        // Exhaustive match: a new ActionKind variant will cause a compile error
+        // rather than a runtime panic.
         let r = match kind {
             ActionKind::Delete => readwise::delete_document(t, token, id),
-            k => readwise::update_location(
-                t,
-                token,
-                id,
-                k.location().expect("non-delete has a location"),
-            ),
+            ActionKind::Inbox | ActionKind::Later | ActionKind::Archive => {
+                readwise::update_location(t, token, id, kind.location().unwrap())
+            }
         };
         if let Err(e) = r {
             eprintln!("[rmreader] action {id:?} {kind:?} failed: {e:#}");
@@ -113,5 +112,9 @@ fn first_page_size(doc: &lopdf::Document) -> Option<(f64, f64)> {
             .or_else(|_| o.as_i64().map(|i| i as f64))
             .ok()
     };
-    Some((num(&mb[2])? - num(&mb[0])?, num(&mb[3])? - num(&mb[1])?))
+    // Use .get()/.first() so a malformed/short MediaBox returns None rather than panicking.
+    Some((
+        num(mb.get(2)?)? - num(mb.first()?)?,
+        num(mb.get(3)?)? - num(mb.get(1)?)?,
+    ))
 }
