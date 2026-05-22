@@ -23,13 +23,31 @@ pub fn sync_collection(
     let Some(bundle_path) = deployer.fetch(folder, name)? else {
         return Ok(Plan::default());
     };
-    let bundle = rmfiles::Bundle::open(&bundle_path)?;
+    let plan = detect(&bundle_path)?;
+    eprintln!(
+        "[rmreader] {name}: read-back found {} action(s), {} content highlight(s), {} warning(s)",
+        plan.actions.len(),
+        plan.highlights.len(),
+        plan.warnings.len()
+    );
+    for (id, kind) in &plan.actions {
+        eprintln!("[rmreader] {name}: action {kind:?} on doc {id}");
+    }
+    execute(transport, token, &plan);
+    Ok(plan)
+}
+
+/// Detect (without applying) the read-back plan for an already-downloaded bundle.
+/// No network side effects — used by `sync_collection` and the `readback_inspect`
+/// example for non-destructive dry runs.
+pub fn detect(bundle_path: &std::path::Path) -> anyhow::Result<Plan> {
+    let bundle = rmfiles::Bundle::open(bundle_path)?;
     let Some(pdf) = bundle.source_pdf().map(|b| b.to_vec()) else {
         return Ok(Plan::default());
     };
     let doc = lopdf::Document::load_mem(&pdf)?;
     let Some(manifest) = crate::embed::read(&doc)? else {
-        eprintln!("[rmreader] {name}: no embedded manifest in fetched PDF; skipping read-back");
+        eprintln!("[rmreader] no embedded manifest in fetched PDF; skipping read-back");
         return Ok(Plan::default());
     };
     let canvas = bundle.canvas_size();
@@ -67,20 +85,9 @@ pub fn sync_collection(
             }
         }
     }
-    let plan = classify(&manifest, &hits, |page, rect| {
+    Ok(classify(&manifest, &hits, |page, rect| {
         textlayer.words_under(page, rect)
-    });
-    eprintln!(
-        "[rmreader] {name}: read-back found {} action(s), {} content highlight(s), {} warning(s)",
-        plan.actions.len(),
-        plan.highlights.len(),
-        plan.warnings.len()
-    );
-    for (id, kind) in &plan.actions {
-        eprintln!("[rmreader] {name}: action {kind:?} on doc {id}");
-    }
-    execute(transport, token, &plan);
-    Ok(plan)
+    }))
 }
 
 fn execute(t: &dyn HttpTransport, token: &str, plan: &Plan) {
