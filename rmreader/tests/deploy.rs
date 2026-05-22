@@ -118,6 +118,8 @@ fn fetch_missing_returns_none() {
     });
     let result = d.fetch("/RMDev/Reader", "Library").unwrap();
     assert!(result.is_none());
+    let c = calls.borrow();
+    assert_eq!(c[0], vec!["-ni", "get", "/RMDev/Reader/Library"]);
 }
 
 #[test]
@@ -139,4 +141,6 @@ fn fetch_success_returns_path() {
         "unexpected filename: {}",
         path.display()
     );
+    let c = calls.borrow();
+    assert_eq!(c[0], vec!["-ni", "get", "/RMDev/Reader/Library"]);
 }
