@@ -5,7 +5,7 @@ pub fn dot_tile_svg(spacing_pt: f32, dot_color: &str) -> String {
     let c = spacing_pt / 2.0;
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{s}\" height=\"{s}\">\
-         <circle cx=\"{c}\" cy=\"{c}\" r=\"0.7\" fill=\"{col}\"/></svg>",
+         <circle cx=\"{c}\" cy=\"{c}\" r=\"0.5\" fill=\"{col}\"/></svg>",
         s = spacing_pt,
         c = c,
         col = dot_color,

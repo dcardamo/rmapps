@@ -47,6 +47,11 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
     // dots, never astride one (the "dot strikethrough").
     let half_sp = 0.5 * sp;
     let top = crate::geometry::TOOLBAR_SAFE_PT;
+    // Align dots to the device "Dots Small" template phase (dot centers at x≈2.22,
+    // y≈4.52 pt mod pitch on the Move) so on-device inserted Dots-Small pages line up
+    // with ours. The SVG paints the dot at the tile center, so offset by half a pitch.
+    let dot_bx = 2.22 - half_sp;
+    let dot_by = 4.52 - half_sp;
     format!(
         "{vars}\n\
 @page {{ size: {w}pt {h}pt; margin: 0; }}\n\
@@ -57,13 +62,13 @@ body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; co
 .day, .day .wd, .cbadge, .pill, .agenda-date, .detail-meta {{ font-family: \"Hanken Grotesk\", sans-serif; }}\n\
 .page {{ position: relative; width: {w}pt; height: {h}pt; padding: {top}pt {m}pt {m}pt {m}pt; overflow: hidden; background: var(--paper); break-after: page; }}\n\
 .page:last-child {{ break-after: auto; }}\n\
-.dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {top}pt; }}\n\
+.dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
 .h-month {{ color: var(--primary); font-size: 16pt; font-weight: bold; margin-bottom: 6pt; }}\n\
 .h-section {{ color: var(--primary); font-size: 14pt; font-weight: bold; }}\n\
 /* Dot grid painted as the page background so headings/labels sit on top. Used by
    the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
    a page background resolves correctly even when rendered as a single page. */\n\
-.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {top}pt; }}\n\
+.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
 .dotpage .h-section {{ font-size: {head_fs}pt; }}\n\
 .month-index .h-month {{ font-size: {head_fs}pt; margin-bottom: {half_sp}pt; }}\n\
 .month-list {{ display: flex; flex-direction: column; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt var(--row); background-position: 0pt {half_sp}pt; }}\n\
@@ -96,7 +101,7 @@ body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; co
 .detail-title {{ font-size: 10pt; color: var(--ink); }}\n\
 .detail-meta {{ font-size: 9pt; color: var(--muted); }}\n",
         vars = css_vars(theme), w = w, h = h, m = m, sp = sp, half_sp = half_sp,
-        top = top,
+        top = top, dot_bx = dot_bx, dot_by = dot_by,
         head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = BODY_FAMILY,
     )
 }
@@ -118,7 +123,7 @@ pub fn render_pdf(
     let mut assets = AssetBundle::new();
     assets.add_image(
         "dot.svg",
-        svg::dot_tile_svg(grid.spacing_pt, color(theme, "dot", "#C9C6BA")).into_bytes(),
+        svg::dot_tile_svg(grid.spacing_pt, color(theme, "dot", "#55534C")).into_bytes(),
     );
     assets.add_image(
         "cover.svg",
