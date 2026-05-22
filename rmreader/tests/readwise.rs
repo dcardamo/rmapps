@@ -1,6 +1,6 @@
 use rmreader::readwise::{
-    delete_document, fetch_documents, update_location, ActionKind, HttpMethod, HttpResponse,
-    HttpTransport,
+    create_highlights, delete_document, fetch_documents, update_location, ActionKind,
+    HighlightCreate, HttpMethod, HttpResponse, HttpTransport,
 };
 use std::cell::RefCell;
 
@@ -226,6 +226,70 @@ fn delete_issues_delete() {
     let last = r.last.borrow().clone().unwrap();
     assert_eq!(last.0, HttpMethod::Delete);
     assert_eq!(last.1, "https://readwise.io/api/v3/delete/doc9/");
+}
+
+#[test]
+fn create_highlights_posts_v2_with_source_url() {
+    let r = Recording {
+        last: RefCell::new(None),
+        status: 200,
+    };
+    create_highlights(
+        &r,
+        "TKN",
+        &[HighlightCreate {
+            text: "hello".into(),
+            title: "T".into(),
+            author: "A".into(),
+            source_url: "https://x/y".into(),
+            category: "articles".into(),
+        }],
+    )
+    .unwrap();
+    let last = r.last.borrow().clone().unwrap();
+    assert_eq!(last.0, HttpMethod::Post);
+    assert_eq!(last.1, "https://readwise.io/api/v2/highlights/");
+    assert_eq!(last.2, "TKN");
+    let body = last.3.unwrap();
+    assert!(
+        body.contains("\"source_url\":\"https://x/y\""),
+        "body: {body}"
+    );
+    assert!(body.contains("\"text\":\"hello\""), "body: {body}");
+}
+
+/// A fake that panics if request() is ever called — used to verify no-op paths.
+struct Counting {
+    n: std::cell::RefCell<usize>,
+}
+impl HttpTransport for Counting {
+    fn request(
+        &self,
+        _method: HttpMethod,
+        _url: &str,
+        _token: &str,
+        _body: Option<&str>,
+    ) -> anyhow::Result<HttpResponse> {
+        *self.n.borrow_mut() += 1;
+        Ok(HttpResponse {
+            status: 200,
+            retry_after: None,
+            body: String::new(),
+        })
+    }
+}
+
+#[test]
+fn create_highlights_empty_is_noop() {
+    let fake = Counting {
+        n: std::cell::RefCell::new(0),
+    };
+    create_highlights(&fake, "TKN", &[]).unwrap();
+    assert_eq!(
+        *fake.n.borrow(),
+        0,
+        "must make zero HTTP calls for empty input"
+    );
 }
 
 #[test]

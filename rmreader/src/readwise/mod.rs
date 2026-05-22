@@ -7,6 +7,7 @@ const LIST_URL: &str = "https://readwise.io/api/v3/list/";
 const AUTH_URL: &str = "https://readwise.io/api/v2/auth/";
 const UPDATE_URL: &str = "https://readwise.io/api/v3/update/";
 const DELETE_URL: &str = "https://readwise.io/api/v3/delete/";
+const HL_URL: &str = "https://readwise.io/api/v2/highlights/";
 
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
@@ -63,6 +64,39 @@ impl ActionKind {
             _ => None,
         }
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct HighlightCreate {
+    pub text: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub title: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub author: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub source_url: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub category: String,
+}
+
+/// Create highlights via the classic v2 endpoint. Readwise matches each highlight
+/// to a document by `source_url` (+ title/author). Empty input is a no-op.
+pub fn create_highlights(
+    t: &dyn HttpTransport,
+    token: &str,
+    items: &[HighlightCreate],
+) -> anyhow::Result<()> {
+    if items.is_empty() {
+        return Ok(());
+    }
+    let body = serde_json::json!({ "highlights": items }).to_string();
+    let r = t.request(HttpMethod::Post, HL_URL, token, Some(&body))?;
+    anyhow::ensure!(
+        (200..300).contains(&r.status),
+        "create_highlights failed: HTTP {}",
+        r.status
+    );
+    Ok(())
 }
 
 pub fn update_location(
