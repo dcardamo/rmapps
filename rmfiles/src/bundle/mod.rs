@@ -191,10 +191,11 @@ fn collect_dir(root: &Path, dir: &Path, map: &mut HashMap<String, Vec<u8>>) -> R
         if path.is_dir() {
             collect_dir(root, &path, map)?;
         } else {
-            // Build a forward-slash relative path.
+            // Build a forward-slash relative path.  Use map_err instead of
+            // expect so a symlink-escaped path returns an error rather than panicking.
             let rel = path
                 .strip_prefix(root)
-                .expect("path inside root")
+                .map_err(|_| crate::Error::Parse("path escapes bundle root".into()))?
                 .components()
                 .map(|c| c.as_os_str().to_string_lossy())
                 .collect::<Vec<_>>()
