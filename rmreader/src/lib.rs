@@ -10,6 +10,7 @@ pub mod embed;
 pub mod generate;
 pub mod manifest;
 pub mod postprocess;
+pub mod readback;
 pub mod readwise;
 pub mod render;
 pub mod theme;

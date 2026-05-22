@@ -66,7 +66,7 @@ impl ActionKind {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct HighlightCreate {
     pub text: String,
     #[serde(skip_serializing_if = "String::is_empty")]
