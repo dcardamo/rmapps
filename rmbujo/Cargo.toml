@@ -23,6 +23,11 @@ iana-time-zone = "0.1"
 clap = { version = "4", features = ["derive"] }
 dialoguer = "0.11"
 anyhow = "1"
+# ICS parsing. ical 0.11 = iCalendar/vCard parser. rrule 0.14 = RFC-5545 recurrence
+# expansion; 0.14 depends on chrono-tz ^0.10 (matches our locked 0.10.4) so it shares
+# the same `chrono_tz::Tz` type we hand it — 0.13 pins chrono-tz ^0.9 and would conflict.
+ical = "0.11"
+rrule = "0.14"
 
 [dev-dependencies]
 fulgur = "0.6"

@@ -6,6 +6,7 @@ pub mod deploy;
 pub mod device;
 pub mod generate;
 pub mod geometry;
+pub mod ics;
 pub mod notebooks;
 pub mod render;
 pub mod svg;

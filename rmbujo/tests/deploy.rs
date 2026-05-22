@@ -82,12 +82,19 @@ fn every_call_is_non_interactive() {
 
 // Unique temp dir without an extra crate (matches the project's test style).
 fn tmp_dir() -> PathBuf {
-    let mut p = std::env::temp_dir();
+    // Unique per call: a nanosecond timestamp can collide when two tests run in
+    // the same instant under load, and a shared dir cross-contaminates the shim's
+    // calls.log / clobber-trigger. A process-wide atomic counter guarantees no
+    // two dirs collide regardless of clock resolution.
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
     let n = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    p.push(format!("rmbujo-deploy-{n}"));
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let mut p = std::env::temp_dir();
+    p.push(format!("rmbujo-deploy-{n}-{}-{seq}", std::process::id()));
     std::fs::create_dir_all(&p).unwrap();
     p
 }
