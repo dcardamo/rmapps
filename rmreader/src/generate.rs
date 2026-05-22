@@ -2,7 +2,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
-use crate::content::{process_html, FetchedImage, ImageFetcher};
+use crate::content::{FetchedImage, ImageFetcher};
 use crate::readwise::HttpTransport;
 
 /// Real image fetcher over ureq with guards (size cap; content-type sniff).
@@ -115,26 +115,92 @@ fn build_one(
     config: &Config,
     fetcher: &dyn ImageFetcher,
     out_dir: &Path,
+    cache: &crate::cache::Cache,
 ) -> anyhow::Result<PathBuf> {
+    use std::collections::{HashMap, HashSet};
     use std::time::Instant;
+    // Type alias to satisfy clippy::type_complexity for the per-doc (html, assets) map.
+    type DocOutput = (String, Vec<(String, Vec<u8>)>);
     let images_enabled = config.images.enabled;
     let max_bytes = config.content.max_article_bytes;
-    let total = docs.len();
-    let idx = std::cell::Cell::new(0usize);
-    eprintln!("[rmreader] {collection}: processing {total} docs");
-    let built = crate::assemble::assemble_document(collection, docs, |html, id| {
-        let i = idx.get() + 1;
-        idx.set(i);
-        let t = Instant::now();
-        let p = process_html(html, id, images_enabled, max_bytes, fetcher);
-        eprintln!(
-            "[rmreader]   {collection} {i}/{total}: {} KB html, {} imgs, {:.1}s",
-            html.len() / 1024,
-            p.assets.len(),
-            t.elapsed().as_secs_f32()
+
+    // Pass A: classify each doc as a cache hit (reuse processed output) or a miss
+    // (collect its image URLs for the shared fetch below).
+    struct Miss {
+        id: String,
+        key: String,
+        html: String,
+        truncated: bool,
+        urls: Vec<String>,
+    }
+    let mut processed: HashMap<String, DocOutput> = HashMap::new();
+    let mut misses: Vec<Miss> = Vec::new();
+    for d in docs {
+        let raw = d.html_content.clone().unwrap_or_default();
+        let key = crate::cache::key(&d.id, &raw, max_bytes, images_enabled);
+        if let Some(c) = cache.get(&key) {
+            processed.insert(d.id.clone(), (c.html, c.assets));
+        } else {
+            let (html, truncated, urls) =
+                crate::content::collect_doc_urls(&raw, max_bytes, images_enabled);
+            misses.push(Miss {
+                id: d.id.clone(),
+                key,
+                html,
+                truncated,
+                urls,
+            });
+        }
+    }
+    eprintln!(
+        "[rmreader] {collection}: {} docs ({} cached, {} to fetch)",
+        docs.len(),
+        docs.len() - misses.len(),
+        misses.len()
+    );
+
+    // One concurrent fetch over the deduped union of all miss-doc image URLs.
+    let mut union: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for m in &misses {
+        for u in &m.urls {
+            if seen.insert(u.clone()) {
+                union.push(u.clone());
+            }
+        }
+    }
+    let t = Instant::now();
+    let results = fetcher.fetch_many(&union);
+    let fetched: HashMap<String, crate::content::FetchedImage> = union
+        .into_iter()
+        .zip(results)
+        .filter_map(|(u, r)| r.map(|f| (u, f)))
+        .collect();
+    eprintln!(
+        "[rmreader] {collection}: fetched {} images in {:.1}s",
+        fetched.len(),
+        t.elapsed().as_secs_f32()
+    );
+
+    // Pass B: normalize + sanitize each miss from the shared bytes, then cache it.
+    for m in misses {
+        let p = crate::content::assemble_processed(
+            &m.id,
+            &m.html,
+            m.truncated,
+            images_enabled,
+            &m.urls,
+            &fetched,
         );
-        (p.html, p.assets)
+        cache.put(&m.key, &p.html, &p.assets);
+        processed.insert(m.id, (p.html, p.assets));
+    }
+
+    // Assemble: the closure just hands each doc its precomputed processed output.
+    let built = crate::assemble::assemble_document(collection, docs, |_html, id| {
+        processed.remove(id).unwrap_or_default()
     });
+
     let device = crate::device::get_device(&config.device)?;
     let theme = crate::theme::load_theme(&config.theme)?;
     let pdf_path = out_dir.join(format!("{collection}.pdf"));
@@ -149,9 +215,7 @@ fn build_one(
         pdf_path.display(),
         t.elapsed().as_secs_f32()
     );
-    // Paint the full-page paper background and stamp a clickable Home/Prev/Next
-    // bar on every article page. Best-effort: leaves the rendered PDF intact on
-    // any failure. Colours come from the theme (paper/navbg/navfg).
+    // Paint the full-page paper background and stamp the clickable nav bar.
     let paper = theme.get("paper").map(|s| s.as_str()).unwrap_or("#F3F1EA");
     let navbg = theme.get("navbg").map(|s| s.as_str()).unwrap_or("#2A2F6B");
     let navfg = theme.get("navfg").map(|s| s.as_str()).unwrap_or("#F4F1E8");
@@ -178,6 +242,8 @@ pub fn generate(
 ) -> anyhow::Result<Vec<(PathBuf, String)>> {
     let out_dir = PathBuf::from(&config.output_dir);
     std::fs::create_dir_all(&out_dir)?;
+    let cache = crate::cache::Cache::from_config(&config.cache);
+    cache.sweep();
     let mut targets = Vec::new();
 
     eprintln!(
@@ -193,7 +259,7 @@ pub fn generate(
     )?;
     let lib = drop_empty(lib);
     eprintln!("[rmreader] library: {} docs", lib.len());
-    let lib_pdf = build_one("Library", &lib, config, fetcher, &out_dir)?;
+    let lib_pdf = build_one("Library", &lib, config, fetcher, &out_dir, &cache)?;
     targets.push((lib_pdf, config.deploy.library_folder.clone()));
 
     if config.feed.enabled {
@@ -207,7 +273,7 @@ pub fn generate(
         )?;
         let feed = drop_empty(feed);
         eprintln!("[rmreader] feed: {} docs", feed.len());
-        let feed_pdf = build_one("Feed", &feed, config, fetcher, &out_dir)?;
+        let feed_pdf = build_one("Feed", &feed, config, fetcher, &out_dir, &cache)?;
         targets.push((feed_pdf, config.deploy.feed_folder.clone()));
     }
     Ok(targets)

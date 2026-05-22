@@ -64,7 +64,7 @@ fn title_or(d: &Document) -> String {
 pub fn assemble_document(
     collection: &str,
     docs: &[Document],
-    content_fn: impl Fn(&str, &str) -> (String, Vec<(String, Vec<u8>)>),
+    mut content_fn: impl FnMut(&str, &str) -> (String, Vec<(String, Vec<u8>)>),
 ) -> Built {
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     let mut items: Vec<ManifestItem> = Vec::new();

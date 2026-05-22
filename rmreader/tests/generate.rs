@@ -64,3 +64,56 @@ fn generate_writes_pdfs_and_manifests() {
     assert!(dir.path().join("Library.manifest.json").exists());
     assert!(dir.path().join("Feed.pdf").exists());
 }
+
+#[test]
+fn cold_and_warm_runs_produce_identical_pdfs() {
+    // Same fake inputs, cache enabled at a temp dir. Run twice; the second run is
+    // fully warm (cache hits). PDFs must be byte-identical (rendering is
+    // deterministic), proving the cache is transparent.
+    let dir = tempfile::tempdir().unwrap();
+    let cache_dir = dir.path().join("cache");
+    let mk_cfg = |out: &std::path::Path| Config {
+        device: "paper-pro-move".into(),
+        output_dir: out.to_str().unwrap().into(),
+        theme: "reader".into(),
+        readwise: ReadwiseConfig { token: "t".into() },
+        library: LibraryConfig {
+            locations: vec!["new".into()],
+            max_items: 10,
+        },
+        feed: FeedConfig {
+            enabled: true,
+            max_items: 10,
+        },
+        images: ImagesConfig {
+            enabled: false,
+            timeout_secs: 8,
+            concurrency: 12,
+        },
+        content: ContentConfig::default(),
+        deploy: DeployConfig {
+            backend: "none".into(),
+            library_folder: String::new(),
+            feed_folder: String::new(),
+        },
+        cache: CacheConfig {
+            enabled: true,
+            dir: Some(cache_dir.to_str().unwrap().into()),
+            expiry_days: 7,
+        },
+    };
+
+    let cold = dir.path().join("cold");
+    std::fs::create_dir_all(&cold).unwrap();
+    generate(&mk_cfg(&cold), &FakeT, &NoImages).unwrap();
+
+    let warm = dir.path().join("warm");
+    std::fs::create_dir_all(&warm).unwrap();
+    generate(&mk_cfg(&warm), &FakeT, &NoImages).unwrap();
+
+    for name in ["Library.pdf", "Feed.pdf"] {
+        let a = std::fs::read(cold.join(name)).unwrap();
+        let b = std::fs::read(warm.join(name)).unwrap();
+        assert_eq!(a, b, "{name}: cold and warm output differ");
+    }
+}
