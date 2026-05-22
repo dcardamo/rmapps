@@ -36,7 +36,7 @@
     {
       "id": 6,
       "subject": "Task 5: Verify real-run performance (no commit)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "Run release binary against scratch no-deploy config (token+locations from danout/rmreader.toml, [cache] at /tmp/rmperf/cache). Cold run (cleared cache) ~15s; warm run ~8s; PDFs start with %PDF-. Verification only.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"/usr/bin/env time -v ./target/release/rmreader /tmp/rmperf.toml\", \"acceptanceCriteria\": [\"cold ~15s\", \"warm ~8s with cached logs\", \"PDFs valid\"]}\n```"
     }
