@@ -43,9 +43,6 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
     // dots, never astride one (the "dot strikethrough").
     let half_sp = 0.5 * sp;
     let top = crate::geometry::TOOLBAR_SAFE_PT;
-    // Month-list max-height: page height minus top reserve, bottom margin, and the
-    // heading block (head_fs + half_sp margin-bottom). Clips overflow without calc().
-    let ml_max_h = h - top - m - 1.75 * sp;
     format!(
         "{vars}\n\
 @page {{ size: {w}pt {h}pt; margin: 0; }}\n\
@@ -63,11 +60,14 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {top}pt; }}\n\
 .dotpage .h-section {{ font-size: {head_fs}pt; }}\n\
 .month-index .h-month {{ font-size: {head_fs}pt; margin-bottom: {half_sp}pt; }}\n\
-.month-list {{ display: flex; flex-direction: column; overflow: hidden; max-height: {ml_max_h}pt; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: 0pt {half_sp}pt; }}\n\
+.month-list {{ display: flex; flex-direction: column; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt var(--row); background-position: 0pt {half_sp}pt; }}\n\
+.month-index .day {{ height: var(--row); }}\n\
 .day {{ height: {sp}pt; display: flex; align-items: center; gap: 6pt; font-size: {num_fs}pt; line-height: 1; }}\n\
 .day .num {{ width: 16pt; text-align: right; font-weight: bold; }}\n\
 .day.weekstart .num {{ color: var(--navy); }}\n\
 .day .wd {{ color: var(--navy); font-size: {wd_fs}pt; }}\n\
+.daylink {{ text-decoration: none; color: inherit; display: inline-flex; gap: 6pt; align-items: center; width: 44pt; }}\n\
+.cbadge {{ display: inline-flex; align-items: center; justify-content: center; min-width: 13pt; height: 12pt; padding: 0 4pt; border-radius: 6pt; background: var(--navy); color: #fff; font-size: 8pt; font-weight: bold; line-height: 1; text-decoration: none; }}\n\
 .cover {{ position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: {m}pt; color: #fff; background-image: url(cover.svg); background-size: 100% 100%; background-repeat: no-repeat; }}\n\
 .cover .year {{ font-size: 9pt; letter-spacing: 3px; }}\n\
 .cover .title {{ font-size: 24pt; font-weight: bold; }}\n\
@@ -78,7 +78,7 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--navy); }}\n\
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: #fff; background: var(--brick); font-size: 7pt; }}\n",
         vars = css_vars(theme), w = w, h = h, m = m, sp = sp, half_sp = half_sp,
-        top = top, ml_max_h = ml_max_h,
+        top = top,
         head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = FONT_FAMILY,
     )
 }

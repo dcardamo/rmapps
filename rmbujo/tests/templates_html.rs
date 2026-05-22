@@ -1,6 +1,8 @@
 use askama::Template;
 use rmbujo::calendar::build_month;
-use rmbujo::templates::{Cover, DayView, FutureLog, MonthIndex, Reference, Tasks};
+use rmbujo::templates::{
+    Cover, DayRow, DayView, FutureLog, MonthIndex, MonthlyView, Reference, Tasks,
+};
 
 #[test]
 fn month_index_rows() {
@@ -71,6 +73,30 @@ fn future_log_blocks() {
     .unwrap();
     assert_eq!(html.matches("fl-block").count(), 3);
     assert!(html.contains("February"));
+}
+
+#[test]
+fn monthly_view_rows_and_links() {
+    let days: Vec<DayRow> = (1..=31)
+        .map(|day| DayRow {
+            day,
+            weekday: "Mon",
+            week_start: false,
+            event_count: 0,
+        })
+        .collect();
+    let html = MonthlyView {
+        month_name: "May",
+        year: 2027,
+        month_num: 5,
+        row_pt: 12.0,
+        days: &days,
+    }
+    .render()
+    .unwrap();
+    assert_eq!(html.matches("href=\"#day-").count(), 31);
+    assert!(html.contains("id=\"monthly\""));
+    assert!(!html.contains("cbadge"));
 }
 
 #[test]

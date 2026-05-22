@@ -1,0 +1,11 @@
+<section class="page month-index" id="monthly" style="--row:{{ row_pt }}pt;">
+  <div class="h-month">{{ month_name }} {{ year }}</div>
+  <div class="month-list">
+    {% for d in days %}
+    <div class="day{% if d.week_start %} weekstart{% endif %}">
+      <a class="daylink" href="#day-{{ d.day }}"><span class="num">{{ d.day }}</span><span class="wd">{{ d.weekday }}</span></a>
+      {% if d.event_count > 0 %}<a class="cbadge" href="#agenda-{{ d.day }}">{{ d.event_count }}</a>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>

@@ -46,6 +46,24 @@ pub struct FutureLog<'a> {
     pub months: &'a [&'a str],
 }
 
+#[derive(Clone, Debug)]
+pub struct DayRow {
+    pub day: u32,
+    pub weekday: &'static str,
+    pub week_start: bool,
+    pub event_count: usize,
+}
+
+#[derive(Template)]
+#[template(path = "monthly_view.html")]
+pub struct MonthlyView<'a> {
+    pub month_name: &'a str,
+    pub year: i32,
+    pub month_num: u32,
+    pub row_pt: f32,
+    pub days: &'a [DayRow],
+}
+
 #[derive(Template)]
 #[template(path = "reference.html")]
 pub struct Reference;
