@@ -2,6 +2,7 @@
 //!
 //! Only the `parse` submodule exists for now; feed fetching is a later task.
 
+pub mod fetch;
 pub mod parse;
 
 use chrono::{NaiveDate, NaiveTime};
