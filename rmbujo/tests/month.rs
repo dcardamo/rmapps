@@ -153,3 +153,134 @@ fn busy_day_splits_across_pages_with_repeated_header() {
     let total: usize = pages.iter().flatten().map(|d| d.events.len()).sum();
     assert_eq!(total, 30, "no events lost when splitting");
 }
+
+#[test]
+fn paginate_day_small_day_one_page() {
+    use rmbujo::notebooks::month::agenda::paginate_day;
+    use rmbujo::templates::{AgendaDay, AgendaEvent};
+    let mk = |i| AgendaEvent {
+        idx: i,
+        label: "09:00".into(),
+        end_label: None,
+        title: "Event".into(),
+        location: None,
+        description: None,
+        attendees: vec![],
+        color: "cal1".into(),
+        is_all_day: false,
+    };
+    let day = AgendaDay {
+        day: 5,
+        weekday: "Wed",
+        events: (0..2).map(mk).collect(),
+    };
+    // header 20 + agenda(subhead 5 + 2*10) + details(subhead 5 + 2*10) = 70 <= 200
+    let pages = paginate_day(&day, 200.0, 20.0, 5.0, |_| 10.0, |_| 10.0);
+    assert_eq!(pages.len(), 1, "small day fits on one page");
+    let p = &pages[0];
+    assert!(p.first_page && !p.continued);
+    assert!(p.show_agenda_heading && p.show_details_heading);
+    assert_eq!(p.agenda.len(), 2);
+    assert_eq!(p.details.len(), 2);
+}
+
+#[test]
+fn paginate_day_agenda_overflows_then_details() {
+    use rmbujo::notebooks::month::agenda::paginate_day;
+    use rmbujo::templates::{AgendaDay, AgendaEvent};
+    let mk = |i| AgendaEvent {
+        idx: i,
+        label: "09:00".into(),
+        end_label: None,
+        title: "Event".into(),
+        location: None,
+        description: None,
+        attendees: vec![],
+        color: "cal1".into(),
+        is_all_day: false,
+    };
+    let day = AgendaDay {
+        day: 5,
+        weekday: "Wed",
+        events: (0..3).map(mk).collect(),
+    };
+    // header 20, subhead 0, each item 40, usable 100.
+    // p0: a0(60),a1(100) -> flush. p1: a2(60),d0(100) -> flush. p2: d1(60),d2(100).
+    let pages = paginate_day(&day, 100.0, 20.0, 0.0, |_| 40.0, |_| 40.0);
+    assert_eq!(pages.len(), 3);
+    assert!(pages[0].first_page && pages[0].show_agenda_heading);
+    assert_eq!(pages[0].agenda.len(), 2);
+    assert!(pages[0].details.is_empty());
+    assert!(pages[1].continued && pages[1].show_details_heading);
+    assert_eq!(pages[1].agenda.len(), 1);
+    assert_eq!(pages[1].details.len(), 1);
+    assert!(!pages[1].show_agenda_heading);
+    assert_eq!(pages[2].details.len(), 2);
+    assert!(!pages[2].show_agenda_heading && !pages[2].show_details_heading);
+    let total: usize = pages.iter().map(|p| p.agenda.len() + p.details.len()).sum();
+    assert_eq!(total, 6, "no events lost (3 agenda + 3 detail)");
+}
+
+#[test]
+fn paginate_day_details_heading_not_orphaned() {
+    use rmbujo::notebooks::month::agenda::paginate_day;
+    use rmbujo::templates::{AgendaDay, AgendaEvent};
+    let mk = |i| AgendaEvent {
+        idx: i,
+        label: "09:00".into(),
+        end_label: None,
+        title: "Event".into(),
+        location: None,
+        description: None,
+        attendees: vec![],
+        color: "cal1".into(),
+        is_all_day: false,
+    };
+    let day = AgendaDay {
+        day: 5,
+        weekday: "Wed",
+        events: (0..2).map(mk).collect(),
+    };
+    // header 20, subhead 20, each item 40, usable 100.
+    // p0: header20 + agenda-head20 + a0(40)=80; a1 needs 40 -> 120>100 flush.
+    // p1: header20 + a1(40)=60; d0 needs head20+40=60 -> 120>100 flush (no orphan head).
+    // p2: header20 + details-head20 + d0(40)=80; d1 needs 40 -> flush. p3: d1.
+    let pages = paginate_day(&day, 100.0, 20.0, 20.0, |_| 40.0, |_| 40.0);
+    // The details heading lands on the page that holds the first detail item.
+    let det_page = pages.iter().find(|p| !p.details.is_empty()).unwrap();
+    assert!(det_page.show_details_heading);
+    assert_eq!(
+        det_page.details[0].idx, 0,
+        "heading travels with its first item"
+    );
+    // Exactly one page shows the details heading.
+    assert_eq!(pages.iter().filter(|p| p.show_details_heading).count(), 1);
+    assert_eq!(pages.iter().filter(|p| p.show_agenda_heading).count(), 1);
+}
+
+#[test]
+fn paginate_day_oversized_lone_item_placed() {
+    use rmbujo::notebooks::month::agenda::paginate_day;
+    use rmbujo::templates::{AgendaDay, AgendaEvent};
+    let mk = |i| AgendaEvent {
+        idx: i,
+        label: "09:00".into(),
+        end_label: None,
+        title: "Event".into(),
+        location: None,
+        description: None,
+        attendees: vec![],
+        color: "cal1".into(),
+        is_all_day: false,
+    };
+    let day = AgendaDay {
+        day: 5,
+        weekday: "Wed",
+        events: (0..1).map(mk).collect(),
+    };
+    // One agenda item far taller than the page: must be placed, not dropped/looped.
+    let pages = paginate_day(&day, 100.0, 20.0, 5.0, |_| 500.0, |_| 10.0);
+    assert_eq!(pages[0].agenda.len(), 1);
+    assert_eq!(pages.iter().map(|p| p.agenda.len()).sum::<usize>(), 1);
+    assert_eq!(pages.iter().map(|p| p.details.len()).sum::<usize>(), 1);
+}

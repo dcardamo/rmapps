@@ -89,6 +89,9 @@ fn lines_for(chars: usize, font_pt: f32, width_pt: f32) -> f32 {
 /// Vertical cost (pt) of a date header on an agenda/detail page.
 pub const HEADER_PT: f32 = 20.0;
 
+/// Vertical cost (pt) of an "Agenda"/"Details" sub-heading on a day page.
+pub const SUBHEAD_PT: f32 = 16.0;
+
 /// Estimated height (pt) of one agenda line (label + title + location, wrapping).
 pub fn agenda_event_pt(width_pt: f32, e: &AgendaEvent) -> f32 {
     let mut chars = e.label.chars().count() + 2 + e.title.chars().count();
@@ -173,6 +176,100 @@ pub fn paginate(
     }
     if !page.is_empty() {
         pages.push(page);
+    }
+    pages
+}
+
+/// One rendered page of a single day's events. A page is always laid out as
+/// `[agenda lines] [detail blocks]` (agenda always precedes details within a
+/// day), so two slices plus the heading/continuation flags fully describe it:
+/// an agenda-only page, a details-only continuation page, or a shared page that
+/// carries the tail of the agenda and the head of the details.
+#[derive(Clone, Debug, Default)]
+pub struct DayPagePlan {
+    pub agenda: Vec<AgendaEvent>,
+    pub details: Vec<AgendaEvent>,
+    pub show_agenda_heading: bool,
+    pub show_details_heading: bool,
+    /// True on every page after the day's first (drives the "· cont." marker).
+    pub continued: bool,
+    /// True on the day's first page (the `#agenda-{day}` pill target).
+    pub first_page: bool,
+}
+
+/// Paginate ONE day's events into per-page plans for the combined agenda+details
+/// layout. Agenda lines come first (`agenda_pt`), then detail blocks (`detail_pt`),
+/// both in event order. Each page costs `header_pt` (the running date header);
+/// each section's sub-heading (`subhead_pt`) is charged once, on the first page
+/// that section's content appears. A sub-heading and its section's first item are
+/// placed together, so a heading never orphans at the foot of a page. An item
+/// taller than a fresh page is placed as-is (field capping bounds item height).
+pub fn paginate_day(
+    day: &AgendaDay,
+    usable_pt: f32,
+    header_pt: f32,
+    subhead_pt: f32,
+    agenda_pt: impl Fn(&AgendaEvent) -> f32,
+    detail_pt: impl Fn(&AgendaEvent) -> f32,
+) -> Vec<DayPagePlan> {
+    enum Kind {
+        Agenda,
+        Detail,
+    }
+    // Agenda items first, then detail items — each tagged with its height.
+    let mut items: Vec<(Kind, &AgendaEvent, f32)> = Vec::new();
+    for e in &day.events {
+        items.push((Kind::Agenda, e, agenda_pt(e)));
+    }
+    for e in &day.events {
+        items.push((Kind::Detail, e, detail_pt(e)));
+    }
+
+    let mut pages: Vec<DayPagePlan> = Vec::new();
+    let mut cur = DayPagePlan {
+        first_page: true,
+        ..Default::default()
+    };
+    let mut h = header_pt;
+    let mut agenda_heading_done = false;
+    let mut details_heading_done = false;
+
+    for (kind, e, eh) in items {
+        let triggers_heading = match kind {
+            Kind::Agenda => !agenda_heading_done,
+            Kind::Detail => !details_heading_done,
+        };
+        let need = eh + if triggers_heading { subhead_pt } else { 0.0 };
+        let has_content = !cur.agenda.is_empty() || !cur.details.is_empty();
+        if h + need > usable_pt && has_content {
+            pages.push(std::mem::take(&mut cur));
+            cur = DayPagePlan {
+                continued: true,
+                ..Default::default()
+            };
+            h = header_pt;
+        }
+        if triggers_heading {
+            match kind {
+                Kind::Agenda => {
+                    cur.show_agenda_heading = true;
+                    agenda_heading_done = true;
+                }
+                Kind::Detail => {
+                    cur.show_details_heading = true;
+                    details_heading_done = true;
+                }
+            }
+            h += subhead_pt;
+        }
+        match kind {
+            Kind::Agenda => cur.agenda.push(e.clone()),
+            Kind::Detail => cur.details.push(e.clone()),
+        }
+        h += eh;
+    }
+    if !cur.agenda.is_empty() || !cur.details.is_empty() {
+        pages.push(cur);
     }
     pages
 }
