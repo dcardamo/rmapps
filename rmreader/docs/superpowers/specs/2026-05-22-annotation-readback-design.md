@@ -410,3 +410,77 @@ and one action-label highlight, then captures via `rmapi get` and commits.
   needs geometry beyond relative position.
 - Index-level / bulk triage; rendering Readwise highlights back into the PDF.
 - `rmfiles` graduating to its own spec/lifecycle once a second project depends on it.
+
+---
+
+# PIVOT (2026-05-22): geometry-based read-back
+
+A hardware spike (`docs/superpowers/spikes/2026-05-22-snap-and-embed.md`) overturned a
+load-bearing assumption. On a **reMarkable Paper Pro (software 3.x)**, highlighting a
+PDF with snap-to-text ON stores **highlighter ink `Line` strokes (geometry only), NOT
+`GlyphRange` text** — confirmed with rmscene (the reference parser: 4 `SceneLineItemBlock`,
+0 `SceneGlyphItemBlock`, plus a "newer format, some data not read" warning). The
+highlighted text is genuinely absent from the bundle. The earlier "Confirmed external
+facts" about `GlyphRange` text are therefore **wrong for this device** and are superseded
+by this section. (The other spike result holds: the embedded manifest survives the cloud
+round trip byte-for-byte — the source PDF is returned unchanged.)
+
+**The user UX is unchanged** (highlight the `ARCHIVE` label; highlight body text). Only
+read-back changes: from text-matching to **stroke geometry**, recovering text from *our
+own* PDF rather than the device.
+
+## Revised mechanism
+
+What the device gives us per page: v6 `.rm` with `SceneLineItemBlock` `Line` items, each
+with `tool` (`HIGHLIGHTER_2`), `color` (`HIGHLIGHT`), and `points` `[(x,y)]` in device
+space (canvas `1404×1872` from `.content`, X centered ~`[-702,702]`, origin top-left, y
+down). A highlighter swipe is a short ~horizontal stroke.
+
+What we know about the PDF (we generate it): page size (= device geometry), the **stamped
+action-label rects** (exact PDF coords), and the **text layer** (every word's box).
+
+Read-back pipeline:
+
+1. `rmapi get` → bundle. `bundle.source_pdf()` → the PDF (unchanged; carries embedded
+   manifest + text layer).
+2. `embed::read(pdf)` → manifest: per-doc `page_range`, doc metadata, **action-label
+   rects** (constant per page), and the device canvas reference.
+3. For each page, `rmfiles` extracts highlighter `Line` strokes.
+4. **Device→PDF transform** maps each stroke's points to PDF points (validated against
+   the fixture: the `ARCHIVE` stroke must land in the stamped `ARCHIVE` rect).
+5. Classify each stroke (geometry):
+   - overlaps an action-label rect (top band) → `Action(doc, kind)`;
+   - else → `ContentHighlight`: words whose boxes intersect the stroke region (from
+     `pdftotext -bbox` on the source PDF) reconstruct the highlighted text → push.
+6. Per-doc resolution (0/1/≥2 actions; ≥2 → skip+warn) unchanged. Execute Readwise ops,
+   regenerate, full-replace.
+
+## Component changes vs the original plan
+
+- **`rmfiles`**: expose highlighter **strokes**, not `GlyphRange`. `Scene::strokes()` →
+  `Vec<Stroke { tool, color, points: Vec<Point> }>`; `SceneItem::Line(Stroke)`. Parse
+  `SceneLineItemBlock`; tolerate the Paper Pro "newer format" by respecting block lengths
+  and skipping unread bytes/blocks. Geometry types `Point{x,y}`, device constants.
+- **rmreader `readback/coords.rs`** (new): device→PDF transform from device canvas +
+  PDF MediaBox (uniform fit; handle aspect/letterbox). Fixture-validated.
+- **rmreader `readback/textlayer.rs`** (new): word boxes via `pdftotext -bbox` (poppler,
+  already a build input) on the source PDF; `words_under(rect) -> String`.
+- **Manifest/postprocess**: embed the action-label rects (PDF coords) alongside
+  `page_range`. Labels are still stamped as real text (so they render), but the rects —
+  not the text — drive action detection.
+- **`readback/classify.rs`**: geometric (strokes + label rects + word boxes), replacing
+  the text+`top_band` version.
+- **Orchestration**: as the pipeline above.
+
+## What still stands (unchanged by the pivot)
+
+`embed` (manifest in PDF), the Readwise client (`update_location`/`delete_document`/
+`create_highlights`), `deploy` (`fetch`/`replace`), and `/RMDev` config — all already
+implemented and mechanism-independent. `create_highlights` still takes reconstructed text.
+
+## New risk
+
+The device→PDF coordinate transform for the actual device/canvas is the main risk; it is
+retired by validating against the committed real fixture (known stamped-label rects vs the
+captured `ARCHIVE` stroke). Content-text reconstruction quality depends on `pdftotext
+-bbox` word boxes and the stroke→word intersection heuristic.

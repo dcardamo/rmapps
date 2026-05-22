@@ -1672,3 +1672,51 @@ examples/spike_stamp.rs  // Task 5 prototype: stamp labels + embed manifest onto
 - [ ] `cd /home/dan/git/rmreader && cargo test` → all PASS
 - [ ] `cd /home/dan/git/rmreader && make` (fmt + clippy + test, per the Makefile) → clean
 - [ ] Manual end-to-end (Dan, once): run `rmreader danout/rmreader.toml` twice with a highlight in between; confirm the highlighted article changes location in Readwise and the body highlight appears.
+
+---
+
+## PIVOT (2026-05-22): geometry-based read-back — revised task list
+
+The hardware spike (see `docs/superpowers/spikes/2026-05-22-snap-and-embed.md`) showed
+the Paper Pro stores highlighter **ink strokes (geometry), not text**. Read-back is
+re-architected around stroke geometry. Original Tasks 1,2,3,5,7,10,12 are superseded by
+the geometry tasks below; Tasks 4,6,8,9,11,13 are complete and unchanged (mechanism-
+independent). The real fixture is committed at `rmfiles/tests/fixtures/stamped-labels.rmdoc`.
+
+- **G1 — rmfiles: v6 parser → highlighter strokes.** Bootstrap the crate; parse the v6
+  header + blocks; extract `SceneLineItemBlock` `Line` items (`tool`, `color`,
+  `points:[Point{x,y}]`). Tolerate the Paper Pro "newer format" (respect block lengths,
+  skip unread bytes). `Scene::strokes()`, `SceneItem::Line(Stroke)`. Fixture test: ≥2
+  `HIGHLIGHTER_2`/`HIGHLIGHT` strokes; points in the expected device ranges.
+  Files: `../rmfiles/{Cargo.toml,src/lib.rs,src/error.rs,src/geometry.rs,src/scene/{mod,reader,items}.rs,tests/strokes.rs}`.
+- **G2 — rmfiles: Bundle/Page + canvas dims + source PDF.** `Bundle::open` (zip OR dir),
+  `.content` (page order + `customZoomPageWidth/Height`), `.metadata`, `source_pdf()`,
+  `pages()`/`page.scene()`. Expose the device canvas size. Fixture test: opens zip+dir
+  identically, source_pdf present, canvas = 1404×1872.
+  Files: `../rmfiles/src/bundle/{mod,content,metadata}.rs`, `tests/bundle.rs`.
+- **G3 — rmreader: device→PDF coordinate transform** (`src/readback/coords.rs`). Map
+  device(x,y) [canvas WxH, X-centered, y-down] → PDF points [page WxH, y-up] with uniform
+  fit + letterbox handling. Fixture-validated: the `ARCHIVE` stroke (device y≈154,
+  x∈[-588,-339]) maps into the page's top band / label column.
+  Files: `src/readback/coords.rs`, `tests/coords.rs`.
+- **G4 — rmreader: PDF text-layer word boxes** (`src/readback/textlayer.rs`). Run
+  `pdftotext -bbox` (poppler) on the source PDF; parse word boxes (PDF points);
+  `words_under(page, rect) -> String`. Test on the spike source PDF: finds ARCHIVE / quick
+  / brown / fox with sane boxes; `words_under` over the body region returns the sentence.
+  Files: `src/readback/textlayer.rs`, `tests/textlayer.rs`.
+- **G5 — rmreader: postprocess stamps labels + records rects in manifest.** Stamp the four
+  labels on every article page (real text, known coords); record the per-page **label
+  rects** (PDF coords) + `page_range` in the `EmbeddedManifest`; embed it. Extend
+  `EmbeddedManifest`/`EmbeddedDoc` with the label band rects.
+  Files: `src/postprocess.rs`, `src/manifest.rs`, `src/generate.rs`, `tests/postprocess.rs`.
+- **G6 — rmreader: geometric classification** (`src/readback/classify.rs`, rewrite). Input:
+  per-page transformed strokes (PDF coords) + manifest (label rects, page_range) + a
+  `words_under` closure. A stroke overlapping a label rect → `Action`; else
+  `ContentHighlight{ text: words_under(stroke) }`. Per-doc resolution (0/1/≥2 → skip+warn).
+  Files: `src/readback/classify.rs`, `tests/classify.rs`.
+- **G7 — rmreader: orchestration + sync wiring.** `fetch` bundle → `embed::read` manifest
+  → rmfiles strokes per page → `coords` transform → `classify` (with `textlayer`) →
+  execute Readwise ops → regenerate → `replace`. Wire into `rmreader <config>`.
+  Files: `src/readback/mod.rs`, `src/cli.rs`, `src/generate.rs`, `tests/readback.rs`.
+
+Dependencies: G2←G1; G3←G2; G6←{G3,G4,G5}; G7←{G6, deploy(11), readwise(8,9), embed(4)}.
