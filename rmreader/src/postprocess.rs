@@ -141,11 +141,12 @@ fn try_finalize_pdf(
     }
 
     // Compute the 4 label column rects (PDF points, bottom-left origin).
-    // The label band sits just below the nav bar: y ∈ [page_h-86, page_h-62].
+    // The action band sits 26pt below the nav bar bottom (page_h-58), giving a
+    // clear ≥22pt gap: y ∈ [page_h-112, page_h-84] (28pt tall).
     // Page width is split into 4 equal columns.
     let label_kinds = ["inbox", "archive", "later", "delete"];
-    let label_band_y0 = f64::from(page_h) - 86.0;
-    let label_band_y1 = f64::from(page_h) - 62.0;
+    let label_band_y0 = f64::from(page_h) - 112.0;
+    let label_band_y1 = f64::from(page_h) - 84.0;
     let pw = f64::from(page_w);
     embedded.label_rects = label_kinds
         .iter()
@@ -182,12 +183,13 @@ fn try_finalize_pdf(
     let bar_h = 21.0_f32;
     let baseline_y = bar_y + 6.5; // nav text baseline, centred in the nav bar
 
-    // Label band geometry (PDF bottom-left origin; y increases upward).
-    // The band is just below the nav bar: bottom at page_h-86, top at page_h-62.
-    let label_bar_y = page_h - 86.0; // bottom edge of label band
-    let label_bar_h = 24.0_f32; // height of label band (86-62 = 24)
-    let label_baseline_y = page_h - 80.0; // text baseline ~6pt above label band bottom
-    let label_font_size = 7.5_f32;
+    // Action band geometry (PDF bottom-left origin; y increases upward).
+    // The band is 26pt below the nav bar bottom (page_h-58), giving a clear
+    // ≥22pt gap.  Band: bottom=page_h-112, top=page_h-84 (28pt tall).
+    let label_bar_y = page_h - 112.0; // bottom edge of action band
+    let label_bar_h = 28.0_f32; // height of action band (112-84 = 28)
+    let label_baseline_y = page_h - 103.0; // text baseline ~9pt above band bottom
+    let label_font_size = 12.0_f32; // larger than nav (8.5pt) for easy targeting
 
     for pi in first_article..pages.len() {
         let page_id = pages[pi];
@@ -221,17 +223,29 @@ fn try_finalize_pdf(
             ));
         }
 
-        // Label band background (same nav colour so it reads as a contiguous header).
+        // Action bar: outlined rectangle (not filled) so it reads as distinct from
+        // the solid nav bar above.  Use the nav foreground colour as stroke.
+        // 0.6pt line width; stroke the outer border.
         content.push_str(&format!(
-            "q {br:.3} {bg:.3} {bb:.3} rg {bar_x:.2} {label_bar_y:.2} {bar_w:.2} {label_bar_h:.2} re f Q\n"
+            "q {fr:.3} {fg:.3} {fb:.3} RG 0.6 w {bar_x:.2} {label_bar_y:.2} {bar_w:.2} {label_bar_h:.2} re S Q\n"
         ));
 
-        // Four label words, one per column, centred horizontally in each column.
+        // Vertical dividers between the four cells (thin, same stroke colour).
+        // Lines run from label_bar_y to label_bar_y + label_bar_h.
+        let label_bar_top = label_bar_y + label_bar_h;
+        for div in 1..4_u32 {
+            let div_x = page_w * div as f32 / 4.0;
+            content.push_str(&format!(
+                "q {fr:.3} {fg:.3} {fb:.3} RG 0.4 w {div_x:.2} {label_bar_y:.2} m {div_x:.2} {label_bar_top:.2} l S Q\n"
+            ));
+        }
+
+        // Four label words (12pt), one per column, centred horizontally in each cell.
         // Helvetica width ≈ 0.5 * font_size * char_count (good enough for centering).
         for (i, &kind) in label_kinds.iter().enumerate() {
             let col_w = page_w / 4.0;
             let col_x = col_w * i as f32;
-            // Capitalise the label so it reads clearly on a small device.
+            // Uppercase so it reads clearly on a small device.
             let label = kind.to_uppercase();
             let text_w = 0.5 * label_font_size * label.len() as f32;
             let text_x = col_x + (col_w - text_w) / 2.0;

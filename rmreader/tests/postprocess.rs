@@ -307,19 +307,19 @@ fn embeds_manifest_with_page_ranges_and_label_rects() {
             got.label_rects[i + 1].rect.x0
         );
     }
-    // Rects must lie in the top band (y values within the top 100pt).
+    // Rects must lie in the action band: y ∈ [page_h-112, page_h-84].
     for lr in &got.label_rects {
         assert!(
-            lr.rect.y1 < page_h,
-            "label rect y1={} should be below page top {}",
+            lr.rect.y1 <= page_h - 84.0 + 0.5,
+            "label rect y1={} should be at or below page_h-84 ({:.1})",
             lr.rect.y1,
-            page_h
+            page_h - 84.0
         );
         assert!(
-            lr.rect.y0 > page_h - 100.0,
-            "label rect y0={} should be within 100pt of page top {}",
+            lr.rect.y0 >= page_h - 112.0 - 0.5,
+            "label rect y0={} should be at or above page_h-112 ({:.1})",
             lr.rect.y0,
-            page_h
+            page_h - 112.0
         );
     }
 
