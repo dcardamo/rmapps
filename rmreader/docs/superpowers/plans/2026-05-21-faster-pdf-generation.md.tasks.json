@@ -29,7 +29,7 @@
     {
       "id": 5,
       "subject": "Task 4: Parallelize Library and Feed pipelines",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "generate runs both collections in thread::scope; + Sync bounds; sweep before spawn; sleep_secs fn item. Concurrent-render determinism test. Contingency: RENDER_LOCK mutex in render.rs if fulgur not concurrency-safe.\n\n```json:metadata\n{\"files\": [\"src/generate.rs\", \"tests/render.rs\", \"src/render.rs\"], \"verifyCommand\": \"nix develop -c cargo test && make clippy\", \"acceptanceCriteria\": [\"parallel build produces both PDFs\", \"concurrent render == reference bytes\", \"compiles with Sync bounds\", \"suite+clippy green\"]}\n```"
     },
