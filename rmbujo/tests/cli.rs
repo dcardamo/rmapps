@@ -27,6 +27,8 @@ fn wizard_assemble() {
         theme: "library".into(),
         deploy_backend: "rmapi".into(),
         base_folder: "/2026".into(),
+        pages_per_day: 1,
+        timezone: "America/Toronto".into(),
     });
     assert_eq!(config.year, 2026);
     assert_eq!(config.daily_pages, 3);

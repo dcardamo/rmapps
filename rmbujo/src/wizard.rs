@@ -17,6 +17,8 @@ pub struct Answers {
     pub theme: String,
     pub deploy_backend: String,
     pub base_folder: String,
+    pub pages_per_day: u32,
+    pub timezone: String,
 }
 
 /// Build a Config + paths from gathered answers (no I/O).
@@ -29,6 +31,8 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
         collection_pages: a.collection_pages,
         spacing_mm: a.spacing_mm,
         theme: a.theme,
+        pages_per_day: a.pages_per_day,
+        timezone: a.timezone,
         ics: Vec::new(),
         deploy: DeployConfig {
             backend: a.deploy_backend,
@@ -96,6 +100,9 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         theme,
         deploy_backend,
         base_folder,
+        // pages_per_day and timezone prompts are added in a later task; use defaults for now.
+        pages_per_day: 1,
+        timezone: iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into()),
     });
     // The caller validates and creates the directory after this returns, so
     // invalid input doesn't leave an orphan folder behind.

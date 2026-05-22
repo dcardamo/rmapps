@@ -109,6 +109,26 @@ fn validate_deploy_backend() {
     .is_err());
 }
 
+#[test]
+fn pages_per_day_and_timezone_defaults_and_validate() {
+    let c = Config::new(2026);
+    assert_eq!(c.pages_per_day, 1);
+    assert!(!c.timezone.is_empty());
+    assert!(c.validate().is_ok());
+    assert!(Config {
+        pages_per_day: 0,
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+    assert!(Config {
+        timezone: "Not/AZone".into(),
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+}
+
 // Minimal unique temp dir without an extra crate dependency.
 fn tempdir() -> std::path::PathBuf {
     let mut p = std::env::temp_dir();

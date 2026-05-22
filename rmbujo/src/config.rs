@@ -48,6 +48,10 @@ pub struct Config {
     pub spacing_mm: f32,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(default = "default_pages_per_day")]
+    pub pages_per_day: u32,
+    #[serde(default = "default_timezone")]
+    pub timezone: String,
     #[serde(default)]
     pub ics: Vec<IcsFeed>,
     #[serde(default)]
@@ -71,6 +75,12 @@ fn default_spacing() -> f32 {
 fn default_theme() -> String {
     "library".into()
 }
+fn default_pages_per_day() -> u32 {
+    1
+}
+fn default_timezone() -> String {
+    iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into())
+}
 
 impl Config {
     /// A config with the given year and all other fields defaulted.
@@ -83,6 +93,8 @@ impl Config {
             collection_pages: default_collection(),
             spacing_mm: default_spacing(),
             theme: default_theme(),
+            pages_per_day: default_pages_per_day(),
+            timezone: default_timezone(),
             ics: Vec::new(),
             deploy: DeployConfig::default(),
         }
@@ -110,6 +122,12 @@ impl Config {
                 "spacing_mm must be between 2.0 and 10.0, got {}",
                 self.spacing_mm
             );
+        }
+        if self.pages_per_day == 0 {
+            anyhow::bail!("pages_per_day must be >= 1");
+        }
+        if self.timezone.parse::<chrono_tz::Tz>().is_err() {
+            anyhow::bail!("unknown timezone: {:?}", self.timezone);
         }
         Ok(())
     }
