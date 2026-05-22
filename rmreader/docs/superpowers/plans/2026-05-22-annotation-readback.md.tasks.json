@@ -1,0 +1,92 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-22-annotation-readback.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: rmfiles bootstrap + v6 highlight-text parser (PARSER SPIKE)",
+      "status": "pending",
+      "description": "Stand up rmfiles; parse a real Paper Pro .rm to extract snap-to-text highlight text, proven against fixture #1 (Dan captures).\n\n```json:metadata\n{\"files\":[\"../rmfiles/Cargo.toml\",\"../rmfiles/src/scene/mod.rs\",\"../rmfiles/src/scene/reader.rs\",\"../rmfiles/src/scene/items.rs\",\"../rmfiles/tests/parse_rm.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmfiles && cargo test --test parse_rm\",\"acceptanceCriteria\":[\"extracts known highlight text from real fixture\",\"non-v6 -> UnsupportedVersion\"],\"needsFixture\":\"highlight-basic (Dan captures)\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: rmfiles — rectangles, colour, Scene API surface",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Finalize Highlight with rectangles + colour and the public geometry/SceneItem surface, asserted against the fixture.\n\n```json:metadata\n{\"files\":[\"../rmfiles/src/geometry.rs\",\"../rmfiles/src/scene/items.rs\",\"../rmfiles/src/scene/mod.rs\",\"../rmfiles/tests/highlights.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmfiles && cargo test\",\"acceptanceCriteria\":[\"highlights carry rectangles in device bounds\",\"geometry constants exposed\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: rmfiles — Bundle/Page (zip or dir), metadata, source PDF",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "Bundle opens .rmdoc/zip OR unpacked dir, lists pages in reading order, parses each .rm, returns source PDF + metadata.\n\n```json:metadata\n{\"files\":[\"../rmfiles/src/bundle/mod.rs\",\"../rmfiles/src/bundle/content.rs\",\"../rmfiles/src/bundle/metadata.rs\",\"../rmfiles/src/lib.rs\",\"../rmfiles/tests/bundle.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmfiles && cargo test --test bundle\",\"acceptanceCriteria\":[\"zip==dir\",\"page order from .content\",\"source_pdf + metadata\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: rmreader — embedded PDF manifest write/read (in-process)",
+      "status": "pending",
+      "description": "Define the embedded manifest; read/write inside a PDF with lopdf; in-process round trip survives save+reload.\n\n```json:metadata\n{\"files\":[\"src/manifest.rs\",\"src/embed.rs\",\"src/lib.rs\",\"tests/embed.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test embed\",\"acceptanceCriteria\":[\"write+read round trip through save/reload\",\"read None when absent\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: SPIKE — snap-to-text on stamped labels + embedded-manifest preservation",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "Prove on hardware: snap-to-text snaps to stamped label text, and embedded manifest survives the cloud round trip. Decide label-rendering for Task 7. Dan captures fixture #2.\n\n```json:metadata\n{\"files\":[\"examples/spike_stamp.rs\",\"tests/spike_roundtrip.rs\",\"docs/superpowers/spikes/2026-05-22-snap-and-embed.md\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test spike_roundtrip\",\"acceptanceCriteria\":[\"manifest survives round trip\",\"snap works on stamped labels\"],\"needsFixture\":\"stamped-labels (Dan captures)\",\"gate\":\"snap fail -> fulgur labels; manifest dropped -> /EmbeddedFiles\"}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: rmreader — manifest plumbing through assemble + generate",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "Carry author/source_url/category into ManifestItem; Manifest::to_embedded() builds EmbeddedManifest (placeholder page ranges).\n\n```json:metadata\n{\"files\":[\"src/assemble.rs\",\"src/manifest.rs\",\"tests/assemble.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test assemble\",\"acceptanceCriteria\":[\"new ManifestItem fields populated\",\"to_embedded() works\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: rmreader — stamp action band + page ranges + embed manifest (postprocess)",
+      "status": "pending",
+      "blockedBy": [5, 6],
+      "description": "postprocess::finalize_pdf stamps the 4 labels on every article page, computes page ranges, embeds the manifest.\n\n```json:metadata\n{\"files\":[\"src/postprocess.rs\",\"src/generate.rs\",\"tests/postprocess.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test postprocess\",\"acceptanceCriteria\":[\"labels stamped as text every article page\",\"page_range correct\",\"manifest embedded\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: rmreader — Readwise transport (method+body) + location/delete",
+      "status": "pending",
+      "description": "Extend HTTP seam for PATCH/DELETE with body+auth; update_location + delete_document; ActionKind.\n\n```json:metadata\n{\"files\":[\"src/readwise/http.rs\",\"src/readwise/mod.rs\",\"tests/readwise.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test readwise\",\"acceptanceCriteria\":[\"PATCH update with body+auth\",\"DELETE delete\",\"ActionKind mapping\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: rmreader — Readwise create_highlights (v2)",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "Push content highlights via classic v2 POST, matched by source_url; empty input is a no-op.\n\n```json:metadata\n{\"files\":[\"src/readwise/mod.rs\",\"tests/readwise.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test readwise\",\"acceptanceCriteria\":[\"v2 highlights POST by source_url\",\"empty no-op\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: rmreader — classification (highlights -> plan)",
+      "status": "pending",
+      "blockedBy": [4, 8, 9],
+      "description": "Pure logic: highlights + embedded manifest -> Plan (actions + content highlights) with conflict skip+warn.\n\n```json:metadata\n{\"files\":[\"src/readback/mod.rs\",\"src/readback/classify.rs\",\"src/lib.rs\",\"tests/classify.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test classify\",\"acceptanceCriteria\":[\"action vs content\",\"conflict skip+warn\",\"off-manifest warn\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: rmreader — deploy fetch + replace",
+      "status": "pending",
+      "description": "Add fetch (rmapi get -> bundle path/None) and replace (rm + put full replace) for both backends.\n\n```json:metadata\n{\"files\":[\"src/deploy/mod.rs\",\"src/deploy/rmapi.rs\",\"src/deploy/local.rs\",\"tests/deploy.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test deploy\",\"acceptanceCriteria\":[\"fetch get/None\",\"replace rm+put sequence\",\"none backend\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: rmreader — read-back orchestration + sync wiring",
+      "status": "pending",
+      "blockedBy": [7, 10, 11],
+      "description": "fetch bundle -> read embedded manifest -> extract highlights via rmfiles -> classify -> execute -> regenerate -> full-replace. Wire into the sync command.\n\n```json:metadata\n{\"files\":[\"src/readback/mod.rs\",\"src/cli.rs\",\"src/generate.rs\",\"tests/readback.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test readback\",\"acceptanceCriteria\":[\"orchestrator executes expected calls from fixture\",\"first-run no-op\",\"readback before regenerate; replace\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: rmreader — /RMDev cloud root defaults + wizard + docs",
+      "status": "pending",
+      "description": "Default deploy/fetch folders to /RMDev/Reader; wizard prompt; convention + migration note.\n\n```json:metadata\n{\"files\":[\"src/config.rs\",\"src/wizard.rs\",\"tests/config.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test config && cargo test --test wizard\",\"acceptanceCriteria\":[\"folders default to /RMDev/Reader\",\"wizard default\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-22T08:30:00Z"
+}
