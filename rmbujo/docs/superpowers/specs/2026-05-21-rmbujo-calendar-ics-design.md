@@ -110,18 +110,22 @@ All within one PDF (cross-PDF links don't work on-device). Proven tappable.
   days** in the available height (page − reserve − bottom margin − header), and sizes
   the month-list's own dot grid to that row height (dots stay aligned to rows via the
   existing half-pitch trick). Daily/grid pages keep the configured dot pitch (default
-  = the "Dots Small" pitch; see below). The monthly list is thus self-consistent
-  regardless of month length or reserve.
+  = 4.756 mm, the "Dots Small" pitch; see below). The monthly list is thus
+  self-consistent regardless of month length or reserve.
 
 ## Inserted pages — match a built-in template (no sideload)
 
 To keep user-inserted pages visually consistent without sideloading a custom template
 (which needs SSH and is wiped by firmware updates), rmbujo's dot grid is set to the
 pitch of reMarkable's **built-in "Dots Small"** template. A user who needs more room
-inserts a page and picks the built-in "Dots Small" — it lines up with our generated
-pages. So rmbujo's **default dot spacing = the measured "Dots Small" pitch** (measured
-once on-device; the monthly view fits-to-height, so it adapts to whatever that pitch
-is). `pages_per_day` still pre-allocates dotted pages so inserting is seldom needed.
+inserts a page and picks the built-in "Dots Small" — it has the same grid as our
+generated pages. So rmbujo's **default dot spacing = 4.756 mm** — the measured "Dots
+Small" pitch (42.5 reMarkable units × 0.31718 pt/unit = 13.48 pt; uniform x/y; dot
+mark ~0.1 mm + hairline stroke). Measured from an exported template page
+(`dots small.pdf`). The monthly view fits-to-height, so it adapts to this pitch;
+`pages_per_day` still pre-allocates dotted pages so inserting is seldom needed.
+(Phase/margins of an inserted page may differ slightly from ours — pages aren't
+overlaid, so matching the pitch + small dot is what makes them look consistent.)
 
 ## ICS
 
@@ -228,15 +232,18 @@ templates/   # askama: monthly_view, daily_page, agenda, details (+ existing)
   change to all pages).
 - Fix the badge vertical clip (taller box / centering).
 - Parse spike to confirm `ureq` + `ical` + `rrule` against real feeds before wiring.
-- Measure reMarkable's built-in **"Dots Small"** dot pitch on the Move (one-time, dev
-  SSH) and set rmbujo's default dot spacing to it.
+- ~~Measure "Dots Small" pitch~~ **done: 4.756 mm** (from `dots small.pdf`); set as
+  the default dot spacing. (Lines Small = 5.82 mm, recorded for the future lined
+  option.)
 - `notebooks/month.rs` will grow; split into `month/{mod,agenda}.rs` as above.
 
 ## Future (out of scope)
 
-Reading device ink back via rmapi (`.rm` → rendered images → vision model) for
-journaling summaries/insights, and optionally annotation-aware layout. A separate,
-read-only project; this design deliberately needs none of it.
+- A **lined** grid as a config option (matching reMarkable's built-in "Lines Small",
+  measured at 5.82 mm row spacing), alongside the dot grid.
+- Reading device ink back via rmapi (`.rm` → rendered images → vision model) for
+  journaling summaries/insights, and optionally annotation-aware layout. A separate,
+  read-only project; this design deliberately needs none of it.
 
 ## Rationale
 

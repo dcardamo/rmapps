@@ -86,10 +86,12 @@ updates can wipe sideloaded ones.
 
 **rmbujo's approach: match a built-in template instead of sideloading.** We set our
 dot grid to the pitch of reMarkable's built-in **"Dots Small"** template, so a user who
-inserts a page and picks "Dots Small" gets a page that lines up with our generated
-pages — no sideloading, no SSH for users. The "Dots Small" pitch is measured once
-on-device during development and becomes rmbujo's default dot spacing. (`pages_per_day`
-still lets you pre-allocate dotted pages so inserting is rarely needed.)
+inserts a page and picks "Dots Small" gets a page that matches our generated pages —
+no sideloading, no SSH for users. **Measured pitch (from an exported template page):
+"Dots Small" = 4.756 mm** (42.5 reMarkable units × 0.31718 pt/unit = 13.48 pt, uniform
+x/y; "Lines Small" = 5.82 mm, for a future lined option). That becomes rmbujo's default
+dot spacing. (`pages_per_day` still lets you pre-allocate dotted pages so inserting is
+rarely needed.)
 
 ## 9. Sync ordering / conflicts
 
