@@ -46,7 +46,8 @@ impl Transform {
         }
     }
 
-    fn scale(&self) -> f64 {
+    /// The device-to-PDF scale factor: device pixels per PDF point.
+    pub fn scale(&self) -> f64 {
         self.canvas_w / self.page_w
     }
 
