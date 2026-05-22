@@ -36,8 +36,8 @@ leading pages** (content-only never touches `.content`/`.rm`, only the PDF blob)
   insights are a separate future project. Collision is solved structurally instead.
 - No events on the Future Log / Collection / Reference notebooks (calendar lives in
   the month notebooks).
-- No timezone handling beyond what timed events need for display (events are rendered
-  on their start date; see ICS).
+- No multi-timezone display: every event renders in a single configured `timezone`
+  (see ICS). (We *do* convert; we just don't show per-event zones.)
 
 ## Month notebook structure
 
@@ -115,7 +115,9 @@ All within one PDF (cross-PDF links don't work on-device). Proven tappable.
 
 ## ICS
 
-- **Config:** existing `[[ics]]` feeds (`name`, `url`, `color` = theme color name).
+- **Config:** existing `[[ics]]` feeds (`name`, `url`, `color` = theme color name);
+  plus a top-level `timezone` (IANA name, e.g. `"America/Toronto"`), defaulting to the
+  detected system timezone, validated against the tz database.
 - **Fetch — cache-on-fetch snapshot.** Each feed's raw `.ics` is cached beside the
   toml at `<year>/.ics-cache/<feed-slug>.ics`. Generation always parses the cache, so
   output is reproducible and works offline. Re-fetch happens on `rmbujo new` and when
@@ -125,16 +127,24 @@ All within one PDF (cross-PDF links don't work on-device). Proven tappable.
   regenerate is byte-identical and the cloud re-sync stays quiet.
 - **Scope — all-day and timed.** All-day events (dated, recurring via `RRULE`, and
   multi-day via exclusive `DTEND`) and timed events. Recurrences and multi-day spans
-  expand into per-day occurrences clipped to the config year. Events render on their
-  start date.
+  expand into per-day occurrences clipped to the config year.
+- **Timezone.** A configured `timezone` is the single rendering zone. Timed events are
+  parsed with their source zone (`TZID`, a `Z`/UTC suffix, or a floating local time)
+  and **converted to the configured timezone** for both the displayed `HH:MM` and the
+  **calendar day** they land on (a UTC event near midnight can fall on a different
+  local day — so conversion happens before bucketing by date). RRULE expansion is
+  zone-aware (expanded against the source zone, then converted). All-day events are
+  **floating dates** — rendered as-is, never converted.
 - **Event model:** `EventOccurrence { date: NaiveDate, time: Option<NaiveTime>,
   title: String, location: Option<String>, description: Option<String>,
-  attendees: Vec<String>, color: String }`. Sorted deterministically: date, then
-  all-day-before-timed, then time, then title.
+  attendees: Vec<String>, color: String }`, where `date`/`time` are already in the
+  configured timezone. Sorted deterministically: date, then all-day-before-timed,
+  then time, then title.
 - **Crates:** `ureq` (blocking HTTPS, no async runtime — fits the sync CLI), `ical`
-  (iCalendar parser), `rrule` (recurrence expansion). A small parse spike during
-  implementation validates them against a real Google holiday feed + a recurring
-  birthday feed before committing to them.
+  (iCalendar parser), `rrule` (zone-aware recurrence expansion), `chrono-tz` (IANA
+  tz database) and `iana-time-zone` (detect the system zone for the default). A small
+  parse spike during implementation validates them against a real Google holiday feed,
+  a recurring birthday feed, and a `TZID`/UTC timed feed before committing to them.
 - **Errors:** a re-fetch failure keeps the existing cached snapshot (never clobber a
   good cache) and warns; no cache + fetch fail warns and renders that feed empty;
   malformed events/feeds are skipped with a warning. A feed never aborts generation.
@@ -175,9 +185,11 @@ templates/   # askama: monthly_view, daily_page, agenda, details (+ existing)
   slice. Pure (no I/O beyond the cache read in `ics::fetch`).
 - `render.rs`: CSS gains the toolbar safe-area (all non-cover pages), the count-pill
   badge, agenda/detail/link styles, and the monthly fit-to-height row sizing.
-- `config.rs`: add `pages_per_day` (default 1); validate ics feeds. `cli.rs`: add
-  `--refresh-feeds`. `wizard.rs`: prompt for `pages_per_day`; **does not** prompt for
-  ICS feeds (add `[[ics]]` by editing the toml — documented in README).
+- `config.rs`: add `pages_per_day` (default 1) and `timezone` (IANA, default detected
+  system zone; validated against the tz database); validate ics feeds. `cli.rs`: add
+  `--refresh-feeds`. `wizard.rs`: prompt for `pages_per_day` and `timezone` (prefilled
+  with the detected zone); **does not** prompt for ICS feeds (add `[[ics]]` by editing
+  the toml — documented in README).
 - The badge, link helpers, and date-grouping logic from the prototype
   (`examples/spike_month_prototype.rs`) are the reference for the real builders.
 
@@ -186,6 +198,9 @@ templates/   # askama: monthly_view, daily_page, agenda, details (+ existing)
 - **ics/parse** (offline, fixtures): a dated holiday; a multi-day all-day span
   (DTEND exclusivity); a yearly `RRULE` birthday expanding into the target year; a
   timed event (time + location); an out-of-year event excluded; deterministic order.
+  **Timezone:** a `TZID` timed event converts to the configured zone's `HH:MM`; a
+  UTC event near midnight lands on the correct **local day** (day-shift); an all-day
+  event stays on its date regardless of zone.
 - **ics/fetch:** cache read/write and `--refresh-feeds` via a fake `Fetcher` (no
   network); fetch-failure keeps the cached snapshot.
 - **templates/HTML:** monthly view has the right badge counts + day/agenda links;
