@@ -111,3 +111,45 @@ fn busy_month_paginates_agenda_and_details() {
         "busy month should paginate agenda+details beyond one page each (got {pages})"
     );
 }
+
+#[test]
+fn busy_day_splits_across_pages_with_repeated_header() {
+    use rmbujo::notebooks::month::agenda::{paginate, HEADER_PT};
+    use rmbujo::templates::{AgendaDay, AgendaEvent};
+    let mk = |i| AgendaEvent {
+        idx: i,
+        label: "09:00".into(),
+        end_label: None,
+        title: "Event".into(),
+        location: None,
+        description: None,
+        attendees: vec![],
+        color: "cal1".into(),
+        is_all_day: false,
+    };
+    // A single day with far more events than fit on one page.
+    let day = AgendaDay {
+        day: 1,
+        weekday: "Mon",
+        events: (0..30).map(mk).collect(),
+    };
+    let usable = 380.0;
+    let pages = paginate(&[day], usable, HEADER_PT, |_| 30.0);
+    assert!(pages.len() > 1, "a busy day must split across pages");
+    for page in &pages {
+        let h: f32 = page
+            .iter()
+            .map(|d| HEADER_PT + 30.0 * d.events.len() as f32)
+            .sum();
+        assert!(
+            h <= usable + 0.01,
+            "each page stays within the usable height"
+        );
+        assert!(
+            page.iter().all(|d| d.day == 1),
+            "header repeats for the split day"
+        );
+    }
+    let total: usize = pages.iter().flatten().map(|d| d.events.len()).sum();
+    assert_eq!(total, 30, "no events lost when splitting");
+}

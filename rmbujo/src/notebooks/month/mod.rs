@@ -82,11 +82,16 @@ pub fn build_month_pdf(
     // month keeps its exact page count. Leading pages above are unaffected.
     let days = agenda::agenda_days(&m, events, config.year, month);
     if !days.is_empty() {
-        // Paginate so a busy month's agenda/details never overflow (and clip) a
-        // single page. A date block never splits across pages. Usable height =
-        // page minus the toolbar reserve, bottom margin, and the title block.
+        // Paginate at the event level so a busy month's agenda/details never
+        // overflow (and clip) a page: a day with too many events to fit is split
+        // across pages, repeating its header. Usable height = page minus the
+        // toolbar reserve, bottom margin, and title block; content width accounts
+        // for side margins (and the details indent) so wrapping is estimated.
         let usable = dev.height_pt() - crate::geometry::TOOLBAR_SAFE_PT - grid.margin_pt - 30.0;
-        for chunk in agenda::paginate(&days, usable, agenda::agenda_block_pt) {
+        let content_w = dev.width_pt() - 2.0 * grid.margin_pt - 8.0;
+        for chunk in agenda::paginate(&days, usable, agenda::HEADER_PT, |e| {
+            agenda::agenda_event_pt(content_w, e)
+        }) {
             fragments.push(
                 Agenda {
                     month_name: m.name,
@@ -96,7 +101,9 @@ pub fn build_month_pdf(
                 .render()?,
             );
         }
-        for chunk in agenda::paginate(&days, usable, agenda::detail_block_pt) {
+        for chunk in agenda::paginate(&days, usable, agenda::HEADER_PT, |e| {
+            agenda::detail_event_pt(content_w, e)
+        }) {
             fragments.push(
                 Details {
                     month_name: m.name,
