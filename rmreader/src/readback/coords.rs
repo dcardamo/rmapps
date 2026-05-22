@@ -27,6 +27,13 @@ impl PdfRect {
     pub fn intersects(&self, other: &PdfRect) -> bool {
         self.x0 <= other.x1 && self.x1 >= other.x0 && self.y0 <= other.y1 && self.y1 >= other.y0
     }
+
+    /// Shared area of the two rectangles; 0.0 if disjoint or merely touching.
+    pub fn overlap_area(&self, o: &PdfRect) -> f64 {
+        let w = (self.x1.min(o.x1) - self.x0.max(o.x0)).max(0.0);
+        let h = (self.y1.min(o.y1) - self.y0.max(o.y0)).max(0.0);
+        w * h
+    }
 }
 
 impl Transform {

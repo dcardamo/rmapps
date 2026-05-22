@@ -75,6 +75,18 @@ pub struct ManifestRect {
     pub y1: f64,
 }
 
+impl ManifestRect {
+    /// Convert to a `PdfRect` for geometric comparisons in the readback module.
+    pub fn to_pdf_rect(&self) -> crate::readback::coords::PdfRect {
+        crate::readback::coords::PdfRect {
+            x0: self.x0,
+            y0: self.y0,
+            x1: self.x1,
+            y1: self.y1,
+        }
+    }
+}
+
 /// One stamped action-label column with its tap rect.
 /// `kind` is one of `"inbox"`, `"archive"`, `"later"`, `"delete"`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
