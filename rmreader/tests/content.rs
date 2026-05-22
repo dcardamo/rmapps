@@ -53,6 +53,29 @@ fn truncates_monster_articles_with_note() {
 }
 
 #[test]
+fn strips_inline_styles_and_presentational_attrs() {
+    // Newsletter emails set inline font-family to system fonts the offline
+    // renderer lacks; that override renders the text blank, so every inline
+    // style (and legacy presentational attr) must be stripped while keeping text.
+    let html = r##"<p style="font-family:Georgia, serif;color:#111">Hello there</p><div class="rw" width="600" align="center" bgcolor="#fff">Body text</div>"##;
+    let f = FakeFetcher {
+        map: Default::default(),
+        fetched: RefCell::new(vec![]),
+    };
+    let out = process_html(html, "d1", false, 80_000, &f);
+    assert!(out.html.contains("Hello there"));
+    assert!(out.html.contains("Body text"));
+    assert!(
+        !out.html.contains("style="),
+        "inline style must be stripped"
+    );
+    assert!(!out.html.contains("font-family"));
+    assert!(!out.html.contains("align="));
+    assert!(!out.html.contains("width="));
+    assert!(!out.html.contains("bgcolor"));
+}
+
+#[test]
 fn strips_scripts_and_handlers_keeps_text() {
     let html = r#"<p onclick="x()">Hello</p><script>evil()</script><iframe src="z"></iframe>"#;
     let f = FakeFetcher {

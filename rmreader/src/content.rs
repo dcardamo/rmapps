@@ -2,11 +2,14 @@
 //!
 //! # Security model
 //! The sanitiser (Pass 2 below) removes `<script>`, `<iframe>`, `<noscript>`,
-//! `<style>`, `<object>`, `<embed>`, `<form>`, and all `on*` event handlers,
-//! and rewrites every `<img src>` to a local asset key (dropping unresolvable
-//! images). This is the first line of defence. Remaining content safety —
-//! `style` `url()` references, `<link>`, `<meta http-equiv=refresh>`, and
-//! any other remote or `data:` targets — relies on fulgur's `file://`-only
+//! `<style>`, `<object>`, `<embed>`, `<form>`, all `on*` event handlers, every
+//! inline `style` attribute (plus legacy presentational attrs like `bgcolor`,
+//! `width`), and rewrites every `<img src>` to a local asset key (dropping
+//! unresolvable images). Stripping inline styles also neutralises `style url()`
+//! references AND stops the source's `font-family` from overriding our embedded
+//! fonts — an override renders text blank, since the offline renderer has no
+//! system fonts. Remaining content safety — `<link>`, `<meta http-equiv=refresh>`,
+//! and any other remote or `data:` targets — relies on fulgur's `file://`-only
 //! `NetProvider` as a second line of defence: those targets simply never load
 //! and never trigger network or navigation actions during PDF rendering.
 use lol_html::{element, rewrite_str, RewriteStrSettings};
@@ -176,9 +179,28 @@ pub fn process_html(
                     Ok(())
                 }),
                 element!("*", |el| {
+                    // Strip event handlers, inline styles, and legacy presentational
+                    // attributes. Inline `font-family` (ubiquitous in newsletter
+                    // emails) is the critical one: it overrides our embedded fonts
+                    // with system fonts the offline renderer lacks, so the text
+                    // renders BLANK. Dropping all inline styling also gives clean,
+                    // uniform reader styling instead of the source's.
                     let names: Vec<String> = el.attributes().iter().map(|a| a.name()).collect();
                     for n in names {
-                        if n.starts_with("on") {
+                        if n.starts_with("on")
+                            || matches!(
+                                n.as_str(),
+                                "style"
+                                    | "class"
+                                    | "align"
+                                    | "valign"
+                                    | "bgcolor"
+                                    | "color"
+                                    | "face"
+                                    | "width"
+                                    | "height"
+                            )
+                        {
                             el.remove_attribute(&n);
                         }
                     }
