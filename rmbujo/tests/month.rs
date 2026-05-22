@@ -71,8 +71,8 @@ fn events_only_add_trailing_pages() {
     assert!(withev > base, "events add trailing pages");
     assert_eq!(
         withev,
-        base + 2,
-        "1 agenda + 1 details page for a small event set"
+        base + 1,
+        "a small one-event day is a single combined agenda+details page"
     );
 }
 
@@ -105,10 +105,11 @@ fn busy_month_paginates_agenda_and_details() {
     let out = tmp();
     build_month_pdf(&cfg, 1, &ev, &out).unwrap();
     let pages = lopdf::Document::load(&out).unwrap().get_pages().len();
-    // Jan static = 2 + 31 = 33; agenda and details each span multiple pages.
+    // Jan static = 2 + 31 = 33; 28 busy days each produce 1+ combined pages, so the
+    // event pages add well beyond a single trailing page.
     assert!(
-        pages > 33 + 2,
-        "busy month should paginate agenda+details beyond one page each (got {pages})"
+        pages > 33 + 1,
+        "busy month should paginate per-day event pages beyond one page (got {pages})"
     );
 }
 
