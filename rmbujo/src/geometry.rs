@@ -27,12 +27,15 @@ pub fn dot_grid(device: &Device, spacing_mm: f32, margin_mm: f32) -> GridSpec {
     }
 }
 
-/// Default dot pitch in mm. 4.5 (vs the 5.0 paper-BuJo standard) is tuned for the
-/// small Paper Pro Move: it fits a 31-day monthly log one-per-row and gives more
-/// columns for trackers without crowding handwriting. Overridable per-year via config.
-pub const DEFAULT_SPACING_MM: f32 = 4.5;
+/// Default dot pitch in mm. Matches reMarkable's built-in "Dots Small" template
+/// (4.756 mm = 42.5 device-units at 0.31718 pt/unit), so user-inserted "Dots Small"
+/// pages line up. Overridable per-year via config.
+pub const DEFAULT_SPACING_MM: f32 = 4.756;
 /// Default page margin in mm.
 pub const DEFAULT_MARGIN_MM: f32 = 6.0;
+/// Vertical space (pt) reserved at the top of every non-cover page so content
+/// clears the reMarkable pen toolbar. Measured on the Paper Pro Move.
+pub const TOOLBAR_SAFE_PT: f32 = 36.0;
 
 pub fn default_grid(device: &Device) -> GridSpec {
     dot_grid(device, DEFAULT_SPACING_MM, DEFAULT_MARGIN_MM)

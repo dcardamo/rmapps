@@ -65,7 +65,7 @@ fn minimal_defaults() {
     assert_eq!(c.week_start, "sun");
     assert_eq!(c.daily_pages, 60);
     assert_eq!(c.collection_pages, 20);
-    assert_eq!(c.spacing_mm, 4.5);
+    assert_eq!(c.spacing_mm, rmbujo::geometry::DEFAULT_SPACING_MM);
     assert_eq!(c.theme, "library");
     assert!(c.ics.is_empty());
     assert_eq!(c.deploy.backend, "none");

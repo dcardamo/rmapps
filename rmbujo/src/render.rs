@@ -42,24 +42,28 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
     // row on every row *boundary*, so the centred label sits in the gap between two
     // dots, never astride one (the "dot strikethrough").
     let half_sp = 0.5 * sp;
+    let top = crate::geometry::TOOLBAR_SAFE_PT;
+    // Month-list max-height: page height minus top reserve, bottom margin, and the
+    // heading block (head_fs + half_sp margin-bottom). Clips overflow without calc().
+    let ml_max_h = h - top - m - 1.75 * sp;
     format!(
         "{vars}\n\
 @page {{ size: {w}pt {h}pt; margin: 0; }}\n\
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; }}\n\
 body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
-.page {{ position: relative; width: {w}pt; height: {h}pt; padding: {m}pt; overflow: hidden; background: #fff; break-after: page; }}\n\
+.page {{ position: relative; width: {w}pt; height: {h}pt; padding: {top}pt {m}pt {m}pt {m}pt; overflow: hidden; background: #fff; break-after: page; }}\n\
 .page:last-child {{ break-after: auto; }}\n\
-.dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {m}pt; }}\n\
+.dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {top}pt; }}\n\
 .h-month {{ color: var(--navy); font-size: 16pt; font-weight: bold; margin-bottom: 6pt; }}\n\
 .h-section {{ color: var(--navy); font-size: 14pt; font-weight: bold; }}\n\
 /* Dot grid painted as the page background so headings/labels sit on top. Used by
    the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
    a page background resolves correctly even when rendered as a single page. */\n\
-.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {m}pt; }}\n\
+.dotpage {{ background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {top}pt; }}\n\
 .dotpage .h-section {{ font-size: {head_fs}pt; }}\n\
 .month-index .h-month {{ font-size: {head_fs}pt; margin-bottom: {half_sp}pt; }}\n\
-.month-list {{ display: flex; flex-direction: column; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: 0pt {half_sp}pt; }}\n\
+.month-list {{ display: flex; flex-direction: column; overflow: hidden; max-height: {ml_max_h}pt; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: 0pt {half_sp}pt; }}\n\
 .day {{ height: {sp}pt; display: flex; align-items: center; gap: 6pt; font-size: {num_fs}pt; line-height: 1; }}\n\
 .day .num {{ width: 16pt; text-align: right; font-weight: bold; }}\n\
 .day.weekstart .num {{ color: var(--navy); }}\n\
@@ -74,6 +78,7 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--navy); }}\n\
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: #fff; background: var(--brick); font-size: 7pt; }}\n",
         vars = css_vars(theme), w = w, h = h, m = m, sp = sp, half_sp = half_sp,
+        top = top, ml_max_h = ml_max_h,
         head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = FONT_FAMILY,
     )
 }
