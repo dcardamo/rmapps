@@ -36,7 +36,8 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
             config.validate()?;
             std::fs::create_dir_all(&out_dir)?;
             config::dump(&config, &config_path)?;
-            let paths = generate::generate_year(&config, &out_dir)?;
+            // First run: fetch feeds fresh.
+            let paths = generate::generate_year(&config, &out_dir, true)?;
             deploy::get_deployer(&config)?.deploy(&paths)?;
             println!("Wrote {} PDFs to {}", paths.len(), out_dir.display());
             Ok(())
@@ -45,7 +46,8 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
             let config = config::load(&path)?;
             config.validate()?;
             let out_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
-            let paths = generate::generate_year(&config, &out_dir)?;
+            // Regenerate: reuse cached feeds (--refresh-feeds is a later task).
+            let paths = generate::generate_year(&config, &out_dir, false)?;
             deploy::get_deployer(&config)?.refresh(&paths)?;
             println!("Regenerated {} PDFs in {}", paths.len(), out_dir.display());
             Ok(())

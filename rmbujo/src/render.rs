@@ -78,7 +78,17 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--navy); }}\n\
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: #fff; background: var(--brick); font-size: 7pt; }}\n\
 .dayhead {{ display: flex; justify-content: space-between; align-items: center; }}\n\
-.dayhead-date {{ font-size: 13pt; text-decoration: none; color: var(--navy); }}\n",
+.dayhead-date {{ font-size: 13pt; text-decoration: none; color: var(--navy); }}\n\
+/* Agenda + Details: small dark text, navy date headers, color swatch per event. */\n\
+.h-month a {{ color: var(--navy); text-decoration: none; }}\n\
+.swatch {{ display: inline-block; width: 7pt; height: 7pt; border-radius: 2pt; margin-right: 4pt; vertical-align: -0.5pt; }}\n\
+.agenda-day, .detail-day {{ break-inside: avoid; margin-bottom: 8pt; }}\n\
+.agenda-date {{ font-weight: bold; color: var(--navy); font-size: 11pt; text-decoration: none; }}\n\
+.agenda-line {{ font-size: 9pt; margin: 2pt 0; color: #1a1a1a; }}\n\
+.agenda-line a {{ color: #1a1a1a; text-decoration: none; }}\n\
+.detail-evt {{ margin: 3pt 0 6pt 8pt; }}\n\
+.detail-title {{ font-size: 10pt; color: #1a1a1a; }}\n\
+.detail-meta {{ font-size: 9pt; color: #1a1a1a; }}\n",
         vars = css_vars(theme), w = w, h = h, m = m, sp = sp, half_sp = half_sp,
         top = top,
         head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = FONT_FAMILY,

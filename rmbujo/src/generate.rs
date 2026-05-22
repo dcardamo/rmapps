@@ -6,10 +6,18 @@ use crate::calendar::MONTH_NAMES;
 use crate::config::Config;
 use crate::notebooks::{collection, future_log, month, reference};
 
-pub fn generate_year(config: &Config, out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+pub fn generate_year(
+    config: &Config,
+    out_dir: &Path,
+    refresh: bool,
+) -> anyhow::Result<Vec<PathBuf>> {
     std::fs::create_dir_all(out_dir)?;
     let y = config.year;
     let mut paths = Vec::new();
+
+    // Build the per-day event map once; every month reads from it.
+    let events =
+        crate::ics::build_event_map(config, out_dir, refresh, &crate::ics::fetch::UreqFetcher)?;
 
     let fl = out_dir.join(format!("{y} Future Log.pdf"));
     future_log::build_future_log_pdf(config, &fl)?;
@@ -20,7 +28,7 @@ pub fn generate_year(config: &Config, out_dir: &Path) -> anyhow::Result<Vec<Path
             "{y}.{mo:02} {name}.pdf",
             name = MONTH_NAMES[mo as usize]
         ));
-        month::build_month_pdf(config, mo, &p)?;
+        month::build_month_pdf(config, mo, &events, &p)?;
         paths.push(p);
     }
 

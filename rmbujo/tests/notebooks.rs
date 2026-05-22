@@ -24,7 +24,7 @@ fn month_pages() {
         ..Config::new(2026)
     };
     let out = tmp();
-    month::build_month_pdf(&cfg, 5, &out).unwrap();
+    month::build_month_pdf(&cfg, 5, &std::collections::BTreeMap::new(), &out).unwrap();
     assert_eq!(pages(&out), 2 + 31);
 }
 

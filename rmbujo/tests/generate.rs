@@ -21,7 +21,7 @@ fn writes_15_named_pdfs() {
         ..Config::new(2026)
     };
     let dir = tmp_dir();
-    let paths = generate_year(&cfg, &dir).unwrap();
+    let paths = generate_year(&cfg, &dir, false).unwrap();
     assert_eq!(paths.len(), 15);
     for f in [
         "2026 Future Log.pdf",

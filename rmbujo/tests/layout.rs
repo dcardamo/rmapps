@@ -87,7 +87,7 @@ fn month_layout_clean() {
         ..Config::new(2026)
     };
     let out = tmp("month");
-    month::build_month_pdf(&cfg, 5, &out).unwrap();
+    month::build_month_pdf(&cfg, 5, &std::collections::BTreeMap::new(), &out).unwrap();
     assert_no_overlap_and_in_bounds(&out);
     // Text actually rendered into the PDF (not just present in the HTML):
     // header + 31 day rows (number + weekday) + Tasks header ≈ 64 items.

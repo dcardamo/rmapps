@@ -77,3 +77,41 @@ pub struct DailyPage<'a> {
     pub weekday: &'a str,
     pub event_count: usize,
 }
+
+#[derive(Clone, Debug)]
+pub struct AgendaEvent {
+    /// Stable per-event index within the month -> `#evt-{idx}`.
+    pub idx: usize,
+    /// "All Day" or "HH:MM".
+    pub label: String,
+    pub title: String,
+    pub location: Option<String>,
+    pub description: Option<String>,
+    pub attendees: Vec<String>,
+    /// Theme color name -> `var(--color)`.
+    pub color: String,
+    pub is_all_day: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct AgendaDay {
+    pub day: u32,
+    pub weekday: &'static str,
+    pub events: Vec<AgendaEvent>,
+}
+
+#[derive(Template)]
+#[template(path = "agenda.html")]
+pub struct Agenda<'a> {
+    pub month_name: &'a str,
+    pub year: i32,
+    pub days: &'a [AgendaDay],
+}
+
+#[derive(Template)]
+#[template(path = "details.html")]
+pub struct Details<'a> {
+    pub month_name: &'a str,
+    pub year: i32,
+    pub days: &'a [AgendaDay],
+}

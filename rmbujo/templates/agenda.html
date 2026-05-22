@@ -1,0 +1,11 @@
+<section class="page">
+  <div class="h-month"><a href="#monthly">{{ year }} {{ month_name }}</a> - Agenda</div>
+  {% for d in days %}
+  <div class="agenda-day" id="agenda-{{ d.day }}">
+    <a class="agenda-date" href="#day-{{ d.day }}">{{ d.day }} {{ d.weekday }}</a>
+    {% for e in d.events %}
+    <div class="agenda-line"><a href="#evt-{{ e.idx }}"><span class="swatch" style="background:var(--{{ e.color }})"></span><b>{{ e.label }}</b>&nbsp;&nbsp;{{ e.title }}{% if let Some(loc) = e.location %} &#8212; {{ loc }}{% endif %}</a></div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</section>
