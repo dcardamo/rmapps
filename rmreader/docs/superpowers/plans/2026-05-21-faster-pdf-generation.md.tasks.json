@@ -4,7 +4,7 @@
     {
       "id": 1,
       "subject": "Task 0: Add [cache] config section",
-      "status": "pending",
+      "status": "completed",
       "description": "Add CacheConfig (enabled/dir/expiry_days) to Config with serde defaults; update Config struct literals in src/wizard.rs and tests/generate.rs.\n\n```json:metadata\n{\"files\": [\"src/config.rs\", \"src/wizard.rs\", \"tests/generate.rs\", \"tests/config.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test config\", \"acceptanceCriteria\": [\"cache defaults when absent\", \"Config has cache field\", \"workspace compiles\"]}\n```"
     },
     {
