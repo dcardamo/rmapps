@@ -40,3 +40,17 @@ pub const TOOLBAR_SAFE_PT: f32 = 36.0;
 pub fn default_grid(device: &Device) -> GridSpec {
     dot_grid(device, DEFAULT_SPACING_MM, DEFAULT_MARGIN_MM)
 }
+
+/// Row height (pt) for the monthly day-list so `num_days` rows fit between the
+/// toolbar reserve and the bottom margin, never exceeding the dot pitch.
+pub fn monthly_row_pt(
+    device: &Device,
+    reserve_pt: f32,
+    header_pt: f32,
+    bottom_margin_pt: f32,
+    num_days: u32,
+) -> f32 {
+    let usable = device.height_pt() - reserve_pt - header_pt - bottom_margin_pt;
+    let fit = usable / num_days as f32;
+    fit.min(default_grid(device).spacing_pt)
+}

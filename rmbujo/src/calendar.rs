@@ -45,7 +45,7 @@ fn weekday_abbr(w: Weekday) -> &'static str {
     }
 }
 
-fn days_in_month(year: i32, month: u32) -> u32 {
+pub fn days_in_month(year: i32, month: u32) -> u32 {
     let (ny, nm) = if month == 12 {
         (year + 1, 1)
     } else {

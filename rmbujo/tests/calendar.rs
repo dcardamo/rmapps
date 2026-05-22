@@ -50,3 +50,10 @@ fn year_has_12_months() {
 fn bad_week_start_errors() {
     assert!(build_month(2026, 5, "xyz").is_err());
 }
+
+#[test]
+fn days_in_month_counts() {
+    assert_eq!(rmbujo::calendar::days_in_month(2026, 2), 28);
+    assert_eq!(rmbujo::calendar::days_in_month(2024, 2), 29);
+    assert_eq!(rmbujo::calendar::days_in_month(2026, 5), 31);
+}
