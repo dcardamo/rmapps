@@ -68,6 +68,8 @@ pub struct EventOccurrence {
     pub date: NaiveDate,
     /// `None` = all-day event; `Some` = timed event (already in the config tz).
     pub time: Option<NaiveTime>,
+    /// End time (config tz) for a timed event that has a `DTEND`; `None` otherwise.
+    pub end_time: Option<NaiveTime>,
     pub title: String,
     pub location: Option<String>,
     pub description: Option<String>,

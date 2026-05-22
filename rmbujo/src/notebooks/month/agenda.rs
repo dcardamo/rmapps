@@ -32,6 +32,7 @@ pub fn agenda_days(
                 let e = AgendaEvent {
                     idx,
                     label: label_for(o.time),
+                    end_label: o.end_time.map(|t| t.format("%H:%M").to_string()),
                     title: o.title.clone(),
                     location: o.location.clone(),
                     description: o.description.clone(),

@@ -67,8 +67,10 @@ pub struct DailyPage<'a> {
 pub struct AgendaEvent {
     /// Stable per-event index within the month -> `#evt-{idx}`.
     pub idx: usize,
-    /// "All Day" or "HH:MM".
+    /// "All Day" or "HH:MM" (start).
     pub label: String,
+    /// End time "HH:MM" for timed events with a DTEND; shown on the details page.
+    pub end_label: Option<String>,
     pub title: String,
     pub location: Option<String>,
     pub description: Option<String>,

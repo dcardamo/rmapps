@@ -85,24 +85,26 @@ fn expand_event(
     let attendees = attendees(event);
     let rrule = prop(event, "RRULE").and_then(|p| p.value.clone());
 
-    let make = |date: NaiveDate, time: Option<NaiveTime>| EventOccurrence {
-        date,
-        time,
-        title: title.clone(),
-        location: location.clone(),
-        description: description.clone(),
-        attendees: attendees.clone(),
-        color: color.to_string(),
-    };
+    let make =
+        |date: NaiveDate, time: Option<NaiveTime>, end_time: Option<NaiveTime>| EventOccurrence {
+            date,
+            time,
+            end_time,
+            title: title.clone(),
+            location: location.clone(),
+            description: description.clone(),
+            attendees: attendees.clone(),
+            color: color.to_string(),
+        };
 
     let mut occs = Vec::new();
 
     if is_all_day(dtstart) {
-        // All-day: DTSTART is a DATE (YYYYMMDD).
+        // All-day: DTSTART is a DATE (YYYYMMDD). No clock times.
         let start = parse_date(dtstart_value)?;
         if let Some(rrule_str) = rrule {
             for date in expand_all_day_rrule(start, &rrule_str, year)? {
-                occs.push(make(date, None));
+                occs.push(make(date, None, None));
             }
         } else if let Some(dtend) = prop(event, "DTEND").and_then(|p| p.value.as_deref()) {
             // DTEND is exclusive: emit [start, end).
@@ -110,12 +112,12 @@ fn expand_event(
             let mut d = start;
             while d < end {
                 if d.year() == year {
-                    occs.push(make(d, None));
+                    occs.push(make(d, None, None));
                 }
                 d += Duration::days(1);
             }
         } else if start.year() == year {
-            occs.push(make(start, None));
+            occs.push(make(start, None, None));
         }
     } else {
         // Timed: DTSTART is a DATE-TIME. Resolve to an absolute instant, then
@@ -123,17 +125,35 @@ fn expand_event(
         let tzid = param(dtstart, "TZID");
         let start_instant = resolve_instant(dtstart_value, tzid.as_deref(), tz)?;
 
+        // Event duration from DTEND, so each occurrence gets a local end time.
+        let duration: Option<Duration> = prop(event, "DTEND").and_then(|de| {
+            let v = de.value.as_deref()?;
+            let de_tzid = param(de, "TZID");
+            resolve_instant(v, de_tzid.as_deref(), tz)
+                .ok()
+                .map(|end| end - start_instant)
+        });
+        let end_of = |start: DateTime<Utc>| duration.map(|d| (start + d).with_timezone(tz).time());
+
         if let Some(rrule_str) = rrule {
             for instant in expand_timed_rrule(start_instant, &rrule_str, tz, year)? {
                 let local = instant.with_timezone(tz);
                 if local.year() == year {
-                    occs.push(make(local.date_naive(), Some(local.time())));
+                    occs.push(make(
+                        local.date_naive(),
+                        Some(local.time()),
+                        end_of(instant),
+                    ));
                 }
             }
         } else {
             let local = start_instant.with_timezone(tz);
             if local.year() == year {
-                occs.push(make(local.date_naive(), Some(local.time())));
+                occs.push(make(
+                    local.date_naive(),
+                    Some(local.time()),
+                    end_of(start_instant),
+                ));
             }
         }
     }

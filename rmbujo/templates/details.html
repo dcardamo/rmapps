@@ -5,7 +5,7 @@
     <a class="agenda-date" href="#day-{{ d.day }}">{{ d.day }} {{ d.weekday }}</a>
     {% for e in d.events %}
     <div class="detail-evt" id="evt-{{ e.idx }}">
-      <div class="detail-title"><span class="swatch" style="background:var(--{{ e.color }})"></span><b>{{ e.label }}</b>&nbsp;&nbsp;{{ e.title }}</div>
+      <div class="detail-title"><span class="swatch" style="background:var(--{{ e.color }})"></span><b>{{ e.label }}{% if let Some(end) = e.end_label %}&#8211;{{ end }}{% endif %}</b>&nbsp;&nbsp;{{ e.title }}</div>
       {% if let Some(loc) = e.location %}<div class="detail-meta">Where: {{ loc }}</div>{% endif %}
       {% if let Some(desc) = e.description %}<div class="detail-meta">Notes: {{ desc }}</div>{% endif %}
       {% if !e.attendees.is_empty() %}<div class="detail-meta">Who: {{ e.attendees|join(", ") }}</div>{% endif %}

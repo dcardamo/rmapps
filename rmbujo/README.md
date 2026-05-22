@@ -49,13 +49,23 @@ timezone = "America/Toronto"   # IANA timezone — used for all event rendering
 [[ics]]
 name    = "Holidays"
 url     = "https://example.com/holidays.ics"
-color   = "brick"              # any theme color name
+color   = "rust"               # swatch color (see below)
 
 [[ics]]
 name    = "Work"
-url     = "https://example.com/work.ics"
-color   = "navy"
+url     = "webcal://example.com/work.ics"   # webcal:// is accepted (treated as https)
+color   = "primary"
 ```
+
+**Feed color** picks the swatch shown beside each event in the agenda and details.
+Choose a theme color name; the readable choices are `primary` (indigo), `accent`
+(tomato), `rust`, and `muted`. An unknown name is rejected with the list of valid
+options.
+
+Events render with their start time, and the **details page shows the full start–end
+range** when the feed provides an end time. Timezones are handled robustly: IANA names,
+fixed offsets (`GMT+0200`), and Windows/Outlook names (`Eastern Standard Time`) all
+work, converted to your configured `timezone`.
 
 Fetched feeds are cached under `<year>/.ics-cache/`. On a plain `rmbujo
 path/to/rmbujo.toml` run the cache is reused — regeneration is fast, reproducible,

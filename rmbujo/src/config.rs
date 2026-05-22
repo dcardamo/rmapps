@@ -99,7 +99,7 @@ impl Config {
     /// parse time) rather than partway through rendering.
     pub fn validate(&self) -> anyhow::Result<()> {
         crate::device::get_device(&self.device)?;
-        crate::theme::load_theme(&self.theme)?;
+        let theme = crate::theme::load_theme(&self.theme)?;
         match self.week_start.as_str() {
             "sun" | "mon" => {}
             other => anyhow::bail!("week_start must be 'sun' or 'mon', got {other:?}"),
@@ -122,6 +122,19 @@ impl Config {
         }
         if self.timezone.parse::<chrono_tz::Tz>().is_err() {
             anyhow::bail!("unknown timezone: {:?}", self.timezone);
+        }
+        // Each ICS feed's swatch color must name a theme color (catch typos).
+        for feed in &self.ics {
+            if !theme.contains_key(feed.color.as_str()) {
+                let mut names: Vec<&str> = theme.keys().map(String::as_str).collect();
+                names.sort_unstable();
+                anyhow::bail!(
+                    "ics feed {:?}: unknown color {:?}; choose a theme color ({})",
+                    feed.name,
+                    feed.color,
+                    names.join(", ")
+                );
+            }
         }
         Ok(())
     }

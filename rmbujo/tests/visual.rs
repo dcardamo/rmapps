@@ -87,6 +87,7 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
             AgendaEvent {
                 idx: 0,
                 label: "All Day".into(),
+                end_label: None,
                 title: "Victoria Day".into(),
                 location: None,
                 description: None,
@@ -97,6 +98,7 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
             AgendaEvent {
                 idx: 1,
                 label: "14:00".into(),
+                end_label: Some("15:00".into()),
                 title: "Dentist".into(),
                 location: Some("Downtown".into()),
                 description: Some("Bring card".into()),

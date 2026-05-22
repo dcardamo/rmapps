@@ -57,6 +57,7 @@ fn events_only_add_trailing_pages() {
         vec![rmbujo::ics::EventOccurrence {
             date: chrono::NaiveDate::from_ymd_opt(2027, 5, 19).unwrap(),
             time: None,
+            end_time: None,
             title: "Holiday".into(),
             location: None,
             description: None,
@@ -91,6 +92,7 @@ fn busy_month_paginates_agenda_and_details() {
             .map(|i| rmbujo::ics::EventOccurrence {
                 date: d,
                 time: None,
+                end_time: None,
                 title: format!("Event {i}"),
                 location: Some("Somewhere".into()),
                 description: None,

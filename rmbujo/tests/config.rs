@@ -46,13 +46,34 @@ fn round_trip() {
         ics: vec![IcsFeed {
             name: "Holidays".into(),
             url: "https://x/h.ics".into(),
-            color: "brick".into(),
+            color: "rust".into(),
         }],
         ..Config::new(2026)
     };
     let p = dir.join("rmbujo.toml");
     config::dump(&cfg, &p).unwrap();
     assert_eq!(config::load(&p).unwrap(), cfg);
+}
+
+#[test]
+fn validate_rejects_unknown_feed_color() {
+    let feed = |c: &str| IcsFeed {
+        name: "Cal".into(),
+        url: "https://x/c.ics".into(),
+        color: c.into(),
+    };
+    assert!(Config {
+        ics: vec![feed("chartreuse")],
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_err());
+    assert!(Config {
+        ics: vec![feed("accent")],
+        ..Config::new(2026)
+    }
+    .validate()
+    .is_ok());
 }
 
 #[test]
