@@ -112,3 +112,38 @@ fn config_struct_defaults_match_serde_defaults() {
     let content = ContentConfig::default();
     assert_eq!(content.max_article_bytes, 80_000);
 }
+
+#[test]
+fn cache_config_defaults_when_absent() {
+    // A config with no [cache] section gets cache defaults.
+    let toml = r#"
+device = "paper-pro-move"
+output_dir = "."
+theme = "reader"
+[readwise]
+token = "t"
+"#;
+    let cfg: Config = toml::from_str(toml).unwrap();
+    assert!(cfg.cache.enabled);
+    assert_eq!(cfg.cache.dir, None);
+    assert_eq!(cfg.cache.expiry_days, 7);
+}
+
+#[test]
+fn cache_config_parses_explicit_values() {
+    let toml = r#"
+device = "paper-pro-move"
+output_dir = "."
+theme = "reader"
+[readwise]
+token = "t"
+[cache]
+enabled = false
+dir = "/tmp/rmcache"
+expiry_days = 30
+"#;
+    let cfg: Config = toml::from_str(toml).unwrap();
+    assert!(!cfg.cache.enabled);
+    assert_eq!(cfg.cache.dir.as_deref(), Some("/tmp/rmcache"));
+    assert_eq!(cfg.cache.expiry_days, 30);
+}

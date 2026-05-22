@@ -52,6 +52,11 @@ fn generate_writes_pdfs_and_manifests() {
             library_folder: String::new(),
             feed_folder: String::new(),
         },
+        cache: CacheConfig {
+            enabled: true,
+            dir: Some(dir.path().join("cache").to_str().unwrap().to_string()),
+            expiry_days: 7,
+        },
     };
     let targets = generate(&cfg, &FakeT, &NoImages).unwrap();
     assert_eq!(targets.len(), 2);

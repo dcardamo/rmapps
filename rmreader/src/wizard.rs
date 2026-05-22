@@ -2,7 +2,8 @@
 use std::path::PathBuf;
 
 use crate::config::{
-    Config, ContentConfig, DeployConfig, FeedConfig, ImagesConfig, LibraryConfig, ReadwiseConfig,
+    CacheConfig, Config, ContentConfig, DeployConfig, FeedConfig, ImagesConfig, LibraryConfig,
+    ReadwiseConfig,
 };
 
 pub struct Answers {
@@ -43,6 +44,7 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
             library_folder: a.library_folder,
             feed_folder: a.feed_folder,
         },
+        cache: CacheConfig::default(),
     };
     let out_dir = PathBuf::from(a.output_dir);
     let config_path = out_dir.join("rmreader.toml");

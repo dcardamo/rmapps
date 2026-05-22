@@ -112,6 +112,30 @@ impl Default for DeployConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CacheConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Cache directory. `None` → resolved at runtime to
+    /// `$XDG_CACHE_HOME/rmreader` (else `~/.cache/rmreader`).
+    #[serde(default)]
+    pub dir: Option<String>,
+    #[serde(default = "default_expiry_days")]
+    pub expiry_days: u64,
+}
+fn default_expiry_days() -> u64 {
+    7
+}
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dir: None,
+            expiry_days: 7,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default = "default_device")]
     pub device: String,
@@ -130,6 +154,8 @@ pub struct Config {
     pub content: ContentConfig,
     #[serde(default)]
     pub deploy: DeployConfig,
+    #[serde(default)]
+    pub cache: CacheConfig,
 }
 fn default_device() -> String {
     "paper-pro-move".into()
