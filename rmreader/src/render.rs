@@ -14,6 +14,9 @@ const LORA_IT: &[u8] = include_bytes!("../assets/fonts/Lora-Italic.ttf");
 const LORA_SB: &[u8] = include_bytes!("../assets/fonts/Lora-SemiBold.ttf");
 const HANKEN: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Regular.ttf");
 const HANKEN_MD: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Medium.ttf");
+// Display serif used only for the index masthead ("Feed" / "Library").
+const FRAUNCES: &[u8] = include_bytes!("../assets/fonts/Fraunces-Regular.ttf");
+const FRAUNCES_SB: &[u8] = include_bytes!("../assets/fonts/Fraunces-SemiBold.ttf");
 
 #[derive(Template)]
 #[template(path = "base.html")]
@@ -37,15 +40,15 @@ html, body {{ margin: 0; padding: 0; background: var(--paper); }}\n\
 body {{ font-family: \"Lora\", serif; color: var(--ink); font-size:9.5pt; }}\n\
 .article {{ break-before: page; }}\n\
 .headline {{ font-weight:600; font-size:16pt; line-height:1.12; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
-.byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; color:var(--muted); margin-top:6pt; }}\n\
+.byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; color:var(--byline); margin-top:6pt; }}\n\
 .hr {{ height:0.5pt; background:var(--rule); margin:8pt 0; }}\n\
 .body {{ font-size:9.5pt; line-height:1.4; color:var(--ink); }}\n\
 .body p {{ margin:0 0 4.5pt; }}\n\
 .body a {{ color:var(--accent); text-decoration:underline; }}\n\
 .body img {{ max-width:100%; height:auto; }}\n\
 .body.drop p:first-of-type::first-letter {{ font-weight:600; color:var(--accent); float:left; font-size:2.7em; line-height:.82; padding:3pt 5pt 0 0; }}\n\
-.index-title {{ display:inline-block; font-weight:600; font-size:16pt; color:var(--paper); background:var(--accent); padding:3pt 10pt 4pt; border-radius:4pt; letter-spacing:-.01em; }}\n\
-.index-sub {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:10pt 0 9pt; }}\n\
+.index-title {{ font-family:\"Fraunces\",serif; font-weight:600; font-size:25pt; color:var(--heading); letter-spacing:-.005em; }}\n\
+.index-sub {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:7.5pt; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:5pt 0 10pt; }}\n\
 .index-row {{ display:flex; gap:8pt; padding:4pt 0; border-bottom:0.5pt solid var(--rule); text-decoration:none; color:var(--ink); break-inside:avoid; }}\n\
 .index-row .n {{ color:var(--accent); font-weight:600; font-size:9pt; width:14pt; }}\n\
 .index-row .t {{ flex:1; font-size:9.5pt; line-height:1.3; }}\n\
@@ -80,6 +83,8 @@ pub fn render_pdf(
     assets.add_font_bytes(LORA_SB.to_vec())?;
     assets.add_font_bytes(HANKEN.to_vec())?;
     assets.add_font_bytes(HANKEN_MD.to_vec())?;
+    assets.add_font_bytes(FRAUNCES.to_vec())?;
+    assets.add_font_bytes(FRAUNCES_SB.to_vec())?;
 
     let engine = Engine::builder()
         .page_size(PageSize {
