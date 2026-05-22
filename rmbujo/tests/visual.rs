@@ -91,7 +91,7 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
                 location: None,
                 description: None,
                 attendees: vec![],
-                color: "brick".into(),
+                color: "accent".into(),
                 is_all_day: true,
             },
             AgendaEvent {
@@ -101,7 +101,7 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
                 location: Some("Downtown".into()),
                 description: Some("Bring card".into()),
                 attendees: vec!["Dr. Lee".into()],
-                color: "olive".into(),
+                color: "rust".into(),
                 is_all_day: false,
             },
         ],

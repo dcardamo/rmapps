@@ -11,7 +11,7 @@ pub struct IcsFeed {
     pub color: String,
 }
 fn default_color() -> String {
-    "navy".into()
+    "primary".into()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
