@@ -44,6 +44,7 @@ on-device reMarkable file parsing is extracted into a new, reusable pure-Rust cr
 | Upload model | **Full replace** each sync (`rmapi rm` + `put`): writing + reading position reset. Makes read-back idempotent. |
 | Action conflicts | **Skip + warn** when ≥2 distinct action labels are highlighted on one article. Content highlights still pushed. |
 | CLI shape | **One combined command** (`rmreader <config>`): read-back → act → regenerate → replace. |
+| State model | **The PDF is the single source of truth.** The page→doc mapping + per-doc metadata are embedded *inside* the generated PDF, so the downloaded bundle is self-describing. No local manifest state to keep in sync. |
 | RM parser | **Pure Rust, our own crate** (`rmfiles`). Spike against a real fixture first. |
 | Cloud layout | All tools live under a `/RMDev` root; rmreader uses `/RMDev/Reader`. |
 
@@ -52,9 +53,13 @@ on-device reMarkable file parsing is extracted into a new, reusable pure-Rust cr
 reMarkable / rmapi:
 
 - `rmapi get <path>` downloads a `.rmdoc` (a renamed zip). For an annotated PDF it
-  contains the original `.pdf`, `<uuid>.content` (JSON), `<uuid>.metadata` (JSON),
-  `<uuid>.pagedata`, and a `<uuid>/` dir of per-page `<page-uuid>.rm` files. Use
-  `get`, **not** `geta` (which flattens/renders).
+  contains the **original `.pdf` unchanged**, `<uuid>.content` (JSON),
+  `<uuid>.metadata` (JSON), `<uuid>.pagedata`, and a `<uuid>/` dir of per-page
+  `<page-uuid>.rm` files. Annotations live in the `.rm` files; reMarkable does **not**
+  rewrite the source PDF. Use `get`, **not** `geta` (which flattens/renders).
+  *This preservation is load-bearing: it lets us embed our own metadata in the PDF
+  at generation time and read it back from the downloaded bundle (see State model).*
+  The round-trip spike confirms our embedded data survives.
 - Paper Pro writes the **v6** `.rm` "scene blocks" format. Files start with the
   43-byte ASCII header `reMarkable .lines file, version=6` (space-padded to 43).
 - Snap-to-text highlights are stored as a **`GlyphRange`** scene item inside a
@@ -99,27 +104,54 @@ Pure-Rust library that turns a reMarkable document bundle into structured data. 
 knows nothing about Readwise or treating a PDF as article content; it only parses
 reMarkable's own file formats.
 
-**v0.1 public API (narrow, designed to grow):**
+**Intended use cases (shape the API now, even though only highlights are built):**
+
+- *rmreader* (this project): read snap-to-text highlights to drive triage + Readwise
+  highlights.
+- *rmbujo*: read planner annotations (handwriting/checkbox strokes + highlights).
+- *Highlight export*: dump every highlight to Markdown per document — rmscene's
+  original motivation; needs all highlights with text + color.
+- *Handwriting/stroke export* (SVG/PNG): needs `Line`/stroke items + the device→PDF
+  geometry transform.
+- *Backup / sync tooling*: read metadata (`visible_name`, tags, page count,
+  timestamps) without touching strokes.
+
+So the surface is a general bundle + a general scene-item iterator, not a
+highlights-only API.
+
+**v0.1 public API (general shape; only `Highlight` parsing implemented now):**
 
 ```rust
 // Open a .rmdoc / .zip, OR an already-unpacked directory.
 let bundle = rmfiles::Bundle::open(path)?;
 
-bundle.metadata();      // -> Metadata { visible_name, last_modified, doc_type, .. }
+bundle.metadata();      // -> Metadata { visible_name, last_modified, doc_type, tags, .. }
 bundle.source_pdf();    // -> Option<Vec<u8>>  (original PDF if this is an annotated PDF)
+bundle.pages();         // -> Vec<Page>, reading order from .content
 
-for page in bundle.pages() {           // reading order, from .content
-    page.index;                        // 0-based page order
-    page.id;                           // page uuid
-    if let Some(scene) = page.scene()? {   // parse this page's v6 .rm, if present
-        for h in scene.highlights() {      // GlyphRange items only, this phase
-            h.text;        // String  — verbatim highlighted text
-            h.rectangles;  // Vec<Rect> in device space (1404×1872, centered X)
-            h.color;       // Color
+for page in bundle.pages() {
+    page.index;                          // 0-based page order (== source PDF page)
+    page.id;                             // page uuid
+    if let Some(scene) = page.scene()? { // parse this page's v6 .rm, if present
+        scene.version();                 // u32 (6 today)
+        for item in scene.items() {      // general iterator over a #[non_exhaustive] enum
+            match item {
+                SceneItem::Highlight(h) => { h.text; h.rectangles; h.color; }
+                SceneItem::Line(_l)     => { /* strokes — added when a consumer needs them */ }
+                _ => {}                  // non_exhaustive: forward-compatible
+            }
         }
+        scene.highlights();              // convenience filter -> Vec<Highlight>
+        // scene.lines();                // convenience filter (future)
     }
 }
 ```
+
+`Highlight { text: String, rectangles: Vec<Rect>, color: Color }` — `rectangles` in
+device space (1404×1872, centered X). The `#[non_exhaustive]` `SceneItem` enum +
+convenience filters mean export tools can take *all* items while rmreader takes only
+highlights, and new item types (`Line`, `Text`, `Group`) are added without breaking
+callers.
 
 **Module layout:**
 
@@ -164,38 +196,44 @@ fixtures; they are committed and expanded as new cases surface.
 
 ### Component B — `rmreader` read-back feature
 
-New module `src/readback/`, plus additions to `readwise/`, `manifest.rs`,
-`postprocess.rs`, `deploy/`, `config.rs`, `generate.rs`/`cli.rs`.
+New module `src/readback/` (fetch bundle, read the PDF's embedded manifest, extract
+highlights via `rmfiles`, classify, drive Readwise), plus additions to `readwise/`,
+`manifest.rs`, `postprocess.rs` (embed the manifest), `deploy/`, `config.rs`,
+`generate.rs`/`cli.rs`.
 
 #### Sync loop (one command: `rmreader <config>`)
 
-Read-back runs **before** regeneration and against the manifest matching what is on
-the device:
+Read-back runs **before** regeneration. The downloaded PDF is self-describing — it
+carries its own page→doc manifest (see State model) — so there is no local state to
+consult:
 
 1. **Fetch** the current bundle from the device (`Deployer::fetch`, i.e. `rmapi
    get`). No doc on device (first run) → skip to step 5.
-2. **Load the previous manifest** from `output_dir` — written last sync, describing
-   the exact PDF the user annotated.
+2. **Read the embedded manifest** from the downloaded original PDF (lopdf) — the
+   page→doc map + per-doc metadata that *we* embedded when we generated it. No prior
+   local manifest needed.
 3. **Extract + classify** highlights → a `Plan` of Readwise operations.
 4. **Execute** the plan (location changes, deletes, content highlights). Log a
    summary; a single failed op logs and does not abort the rest.
 5. **Regenerate** fresh PDFs (existing pipeline) — now reflecting post-action state
-   (archived/deleted items have dropped out).
-6. **Full-replace** upload (`Deployer::replace`, i.e. `rmapi rm` + `put`) and write
-   the new manifest into `output_dir`.
+   (archived/deleted items have dropped out) — each with a freshly embedded manifest
+   for next time.
+6. **Full-replace** upload (`Deployer::replace`, i.e. `rmapi rm` + `put`).
 
-Ordering rationale: classification must use the manifest matching the on-device PDF
-(the previous run's), because regeneration changes the document set and page layout.
-The manifest persists in `output_dir` beside the PDFs.
+Ordering rationale: read-back must run before regeneration because regeneration
+changes the document set and page layout. But it reads the *downloaded* PDF's own
+embedded manifest, not any local file — so `output_dir` is just scratch space for the
+freshly built PDFs, not authoritative state. There is no device/computer state to
+keep in sync.
 
 #### Classification (`src/readback/classify.rs`)
 
 For each highlight from `rmfiles`:
 
-- **Page → doc:** the manifest records each doc's `page_range { first, last }`
-  (filled post-render, see Manifest). The highlight's page index maps to the owning
-  doc. A highlight on a page absent from the manifest → warn + skip (PDF changed
-  under us).
+- **Page → doc:** the *embedded* manifest (read from the downloaded PDF) records each
+  doc's `page_range { first, last }`. The highlight's bundle page index (== source
+  PDF page) maps to the owning doc. A highlight on a page absent from the embedded
+  manifest → warn + skip.
 - **Action vs content:** `Action(doc, kind)` if the normalized highlight text ∈
   `{inbox, archive, later, delete}` **and** the highlight sits in the action band
   (topmost band of the page). Otherwise `ContentHighlight(doc, text)`.
@@ -249,19 +287,41 @@ GET-only). New high-level calls, all unit-tested against a fake transport:
   (Inbox→`new`, Later→`later`, Archive→`archive`).
 - `delete_document(id)` → `DELETE /api/v3/delete/<id>/`.
 - `create_highlights(Vec<HighlightCreate>)` → `POST /api/v2/highlights/`, batched;
-  each item carries `text`, `title`, `author`, `source_url` (from the manifest) so
-  Readwise matches it to the right document. A doc with no URL → cannot push its
-  highlights → warn + skip.
+  each item carries `text`, `title`, `author`, `source_url` (from the embedded
+  manifest) so Readwise matches it to the right document. A doc with no URL → cannot
+  push its highlights → warn + skip.
 
-#### Manifest additions (`src/manifest.rs`)
+#### Manifest — embedded in the PDF (`src/manifest.rs`, `src/postprocess.rs`)
 
-`ManifestItem` gains: `page_range { first: usize, last: usize }`, `author: String`,
-`source_url: String` (it already has `id`, `title`, `url`, `article_anchor`). The
-action-band rects are constant across pages (we stamp them), so they are derived from
-postprocess constants rather than stored per item. `page_range` is filled in
+The manifest is the read-back contract, and it lives **inside the generated PDF** so
+the downloaded bundle is the single source of truth. No authoritative sidecar file.
+
+Shape (compact JSON):
+
+```json
+{ "v": 1, "collection": "Library",
+  "docs": [ { "id": "<readwise id>", "title": "...", "url": "...",
+              "author": "...", "category": "article",
+              "first_page": 3, "last_page": 5 } ] }
+```
+
+`ManifestItem` gains `page_range { first, last }`, `author`, `source_url`/`category`
+(it already has `id`, `title`, `url`, `article_anchor`). `page_range` is filled in
 `postprocess::finalize_pdf`, which already computes article start pages by resolving
-index-row link destinations — extend it to emit ranges and write them through to the
-manifest. This realizes the "page → doc id" seam the original design anticipated.
+index-row link destinations — extend it to emit ranges. The action-band rects are
+constant across pages (we stamp them), so they are not stored.
+
+**Embedding mechanism:** `postprocess` writes the JSON into the PDF via a
+Flate-compressed stream referenced by a custom **Catalog** key (e.g.
+`/RMReaderManifest`). It is fully under our control on both ends (write in
+`postprocess`, read in `readback` with lopdf), invisible, and — because reMarkable
+preserves the source PDF unchanged — present on download. The round-trip spike
+confirms it survives; if reMarkable ever normalizes the PDF and drops custom catalog
+keys, the fallback is a standard PDF **embedded-file attachment** (`/Names
+/EmbeddedFiles`), which any conformant processor keeps.
+
+A human-readable sidecar `*.manifest.json` may still be written to `output_dir` as a
+**non-authoritative** debugging convenience; nothing reads it back.
 
 #### Deploy additions (`src/deploy/`)
 
@@ -290,9 +350,12 @@ token-clobber guard wraps the new rmapi calls too.
 ## Error handling
 
 - No bundle on device (first run / deleted) → skip read-back, generate + upload only.
+- Downloaded PDF has no embedded manifest, or it is unreadable → warn + skip read-back
+  for that collection (still regenerate + upload). This is the only way the round-trip
+  can break, and it is self-healing: the freshly uploaded PDF re-embeds the manifest.
 - Non-v6 `.rm` page → warn + skip that page (`rmfiles` returns
   `UnsupportedVersion`).
-- Highlight on a page absent from the prior manifest → warn + skip.
+- Highlight on a page absent from the embedded manifest → warn + skip.
 - A Readwise op failing → log and continue the rest; never abort the whole sync.
 - Doc with no URL → cannot push its highlights → warn + skip.
 - Ambiguous action (≥2 labels) → skip + warn.
@@ -308,7 +371,9 @@ token-clobber guard wraps the new rmapi calls too.
 - **Readwise client:** fake transport asserts method, URL, body, and auth header for
   `update_location` / `delete_document` / `create_highlights`.
 - **Manifest:** assert `postprocess` fills correct `page_range`s for multi-page
-  articles.
+  articles, and an in-process round trip — embed the manifest into a PDF, then read it
+  back with the `readback` reader and assert equality (covers everything except
+  reMarkable's preservation, which the round-trip spike covers).
 - **Deploy:** fake `RmapiRunner` asserts the `get` and `rm`+`put` command sequences
   (and the `none` backend's local behavior).
 - **On-device spike:** one-time physical confirmation that snap-to-text snaps to the
@@ -321,14 +386,21 @@ token-clobber guard wraps the new rmapi calls too.
 2. **Snap-to-text on stamped labels** — same fixture; confirms the device snaps to
    our stamped label text. Drives the label-rendering choice (stamp vs running-header
    vs first-page-only).
+3. **Embedded-manifest round trip** — generate a PDF with the embedded manifest,
+   upload, annotate, `rmapi get`, and confirm the embedded manifest reads back intact
+   from the downloaded original PDF. Validates the single-source-of-truth model and
+   the embedding mechanism (catalog key vs embedded-file fallback).
 
-Both spikes share a single captured fixture (body highlights + one action label).
+All three spikes share a single captured fixture: a generated PDF (with embedded
+manifest) that Dan annotates on the Paper Pro with a couple of known body highlights
+and one action-label highlight, then captures via `rmapi get` and commits.
 
 ## Dependencies
 
 - New crate `rmfiles`: `zip`, `serde` + `serde_json`, `thiserror`. Dev: `tempfile`.
-- `rmreader`: add `rmfiles` (path dependency to `../rmfiles`), `zip` only if needed
-  directly (likely not — it goes through `rmfiles`). Everything else reused.
+- `rmreader`: add `rmfiles` (path dependency to `../rmfiles`). The embedded manifest
+  uses `lopdf` (already a dep) to write/read the compressed stream — no new dep
+  needed. Everything else reused.
 
 ## Future (designed-for, not built)
 
