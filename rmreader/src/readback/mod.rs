@@ -70,6 +70,15 @@ pub fn sync_collection(
     let plan = classify(&manifest, &hits, |page, rect| {
         textlayer.words_under(page, rect)
     });
+    eprintln!(
+        "[rmreader] {name}: read-back found {} action(s), {} content highlight(s), {} warning(s)",
+        plan.actions.len(),
+        plan.highlights.len(),
+        plan.warnings.len()
+    );
+    for (id, kind) in &plan.actions {
+        eprintln!("[rmreader] {name}: action {kind:?} on doc {id}");
+    }
     execute(transport, token, &plan);
     Ok(plan)
 }
