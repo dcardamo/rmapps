@@ -65,14 +65,14 @@
     {
       "id": 10,
       "subject": "Task 10: CLI --refresh-feeds, wizard prompts, README",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9, 2],
       "description": "**Goal:** --refresh-feeds flag (new+config arms) -> generate_year(refresh); wizard prompts pages_per_day+timezone; README ICS/timezone/sync-rule/Dots-Small.\n\n**Files:** src/cli.rs, src/wizard.rs, README.md, tests/cli.rs.\n\n**Verify:** nix develop -c cargo test --test cli\n\n```json:metadata\n{\"files\":[\"src/cli.rs\",\"src/wizard.rs\",\"README.md\",\"tests/cli.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test cli\",\"acceptanceCriteria\":[\"--refresh-feeds wired to generate_year\",\"wizard prompts pages_per_day+timezone\",\"README ICS+timezone+sync rule+Dots Small\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 11: Visual goldens for calendar pages + final green",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9, 10],
       "description": "**Goal:** goldens for monthly-with-badges, daily, agenda, details; full gate green.\n\n**Files:** tests/visual.rs, tests/goldens/*.png.\n\n**Verify:** make test && make clippy && make fmt-check\n\n```json:metadata\n{\"files\":[\"tests/visual.rs\",\"tests/goldens\"],\"verifyCommand\":\"make test && make clippy && make fmt-check\",\"acceptanceCriteria\":[\"goldens for 4 new page types within tolerance\",\"make test+clippy+fmt-check all pass\"]}\n```"
     }
