@@ -5,6 +5,8 @@ use serde::{Deserialize, Deserializer};
 
 const LIST_URL: &str = "https://readwise.io/api/v3/list/";
 const AUTH_URL: &str = "https://readwise.io/api/v2/auth/";
+const UPDATE_URL: &str = "https://readwise.io/api/v3/update/";
+const DELETE_URL: &str = "https://readwise.io/api/v3/delete/";
 
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
@@ -13,9 +15,82 @@ pub struct HttpResponse {
     pub body: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HttpMethod {
+    Get,
+    Patch,
+    Delete,
+    Post,
+}
+
 /// Low-level seam so pagination/sort/rate-limit are testable without network.
 pub trait HttpTransport {
-    fn get(&self, url: &str, token: &str) -> anyhow::Result<HttpResponse>;
+    fn request(
+        &self,
+        method: HttpMethod,
+        url: &str,
+        token: &str,
+        body: Option<&str>,
+    ) -> anyhow::Result<HttpResponse>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionKind {
+    Inbox,
+    Later,
+    Archive,
+    Delete,
+}
+
+impl ActionKind {
+    /// The Readwise `location` value for a move action; None for Delete (different endpoint).
+    pub fn location(self) -> Option<&'static str> {
+        match self {
+            ActionKind::Inbox => Some("new"),
+            ActionKind::Later => Some("later"),
+            ActionKind::Archive => Some("archive"),
+            ActionKind::Delete => None,
+        }
+    }
+
+    /// Parse an action label word (case-insensitive) into a kind.
+    pub fn parse_label(s: &str) -> Option<ActionKind> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "inbox" => Some(ActionKind::Inbox),
+            "later" => Some(ActionKind::Later),
+            "archive" => Some(ActionKind::Archive),
+            "delete" => Some(ActionKind::Delete),
+            _ => None,
+        }
+    }
+}
+
+pub fn update_location(
+    t: &dyn HttpTransport,
+    token: &str,
+    id: &str,
+    loc: &str,
+) -> anyhow::Result<()> {
+    let url = format!("{UPDATE_URL}{id}/");
+    let body = serde_json::json!({ "location": loc }).to_string();
+    let r = t.request(HttpMethod::Patch, &url, token, Some(&body))?;
+    anyhow::ensure!(
+        (200..300).contains(&r.status),
+        "update {id} -> {loc} failed: HTTP {}",
+        r.status
+    );
+    Ok(())
+}
+
+pub fn delete_document(t: &dyn HttpTransport, token: &str, id: &str) -> anyhow::Result<()> {
+    let url = format!("{DELETE_URL}{id}/");
+    let r = t.request(HttpMethod::Delete, &url, token, None)?;
+    anyhow::ensure!(
+        r.status == 204 || (200..300).contains(&r.status),
+        "delete {id} failed: HTTP {}",
+        r.status
+    );
+    Ok(())
 }
 
 /// Deserialize a possibly-`null` value into `T`'s default. The real Readwise API
@@ -106,7 +181,7 @@ fn list_url(location: &str, cursor: Option<&str>) -> String {
 
 /// Validate a token: GET /api/v2/auth/ returns 204 when valid.
 pub fn validate_token(t: &dyn HttpTransport, token: &str) -> anyhow::Result<()> {
-    let r = t.get(AUTH_URL, token)?;
+    let r = t.request(HttpMethod::Get, AUTH_URL, token, None)?;
     if r.status == 204 || r.status == 200 {
         Ok(())
     } else {
@@ -133,7 +208,7 @@ pub fn fetch_documents(
             // occasional 502) a few times before giving up; other non-200s are fatal.
             let mut attempt = 0u32;
             let resp = loop {
-                let r = t.get(&url, token)?;
+                let r = t.request(HttpMethod::Get, &url, token, None)?;
                 let transient = r.status == 429 || (500..=599).contains(&r.status);
                 if transient && attempt < 5 {
                     attempt += 1;
