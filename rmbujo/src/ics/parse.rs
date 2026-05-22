@@ -180,10 +180,15 @@ fn resolve_instant(value: &str, tzid: Option<&str>, tz: &Tz) -> anyhow::Result<D
     let naive = chrono::NaiveDateTime::parse_from_str(value, "%Y%m%dT%H%M%S")
         .map_err(|e| anyhow::anyhow!("bad DATE-TIME {value:?}: {e}"))?;
 
-    // Named IANA zone if it parses; otherwise a fixed-offset pseudo-zone like
-    // "GMT+0200" (common from iCloud); otherwise the config zone (floating time).
+    // Resolve the zone: a direct IANA name, a Windows/Outlook zone name ("Eastern
+    // Standard Time"), or a fixed-offset pseudo-zone ("GMT+0200"); else the config
+    // zone (floating time).
     if let Some(id) = tzid {
-        if let Ok(zone) = id.parse::<Tz>() {
+        let named: Option<Tz> = id
+            .parse::<Tz>()
+            .ok()
+            .or_else(|| windows_to_iana(id).and_then(|n| n.parse::<Tz>().ok()));
+        if let Some(zone) = named {
             let dt = zone
                 .from_local_datetime(&naive)
                 .earliest()
@@ -204,6 +209,52 @@ fn resolve_instant(value: &str, tzid: Option<&str>, tz: &Tz) -> anyhow::Result<D
         .earliest()
         .ok_or_else(|| anyhow::anyhow!("DATE-TIME {value:?} invalid in zone {tz:?}"))?;
     Ok(dt.with_timezone(&Utc))
+}
+
+/// Map common Windows/Outlook time-zone names to IANA names. Microsoft calendar
+/// feeds (Exchange/Outlook) emit these instead of IANA identifiers. Covers the
+/// widely-used zones; unknown names fall through and the event is skipped.
+fn windows_to_iana(name: &str) -> Option<&'static str> {
+    Some(match name.trim() {
+        "Dateline Standard Time" => "Etc/GMT+12",
+        "Hawaiian Standard Time" => "Pacific/Honolulu",
+        "Alaskan Standard Time" => "America/Anchorage",
+        "Pacific Standard Time" | "Pacific Standard Time (Mexico)" => "America/Los_Angeles",
+        "US Mountain Standard Time" => "America/Phoenix",
+        "Mountain Standard Time" | "Mountain Standard Time (Mexico)" => "America/Denver",
+        "Central Standard Time" | "Central Standard Time (Mexico)" => "America/Chicago",
+        "Canada Central Standard Time" => "America/Regina",
+        "US Eastern Standard Time" => "America/Indiana/Indianapolis",
+        "Eastern Standard Time" | "Eastern Standard Time (Mexico)" => "America/New_York",
+        "Atlantic Standard Time" => "America/Halifax",
+        "Newfoundland Standard Time" => "America/St_Johns",
+        "SA Pacific Standard Time" => "America/Bogota",
+        "E. South America Standard Time" => "America/Sao_Paulo",
+        "Argentina Standard Time" => "America/Argentina/Buenos_Aires",
+        "Greenwich Standard Time" => "Atlantic/Reykjavik",
+        "GMT Standard Time" => "Europe/London",
+        "W. Europe Standard Time" => "Europe/Berlin",
+        "Central Europe Standard Time" => "Europe/Budapest",
+        "Romance Standard Time" => "Europe/Paris",
+        "Central European Standard Time" => "Europe/Warsaw",
+        "W. Central Africa Standard Time" => "Africa/Lagos",
+        "GTB Standard Time" => "Europe/Bucharest",
+        "E. Europe Standard Time" => "Europe/Chisinau",
+        "South Africa Standard Time" => "Africa/Johannesburg",
+        "FLE Standard Time" => "Europe/Kiev",
+        "Israel Standard Time" => "Asia/Jerusalem",
+        "Russian Standard Time" => "Europe/Moscow",
+        "Arabian Standard Time" => "Asia/Dubai",
+        "India Standard Time" => "Asia/Kolkata",
+        "China Standard Time" => "Asia/Shanghai",
+        "Singapore Standard Time" => "Asia/Singapore",
+        "Tokyo Standard Time" => "Asia/Tokyo",
+        "Korea Standard Time" => "Asia/Seoul",
+        "AUS Eastern Standard Time" => "Australia/Sydney",
+        "New Zealand Standard Time" => "Pacific/Auckland",
+        "UTC" | "Coordinated Universal Time" => "Etc/UTC",
+        _ => return None,
+    })
 }
 
 /// Parse a fixed-offset pseudo-TZID like `GMT+0200`, `UTC-05:00`, or `GMT+2`.

@@ -37,6 +37,10 @@ fn fixed_offset_tzid_and_bounded_rrule() {
     assert!(evs.iter().any(|e| e.title.contains("Bounded")
         && e.date == NaiveDate::from_ymd_opt(2027, 1, 15).unwrap()
         && e.time.is_none()));
+    // Windows/Outlook zone name "Eastern Standard Time" -> 14:00 in Toronto
+    assert!(evs.iter().any(|e| e.title == "Toronto meeting"
+        && e.date == NaiveDate::from_ymd_opt(2027, 5, 19).unwrap()
+        && e.time == Some(NaiveTime::from_hms_opt(14, 0, 0).unwrap())));
 }
 
 #[test]
