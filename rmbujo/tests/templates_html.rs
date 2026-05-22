@@ -1,37 +1,35 @@
 use askama::Template;
 use rmbujo::calendar::build_month;
 use rmbujo::templates::{
-    Agenda, AgendaDay, AgendaEvent, Cover, DayRow, DayView, Details, FutureLog, MonthIndex,
-    MonthlyView, Reference, Tasks,
+    Agenda, AgendaDay, AgendaEvent, Cover, DayRow, Details, FutureLog, MonthlyView, Reference,
+    Tasks,
 };
 
 #[test]
-fn month_index_rows() {
+fn monthly_view_day_count() {
     let m = build_month(2026, 5, "sun").unwrap();
-    let days: Vec<DayView> = m
+    let days: Vec<DayRow> = m
         .days
         .iter()
-        .map(|d| DayView {
+        .map(|d| DayRow {
             day: d.day,
             weekday: d.weekday,
             week_start: d.week_start,
+            event_count: 0,
         })
         .collect();
-    let html = MonthIndex {
+    let html = MonthlyView {
         month_name: "May",
         year: 2026,
+        month_num: 5,
+        row_pt: 12.0,
         days: &days,
     }
     .render()
     .unwrap();
-    assert_eq!(html.matches("class=\"day").count(), 31);
-    assert!(html.contains("weekstart"));
+    assert_eq!(html.matches("href=\"#day-").count(), 31);
     assert!(html.contains(">18<") && html.contains("Mon"));
-    // Month index sits on the dot grid (consistent with daily pages), not ruled rows.
-    // Dots are anchored to the day list so labels land between dot rows.
-    assert!(html.contains("month-index"));
-    assert!(html.contains("month-list"));
-    assert!(!html.contains("gutter"));
+    assert!(html.contains("id=\"monthly\""));
 }
 
 #[test]

@@ -4,9 +4,12 @@ use std::process::Command;
 use askama::Template;
 use rmbujo::calendar::build_month;
 use rmbujo::device::get_device;
-use rmbujo::geometry::default_grid;
+use rmbujo::geometry::{default_grid, monthly_row_pt, TOOLBAR_SAFE_PT};
 use rmbujo::render::render_pdf;
-use rmbujo::templates::{Cover, DayView, DotGrid, FutureLog, MonthIndex, Reference, Tasks};
+use rmbujo::templates::{
+    Agenda, AgendaDay, AgendaEvent, Cover, DailyPage, DayRow, Details, DotGrid, FutureLog,
+    MonthlyView, Reference, Tasks,
+};
 use rmbujo::theme::load_theme;
 
 const TOLERANCE: f64 = 0.01; // max fraction of differing pixels
@@ -26,16 +29,98 @@ fn tmp(tag: &str, ext: &str) -> PathBuf {
 }
 
 fn fragment_pages() -> Vec<(&'static str, String)> {
+    let dev = get_device("paper-pro-move").unwrap();
+    let grid = default_grid(&dev);
     let m = build_month(2026, 5, "sun").unwrap();
-    let days: Vec<DayView> = m
+
+    // monthly_view — days 19 and 24 carry event badges
+    let day_rows: Vec<DayRow> = m
         .days
         .iter()
-        .map(|d| DayView {
+        .map(|d| DayRow {
             day: d.day,
             weekday: d.weekday,
             week_start: d.week_start,
+            event_count: if d.day == 19 {
+                2
+            } else if d.day == 24 {
+                1
+            } else {
+                0
+            },
         })
         .collect();
+    let header_pt = 1.75 * grid.spacing_pt;
+    let row_pt = monthly_row_pt(
+        &dev,
+        TOOLBAR_SAFE_PT,
+        header_pt,
+        grid.margin_pt,
+        day_rows.len() as u32,
+    );
+    let monthly_view = MonthlyView {
+        month_name: "May",
+        year: 2026,
+        month_num: 5,
+        row_pt,
+        days: &day_rows,
+    }
+    .render()
+    .unwrap();
+
+    // daily_page with a badge
+    let daily_page = DailyPage {
+        day: 19,
+        day_pad: "19".into(),
+        month_num: 5,
+        weekday: "Tue",
+        event_count: 2,
+    }
+    .render()
+    .unwrap();
+
+    // agenda + details share the same sample data
+    let agenda_days = vec![AgendaDay {
+        day: 19,
+        weekday: "Tue",
+        events: vec![
+            AgendaEvent {
+                idx: 0,
+                label: "All Day".into(),
+                title: "Victoria Day".into(),
+                location: None,
+                description: None,
+                attendees: vec![],
+                color: "brick".into(),
+                is_all_day: true,
+            },
+            AgendaEvent {
+                idx: 1,
+                label: "14:00".into(),
+                title: "Dentist".into(),
+                location: Some("Downtown".into()),
+                description: Some("Bring card".into()),
+                attendees: vec!["Dr. Lee".into()],
+                color: "olive".into(),
+                is_all_day: false,
+            },
+        ],
+    }];
+    let agenda = Agenda {
+        month_name: "May",
+        year: 2026,
+        days: &agenda_days,
+    }
+    .render()
+    .unwrap();
+    let details = Details {
+        month_name: "May",
+        year: 2026,
+        days: &agenda_days,
+    }
+    .render()
+    .unwrap();
+
     vec![
         (
             "cover",
@@ -60,16 +145,6 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
         ("dotgrid", DotGrid.render().unwrap()),
         ("tasks", Tasks.render().unwrap()),
         (
-            "month_index",
-            MonthIndex {
-                month_name: "May",
-                year: 2026,
-                days: &days,
-            }
-            .render()
-            .unwrap(),
-        ),
-        (
             "future_log",
             FutureLog {
                 months: &["January", "February", "March"],
@@ -78,6 +153,10 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
             .unwrap(),
         ),
         ("reference", Reference.render().unwrap()),
+        ("monthly_view", monthly_view),
+        ("daily_page", daily_page),
+        ("agenda", agenda),
+        ("details", details),
     ]
 }
 
