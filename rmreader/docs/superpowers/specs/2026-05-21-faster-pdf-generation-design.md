@@ -78,18 +78,25 @@ scheme change just causes misses + rebuild — never wrong output, only slower.
     <asset_key>   # one file per normalized image blob
 ```
 
-- **Hit:** read `meta.json` + `html` + blobs; then rewrite `meta.json` to refresh
-  its mtime (touch-on-hit, see Expiry). The blobs (large) are never rewritten on a
-  hit — only the tiny `meta.json`.
+- **Hit:** read `meta.json` + `html` + blobs; then touch the entry via
+  `File::open(meta.json)?.set_modified(SystemTime::now())` (touch-on-hit, see
+  Expiry). This is a single metadata syscall — no content rewrite, no temp file,
+  blobs untouched. (`set_modified` is stable in std since Rust 1.75; toolchain is
+  1.94.) A failed touch (e.g. read-only FS) degrades gracefully: the entry merely
+  ages as if unused.
 - **Miss:** build the entry in `<cache.dir>/.tmp-<rand>/`, then atomically rename
   it to `<key>/`. Atomic rename means the two parallel collection threads (and any
   crash mid-write) never expose a partial entry.
 
 **Expiry (touch-on-hit, last-used age):**
 
-- A single sweep runs **once per invocation**, at the start, over all of
-  `cache.dir`: for each entry dir, if its `meta.json` mtime is older than
-  `cache.expiry_days`, `rm -rf` the entry dir.
+- **Tracking is purely filesystem mtime of each entry's `meta.json`** — no
+  sidecar index, no recorded timestamp field. A single sweep runs **once per
+  invocation**, at the start, over all of `cache.dir`: for each entry dir,
+  `fs::metadata(meta.json)?.modified()` (a bare `stat`, no parse); if older than
+  `cache.expiry_days`, `rm -rf` the entry dir. Relying on mtime is safe here —
+  `noatime` mounts affect only atime; the only failure modes (copy/restore
+  resetting timestamps) cause at most a spurious rebuild, never wrong output.
 - Because a hit refreshes `meta.json`'s mtime, "expired" means "not used in N
   days" = genuinely orphaned (the doc rolled out of the feed/library). Current,
   unchanged docs always hit regardless of cron interval.
