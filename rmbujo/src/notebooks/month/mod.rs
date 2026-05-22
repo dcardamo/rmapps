@@ -82,22 +82,30 @@ pub fn build_month_pdf(
     // month keeps its exact page count. Leading pages above are unaffected.
     let days = agenda::agenda_days(&m, events, config.year, month);
     if !days.is_empty() {
-        fragments.push(
-            Agenda {
-                month_name: m.name,
-                year: config.year,
-                days: &days,
-            }
-            .render()?,
-        );
-        fragments.push(
-            Details {
-                month_name: m.name,
-                year: config.year,
-                days: &days,
-            }
-            .render()?,
-        );
+        // Paginate so a busy month's agenda/details never overflow (and clip) a
+        // single page. A date block never splits across pages. Usable height =
+        // page minus the toolbar reserve, bottom margin, and the title block.
+        let usable = dev.height_pt() - crate::geometry::TOOLBAR_SAFE_PT - grid.margin_pt - 30.0;
+        for chunk in agenda::paginate(&days, usable, agenda::agenda_block_pt) {
+            fragments.push(
+                Agenda {
+                    month_name: m.name,
+                    year: config.year,
+                    days: &chunk,
+                }
+                .render()?,
+            );
+        }
+        for chunk in agenda::paginate(&days, usable, agenda::detail_block_pt) {
+            fragments.push(
+                Details {
+                    month_name: m.name,
+                    year: config.year,
+                    days: &chunk,
+                }
+                .render()?,
+            );
+        }
     }
 
     super::render_notebook(config, &fragments, out_path)

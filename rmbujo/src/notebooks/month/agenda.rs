@@ -58,3 +58,48 @@ fn label_for(time: Option<NaiveTime>) -> String {
         Some(t) => t.format("%H:%M").to_string(),
     }
 }
+
+/// Conservative rendered height (pt) of an agenda day block, for pagination.
+/// Date header (~13pt) + one line per event (~13pt) + bottom margin (~8pt),
+/// rounded up so a chunk never overflows the page (which would clip it).
+pub fn agenda_block_pt(d: &AgendaDay) -> f32 {
+    24.0 + 14.0 * d.events.len() as f32
+}
+
+/// Conservative rendered height (pt) of a details day block: date header + per
+/// event a title line plus a line per present Where/Notes/Who field.
+pub fn detail_block_pt(d: &AgendaDay) -> f32 {
+    let mut h = 16.0;
+    for e in &d.events {
+        let meta = e.location.is_some() as u32
+            + e.description.is_some() as u32
+            + (!e.attendees.is_empty()) as u32;
+        h += 22.0 + 14.0 * meta as f32;
+    }
+    h + 8.0
+}
+
+/// Split `days` into page-sized chunks. A single day's block is never split
+/// across a page boundary — it starts a new page if it wouldn't fit.
+pub fn paginate(
+    days: &[AgendaDay],
+    usable_pt: f32,
+    block_pt: fn(&AgendaDay) -> f32,
+) -> Vec<Vec<AgendaDay>> {
+    let mut pages: Vec<Vec<AgendaDay>> = Vec::new();
+    let mut cur: Vec<AgendaDay> = Vec::new();
+    let mut h = 0.0;
+    for d in days {
+        let bh = block_pt(d);
+        if !cur.is_empty() && h + bh > usable_pt {
+            pages.push(std::mem::take(&mut cur));
+            h = 0.0;
+        }
+        cur.push(d.clone());
+        h += bh;
+    }
+    if !cur.is_empty() {
+        pages.push(cur);
+    }
+    pages
+}

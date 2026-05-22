@@ -67,7 +67,7 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .day.weekstart .num {{ color: var(--navy); }}\n\
 .day .wd {{ color: var(--navy); font-size: {wd_fs}pt; }}\n\
 .daylink {{ text-decoration: none; color: inherit; display: inline-flex; gap: 6pt; align-items: center; width: 44pt; }}\n\
-.cbadge {{ display: inline-flex; align-items: center; justify-content: center; min-width: 13pt; height: 12pt; padding: 0 4pt; border-radius: 6pt; background: var(--navy); color: #fff; font-size: 8pt; font-weight: bold; line-height: 1; text-decoration: none; }}\n\
+.cbadge {{ display: inline-block; min-width: 14pt; height: 13pt; padding-top: 2.5pt; border-radius: 6.5pt; background: var(--navy); color: #fff; font-size: 8pt; font-weight: bold; line-height: 1; text-align: center; text-decoration: none; }}\n\
 .cover {{ position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: {m}pt; color: #fff; background-image: url(cover.svg); background-size: 100% 100%; background-repeat: no-repeat; }}\n\
 .cover .year {{ font-size: 9pt; letter-spacing: 3px; }}\n\
 .cover .title {{ font-size: 24pt; font-weight: bold; }}\n\

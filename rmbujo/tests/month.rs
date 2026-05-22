@@ -74,3 +74,38 @@ fn events_only_add_trailing_pages() {
         "1 agenda + 1 details page for a small event set"
     );
 }
+
+#[test]
+fn busy_month_paginates_agenda_and_details() {
+    use std::collections::BTreeMap;
+    let cfg = Config {
+        pages_per_day: 1,
+        ..Config::new(2027)
+    };
+    // 28 days, 3 events each -> agenda + details each overflow a single page and
+    // must paginate (the bug was a single clipped section).
+    let mut ev: BTreeMap<chrono::NaiveDate, Vec<rmbujo::ics::EventOccurrence>> = BTreeMap::new();
+    for day in 1..=28u32 {
+        let d = chrono::NaiveDate::from_ymd_opt(2027, 1, day).unwrap();
+        let evs = (0..3)
+            .map(|i| rmbujo::ics::EventOccurrence {
+                date: d,
+                time: None,
+                title: format!("Event {i}"),
+                location: Some("Somewhere".into()),
+                description: None,
+                attendees: vec![],
+                color: "brick".into(),
+            })
+            .collect();
+        ev.insert(d, evs);
+    }
+    let out = tmp();
+    build_month_pdf(&cfg, 1, &ev, &out).unwrap();
+    let pages = lopdf::Document::load(&out).unwrap().get_pages().len();
+    // Jan static = 2 + 31 = 33; agenda and details each span multiple pages.
+    assert!(
+        pages > 33 + 2,
+        "busy month should paginate agenda+details beyond one page each (got {pages})"
+    );
+}
