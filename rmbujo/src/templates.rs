@@ -102,3 +102,21 @@ pub struct Details<'a> {
     pub year: i32,
     pub days: &'a [AgendaDay],
 }
+
+/// One page of a single day's events: a compact agenda list followed by expanded
+/// details. `agenda`/`details` hold only the events on THIS page; the heading and
+/// continuation flags come from `notebooks::month::agenda::DayPagePlan`.
+#[derive(Template)]
+#[template(path = "day_events.html")]
+pub struct DayEvents<'a> {
+    pub month_num: u32,
+    pub day: u32,
+    pub day_pad: String,
+    pub weekday: &'a str,
+    pub agenda: &'a [AgendaEvent],
+    pub details: &'a [AgendaEvent],
+    pub show_agenda_heading: bool,
+    pub show_details_heading: bool,
+    pub continued: bool,
+    pub first_page: bool,
+}

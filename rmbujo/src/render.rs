@@ -59,13 +59,14 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; }}\n\
 body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; color: var(--ink); }}\n\
-.h-month, .h-section, .dayhead-date, .cover .title {{ font-family: \"Fraunces 72pt\", serif; }}\n\
+.h-month, .h-section, .h-evt, .dayhead-date, .cover .title {{ font-family: \"Fraunces 72pt\", serif; }}\n\
 .day, .day .wd, .cbadge, .pill, .agenda-date, .detail-meta {{ font-family: \"Hanken Grotesk\", sans-serif; }}\n\
 .page {{ position: relative; width: {w}pt; height: {h}pt; padding: {top}pt {m}pt {m}pt {m}pt; overflow: hidden; background: var(--paper); break-after: page; }}\n\
 .page:last-child {{ break-after: auto; }}\n\
 .dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
 .h-month {{ color: var(--primary); font-size: 16pt; font-weight: bold; margin-bottom: 6pt; }}\n\
 .h-section {{ color: var(--primary); font-size: 14pt; font-weight: bold; }}\n\
+.h-evt {{ color: var(--primary); font-size: 11pt; font-weight: bold; margin: 6pt 0 3pt; }}\n\
 /* Dot grid painted as the page background so headings/labels sit on top. Used by
    the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
    a page background resolves correctly even when rendered as a single page. */\n\

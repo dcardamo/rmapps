@@ -1,8 +1,8 @@
 use askama::Template;
 use rmbujo::calendar::build_month;
 use rmbujo::templates::{
-    Agenda, AgendaDay, AgendaEvent, Cover, DayRow, Details, FutureLog, MonthlyView, Reference,
-    Tasks,
+    Agenda, AgendaDay, AgendaEvent, Cover, DayEvents, DayRow, Details, FutureLog, MonthlyView,
+    Reference, Tasks,
 };
 
 #[test]
@@ -207,4 +207,108 @@ fn details_omit_empty_fields() {
     assert!(html.contains("09:00&#8211;10:30"));
     // The bare all-day event must not emit empty meta lines.
     assert!(html.contains("Victoria Day"));
+}
+
+fn sample_day_events() -> Vec<AgendaEvent> {
+    vec![
+        AgendaEvent {
+            idx: 0,
+            label: "09:00".into(),
+            end_label: Some("10:00".into()),
+            title: "Standup".into(),
+            location: Some("Zoom".into()),
+            description: None,
+            attendees: vec![],
+            color: "accent".into(),
+            is_all_day: false,
+        },
+        AgendaEvent {
+            idx: 1,
+            label: "12:00".into(),
+            end_label: None,
+            title: "Lunch".into(),
+            location: None,
+            description: None,
+            attendees: vec!["Sam".into()],
+            color: "rust".into(),
+            is_all_day: false,
+        },
+    ]
+}
+
+#[test]
+fn day_events_first_page_anchor_and_links() {
+    let evs = sample_day_events();
+    let html = DayEvents {
+        month_num: 5,
+        day: 5,
+        day_pad: "05".into(),
+        weekday: "Wed",
+        agenda: &evs,
+        details: &evs,
+        show_agenda_heading: true,
+        show_details_heading: true,
+        continued: false,
+        first_page: true,
+    }
+    .render()
+    .unwrap();
+    assert!(
+        html.contains("id=\"agenda-5\""),
+        "pill target on first page"
+    );
+    assert!(
+        html.contains("href=\"#day-5\""),
+        "header links to daily page"
+    );
+    assert_eq!(
+        html.matches("href=\"#evt-").count(),
+        2,
+        "agenda lines link to details"
+    );
+    assert!(html.contains("id=\"evt-0\"") && html.contains("id=\"evt-1\""));
+    assert!(html.contains(">Agenda<") && html.contains(">Details<"));
+    assert_eq!(
+        html.matches("class=\"swatch\"").count(),
+        4,
+        "2 agenda + 2 detail swatches"
+    );
+    assert!(html.contains("var(--accent)"));
+    assert!(
+        html.contains("09:00&#8211;10:00"),
+        "details show start-end range"
+    );
+    // Empty fields omitted; only the populated meta lines render.
+    assert!(html.contains("Where: Zoom"));
+    assert!(html.contains("Who: Sam"));
+    assert_eq!(html.matches("Notes:").count(), 0);
+}
+
+#[test]
+fn day_events_continuation_omits_anchor_and_headings() {
+    let evs = sample_day_events();
+    let html = DayEvents {
+        month_num: 5,
+        day: 5,
+        day_pad: "05".into(),
+        weekday: "Wed",
+        agenda: &[],
+        details: &evs,
+        show_agenda_heading: false,
+        show_details_heading: false,
+        continued: true,
+        first_page: false,
+    }
+    .render()
+    .unwrap();
+    assert!(
+        !html.contains("id=\"agenda-5\""),
+        "anchor only on first page"
+    );
+    assert!(html.contains("cont."), "continuation marker");
+    assert!(!html.contains(">Agenda<") && !html.contains(">Details<"));
+    assert!(
+        html.contains("href=\"#day-5\""),
+        "running header still links to daily page"
+    );
 }

@@ -1,0 +1,16 @@
+<section class="page"{% if first_page %} id="agenda-{{ day }}"{% endif %}>
+  <div class="h-month"><a href="#day-{{ day }}">{{ month_num }}.{{ day_pad }} {{ weekday }}</a>{% if continued %} &middot; cont.{% endif %}</div>
+  {% if show_agenda_heading %}<div class="h-evt">Agenda</div>{% endif %}
+  {% for e in agenda %}
+  <div class="agenda-line"><a href="#evt-{{ e.idx }}"><span class="swatch" style="background:var(--{{ e.color }})"></span><b>{{ e.label }}</b>&nbsp;&nbsp;{{ e.title }}{% if let Some(loc) = e.location %} &#8212; {{ loc }}{% endif %}</a></div>
+  {% endfor %}
+  {% if show_details_heading %}<div class="h-evt">Details</div>{% endif %}
+  {% for e in details %}
+  <div class="detail-evt" id="evt-{{ e.idx }}">
+    <div class="detail-title"><span class="swatch" style="background:var(--{{ e.color }})"></span><b>{{ e.label }}{% if let Some(end) = e.end_label %}&#8211;{{ end }}{% endif %}</b>&nbsp;&nbsp;{{ e.title }}</div>
+    {% if let Some(loc) = e.location %}<div class="detail-meta">Where: {{ loc }}</div>{% endif %}
+    {% if let Some(desc) = e.description %}<div class="detail-meta">Notes: {{ desc }}</div>{% endif %}
+    {% if !e.attendees.is_empty() %}<div class="detail-meta">Who: {{ e.attendees|join(", ") }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</section>
