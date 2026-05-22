@@ -83,14 +83,149 @@ fn normalize_image(bytes: &[u8]) -> Option<(Vec<u8>, String)> {
     }
 }
 
-/// Truncate at the byte cap (on a UTF-8 boundary) and collect the document's
-/// deduplicated `<img>` URLs (first-seen order). When images are disabled the URL
-/// list is empty. Returns `(possibly-truncated HTML, truncated flag, urls)`.
+/// Strip all HTML tags from a fragment, returning the plain text.
+pub(crate) fn strip_tags(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Collect each `<p>...</p>` block's (trimmed inner-HTML, normalised plain text).
+fn paragraphs(html: &str) -> Vec<(String, String)> {
+    let mut v = Vec::new();
+    let mut rest = html;
+    while let Some(p) = rest.find("<p") {
+        let after = &rest[p + 2..];
+        // Real <p> only (not <pre>/<param>/...): the next char starts the tag.
+        let is_p = after
+            .chars()
+            .next()
+            .is_some_and(|c| matches!(c, '>' | ' ' | '\t' | '\n' | '\r' | '/'));
+        if !is_p {
+            rest = after;
+            continue;
+        }
+        let Some(gt) = after.find('>') else { break };
+        let inner_start = p + 2 + gt + 1;
+        let Some(close) = rest[inner_start..].find("</p>") else {
+            break;
+        };
+        let inner = &rest[inner_start..inner_start + close];
+        let plain = strip_tags(inner)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        v.push((inner.trim().to_string(), plain));
+        rest = &rest[inner_start + close + 4..];
+    }
+    v
+}
+
+/// Detect Readwise's PDF text-extraction shape: many `<p>`, each holding a single
+/// physical line of the source PDF, so most do NOT end in sentence-terminal
+/// punctuation. (Normal prose ends paragraphs with `.`/`!`/`?`.)
+fn looks_line_broken(paras: &[(String, String)]) -> bool {
+    let n = paras.len();
+    if n < 50 {
+        return false;
+    }
+    let terminal = paras
+        .iter()
+        .filter(|(_, t)| {
+            t.chars()
+                .next_back()
+                .is_some_and(|c| matches!(c, '.' | '!' | '?'))
+        })
+        .count();
+    (terminal as f32 / n as f32) < 0.35
+}
+
+/// Rejoin line-broken PDF text (see `looks_line_broken`) into flowing paragraphs,
+/// de-hyphenating words split at line ends, so the text reflows to our column
+/// instead of hard-wrapping at the original PDF's line widths. Non-line-broken
+/// HTML is returned unchanged. (OCR artefacts inside the source — e.g. mid-word
+/// spaces like "tha t" — are part of the data and left untouched.)
+fn reflow_line_broken(html: &str) -> String {
+    let paras = paragraphs(html);
+    if !looks_line_broken(&paras) {
+        return html.to_string();
+    }
+    let mut lens: Vec<usize> = paras
+        .iter()
+        .map(|(_, t)| t.chars().count())
+        .filter(|&n| n > 0)
+        .collect();
+    lens.sort_unstable();
+    let median = lens.get(lens.len() / 2).copied().unwrap_or(0);
+    let short = (median as f32 * 0.66) as usize;
+
+    fn flush(out: &mut String, buf: &mut String) {
+        let t = buf.trim();
+        if !t.is_empty() {
+            out.push_str("<p>");
+            out.push_str(t);
+            out.push_str("</p>\n");
+        }
+        buf.clear();
+    }
+
+    let mut out = String::with_capacity(html.len());
+    let mut buf = String::new();
+    for (inner, plain) in &paras {
+        if plain.is_empty() {
+            flush(&mut out, &mut buf); // blank line = paragraph break
+            continue;
+        }
+        if buf.is_empty() {
+            buf.push_str(inner);
+        } else if buf.ends_with('-')
+            && buf[..buf.len() - 1]
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphabetic())
+        {
+            buf.pop(); // de-hyphenate: drop line-end hyphen, join with no space
+            buf.push_str(inner);
+        } else {
+            buf.push(' ');
+            buf.push_str(inner);
+        }
+        // Paragraph break on a sentence-final, ragged-short line (not a hyphen join).
+        let ends_sentence = plain
+            .chars()
+            .next_back()
+            .is_some_and(|c| matches!(c, '.' | '!' | '?'));
+        if ends_sentence && plain.chars().count() < short && !buf.ends_with('-') {
+            flush(&mut out, &mut buf);
+        }
+    }
+    flush(&mut out, &mut buf);
+    out
+}
+
+/// Reflow line-broken PDF text, truncate at the byte cap (on a UTF-8 boundary),
+/// and collect the document's deduplicated `<img>` URLs (first-seen order). When
+/// images are disabled the URL list is empty. Returns `(processed HTML, truncated
+/// flag, urls)`. The returned HTML is what `assemble_processed` then sanitises, so
+/// reflow happens exactly once, before truncation — matching the legacy order.
 pub fn collect_doc_urls(
     html: &str,
     max_bytes: usize,
     images_enabled: bool,
 ) -> (String, bool, Vec<String>) {
+    // Rejoin Readwise's PDF text-extraction output (one <p> per source line) into
+    // flowing paragraphs before truncation/URL-collection. No-op for normal HTML.
+    let reflowed = reflow_line_broken(html);
+    let html: &str = &reflowed;
+
     let (html, truncated) = if html.len() > max_bytes {
         let mut end = max_bytes;
         while end > 0 && !html.is_char_boundary(end) {
@@ -113,9 +248,10 @@ pub fn collect_doc_urls(
 }
 
 /// Build sanitized HTML + normalized image assets for one document, given the
-/// already-truncated HTML, its deduped image URLs (first-seen order), and a
-/// shared `url -> fetched bytes` map. Asset keys are `img-{safe_id}-{i}` over
-/// `urls`, matching the legacy single-document path byte-for-byte.
+/// already reflowed-and-truncated HTML (from `collect_doc_urls`), its deduped
+/// image URLs (first-seen order), and a shared `url -> fetched bytes` map. Asset
+/// keys are `img-{safe_id}-{i}` over `urls`, matching the legacy single-document
+/// path byte-for-byte.
 pub fn assemble_processed(
     doc_id: &str,
     truncated_html: &str,
@@ -125,6 +261,7 @@ pub fn assemble_processed(
     fetched: &std::collections::HashMap<String, FetchedImage>,
 ) -> Processed {
     use std::collections::HashMap;
+
     // Sanitise doc_id so the key is always filename-safe.
     let safe_id: String = doc_id
         .chars()
@@ -255,4 +392,41 @@ pub fn process_html(
         &urls,
         &fetched,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reflow_rejoins_and_dehyphenates_line_broken() {
+        // 60 single-line <p>, none ending in sentence punctuation (Readwise PDF
+        // shape), with one hyphenated word split across two lines.
+        let mut h = String::new();
+        for _ in 0..58 {
+            h.push_str("<p>the quick brown fox jumps over a lazy dog and runs</p>\n");
+        }
+        h.push_str("<p>here is some inter-</p>\n<p>esting material to read</p>\n");
+        let out = reflow_line_broken(&h);
+        assert!(
+            out.contains("interesting"),
+            "should de-hyphenate across lines"
+        );
+        assert!(!out.contains("inter-"), "line-end hyphen should be removed");
+        assert!(
+            out.matches("<p>").count() < 30,
+            "lines should merge, got {} <p>",
+            out.matches("<p>").count()
+        );
+    }
+
+    #[test]
+    fn reflow_leaves_normal_prose_untouched() {
+        // Paragraphs ending in sentence punctuation are not line-broken.
+        let mut h = String::new();
+        for _ in 0..60 {
+            h.push_str("<p>This is a complete sentence that ends properly.</p>\n");
+        }
+        assert_eq!(reflow_line_broken(&h), h, "normal prose passes through");
+    }
 }
