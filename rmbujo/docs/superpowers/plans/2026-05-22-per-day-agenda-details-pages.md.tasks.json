@@ -1,0 +1,33 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-22-per-day-agenda-details-pages.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: paginate_day + DayPagePlan",
+      "status": "pending",
+      "description": "**Goal:** Add per-day pagination logic for the combined agenda+details flow, leaving old paginate in place.\n\n**Files:** src/notebooks/month/agenda.rs, tests/month.rs\n\n**Verify:** nix develop -c cargo test --test month\n\n```json:metadata\n{\"files\": [\"src/notebooks/month/agenda.rs\", \"tests/month.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test month\", \"acceptanceCriteria\": [\"DayPagePlan struct with correct fields\", \"paginate_day algorithm correct\", \"old paginate untouched\", \"4 new tests pass\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: DayEvents template + .h-evt CSS",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add DayEvents page struct, day_events.html template, and sub-heading CSS with HTML tests; leave old Agenda/Details in place.\n\n**Files:** templates/day_events.html, src/templates.rs, src/render.rs, tests/templates_html.rs\n\n**Verify:** nix develop -c cargo test --test templates_html\n\n```json:metadata\n{\"files\": [\"templates/day_events.html\", \"src/templates.rs\", \"src/render.rs\", \"tests/templates_html.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test templates_html\", \"acceptanceCriteria\": [\"first_page anchor + day-link\", \"evt anchors + empty-field omission\", \"heading + continuation flags\", \"old templates still pass\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Switch mod.rs to per-day pages",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** Replace the two month-wide pagination loops in build_month_pdf with a per-day loop rendering DayEvents pages; update month page-count tests.\n\n**Files:** src/notebooks/month/mod.rs, tests/month.rs\n\n**Verify:** nix develop -c cargo test\n\n```json:metadata\n{\"files\": [\"src/notebooks/month/mod.rs\", \"tests/month.rs\"], \"verifyCommand\": \"nix develop -c cargo test\", \"acceptanceCriteria\": [\"per-day DayEvents loop\", \"small day base+1\", \"busy month paginates\", \"static unchanged\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Remove dead code; regenerate goldens",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Delete unused Agenda/Details structs+templates, old paginate, stale CSS, old tests; switch visual fixture to DayEvents and regenerate goldens.\n\n**Files:** src/templates.rs, src/notebooks/month/agenda.rs, src/render.rs, tests/templates_html.rs, tests/month.rs, tests/visual.rs, templates/agenda.html, templates/details.html, tests/goldens/*.png\n\n**Verify:** nix develop -c cargo test && nix develop -c cargo clippy --all-targets -- -D warnings\n\n```json:metadata\n{\"files\": [\"src/templates.rs\", \"src/notebooks/month/agenda.rs\", \"src/render.rs\", \"tests/templates_html.rs\", \"tests/month.rs\", \"tests/visual.rs\", \"templates/agenda.html\", \"templates/details.html\"], \"verifyCommand\": \"nix develop -c cargo test && nix develop -c cargo clippy --all-targets -- -D warnings\", \"acceptanceCriteria\": [\"no dead references\", \"day_events golden\", \"test + clippy green\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-22T00:00:00Z"
+}
