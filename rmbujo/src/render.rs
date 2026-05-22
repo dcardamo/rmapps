@@ -16,9 +16,13 @@ use crate::theme::{css_vars, Palette};
 // Re-export inspection for layout tests (Task 10) without a separate dev-dep.
 pub use fulgur::inspect::{inspect, InspectResult, TextItem};
 
-const FONT_REGULAR: &[u8] = include_bytes!("../assets/fonts/DejaVuSerif.ttf");
-const FONT_BOLD: &[u8] = include_bytes!("../assets/fonts/DejaVuSerif-Bold.ttf");
-const FONT_FAMILY: &str = "DejaVu Serif";
+const LORA_REGULAR: &[u8] = include_bytes!("../assets/fonts/Lora-Regular.ttf");
+const LORA_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/Lora-SemiBold.ttf");
+const FRAUNCES: &[u8] = include_bytes!("../assets/fonts/Fraunces72pt-SemiBold.ttf");
+const HANKEN_REGULAR: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Regular.ttf");
+const HANKEN_MEDIUM: &[u8] = include_bytes!("../assets/fonts/HankenGrotesk-Medium.ttf");
+// Lora (body/reading), Fraunces 72pt (display titles), Hanken Grotesk (meta/UI).
+const BODY_FAMILY: &str = "Lora";
 
 fn color<'a>(theme: &'a Palette, key: &str, fallback: &'a str) -> &'a str {
     theme.get(key).map(|s| s.as_str()).unwrap_or(fallback)
@@ -48,7 +52,9 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
 @page {{ size: {w}pt {h}pt; margin: 0; }}\n\
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; }}\n\
-body {{ font-family: \"{family}\", serif; color: var(--ink); }}\n\
+body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; color: var(--ink); }}\n\
+.h-month, .h-section, .dayhead-date, .cover .title {{ font-family: \"Fraunces 72pt\", serif; }}\n\
+.day, .day .wd, .cbadge, .pill, .agenda-date, .detail-meta {{ font-family: \"Hanken Grotesk\", sans-serif; }}\n\
 .page {{ position: relative; width: {w}pt; height: {h}pt; padding: {top}pt {m}pt {m}pt {m}pt; overflow: hidden; background: var(--paper); break-after: page; }}\n\
 .page:last-child {{ break-after: auto; }}\n\
 .dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {m}pt {top}pt; }}\n\
@@ -91,7 +97,7 @@ body {{ font-family: \"{family}\", serif; color: var(--ink); }}\n\
 .detail-meta {{ font-size: 9pt; color: var(--muted); }}\n",
         vars = css_vars(theme), w = w, h = h, m = m, sp = sp, half_sp = half_sp,
         top = top,
-        head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = FONT_FAMILY,
+        head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = BODY_FAMILY,
     )
 }
 
@@ -126,8 +132,11 @@ pub fn render_pdf(
     );
     // to_vec() copies ~750 KB of static font data per call; fine for the
     // once-per-run, sequential rendering this tool does (15 PDFs/year).
-    assets.add_font_bytes(FONT_REGULAR.to_vec())?;
-    assets.add_font_bytes(FONT_BOLD.to_vec())?;
+    assets.add_font_bytes(LORA_REGULAR.to_vec())?;
+    assets.add_font_bytes(LORA_SEMIBOLD.to_vec())?;
+    assets.add_font_bytes(FRAUNCES.to_vec())?;
+    assets.add_font_bytes(HANKEN_REGULAR.to_vec())?;
+    assets.add_font_bytes(HANKEN_MEDIUM.to_vec())?;
 
     let engine = Engine::builder()
         .page_size(PageSize {

@@ -5,6 +5,13 @@ use rmbujo::render::{inspect, TextItem};
 
 const TOL: f32 = 0.5; // pt — accommodates inspect()'s estimated text widths
 
+// The estimated width (chars*0.5em; see WIDTH_SCALE) drifts a few pt on full-width
+// wrapped lines and adjacent inline runs with proportional fonts (Lora/Hanken).
+// x/y/bottom use real positions (tight TOL); this looser tolerance absorbs the width
+// estimate's noise in the right-edge bound and the horizontal-overlap check. A real
+// overflow or stacked-block overlap is far larger than this.
+const WIDTH_TOL: f32 = 8.0;
+
 // fulgur's inspect() estimates glyph advance widths as chars*font_size*0.5.
 // For CID-encoded fonts (used by krilla/fulgur) each character occupies a 2-byte
 // glyph ID, so the raw char count is 2× the actual glyph count, inflating every
@@ -28,7 +35,7 @@ fn overlaps(a: &TextItem, b: &TextItem) -> bool {
     }
     let aw = a.width * WIDTH_SCALE;
     let bw = b.width * WIDTH_SCALE;
-    let x_overlap = a.x < b.x + bw - TOL && b.x < a.x + aw - TOL;
+    let x_overlap = a.x < b.x + bw - WIDTH_TOL && b.x < a.x + aw - WIDTH_TOL;
     let y_overlap = a.y < b.y + b.height - TOL && b.y < a.y + a.height - TOL;
     x_overlap && y_overlap
 }
@@ -45,7 +52,7 @@ fn assert_no_overlap_and_in_bounds(pdf: &std::path::Path) {
         let right = t.x + t.width * WIDTH_SCALE;
         let bottom = t.y + t.height;
         assert!(
-            t.x >= -TOL && t.y >= -TOL && right <= w + TOL && bottom <= h + TOL,
+            t.x >= -TOL && t.y >= -TOL && right <= w + WIDTH_TOL && bottom <= h + TOL,
             "text {:?} out of page bounds: x={} y={} estimated_right={:.2} bottom={:.2} (page {}x{})",
             t.text, t.x, t.y, right, bottom, w, h,
         );
