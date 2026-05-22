@@ -143,6 +143,28 @@ fn process_rmapi_rejects_unpaired_conf() {
     assert!(err.to_string().contains("pair"), "got: {err}");
 }
 
+/// Run the shim, retrying on ETXTBSY ("Text file busy", os error 26): under
+/// parallel test load another thread's fork can transiently hold a write fd to a
+/// just-written shim, making exec fail. Retry until it clears.
+fn run_ok(r: &ProcessRmapi, args: &[&str]) {
+    for _ in 0..200 {
+        match r.run(args) {
+            Ok(()) => return,
+            Err(e) => {
+                if e.downcast_ref::<std::io::Error>()
+                    .and_then(|io| io.raw_os_error())
+                    == Some(26)
+                {
+                    std::thread::yield_now();
+                    continue;
+                }
+                panic!("rmapi run failed: {e:?}");
+            }
+        }
+    }
+    panic!("rmapi run kept hitting ETXTBSY (os error 26)");
+}
+
 #[test]
 fn process_rmapi_runs_and_logs() {
     let dir = tmp_dir();
@@ -150,7 +172,7 @@ fn process_rmapi_runs_and_logs() {
     let conf = dir.join("rmapi.conf");
     std::fs::write(&conf, GOOD_CONF).unwrap();
     let r = ProcessRmapi::with(shim, conf).unwrap();
-    r.run(&["-ni", "put", "/out/a.pdf", "/2026"]).unwrap();
+    run_ok(&r, &["-ni", "put", "/out/a.pdf", "/2026"]);
     let log = std::fs::read_to_string(dir.join("calls.log")).unwrap();
     assert_eq!(log.trim(), "-ni put /out/a.pdf /2026");
 }
@@ -166,7 +188,7 @@ fn process_rmapi_restores_clobbered_conf_and_retries() {
     std::fs::write(dir.join("clobber-trigger"), "").unwrap();
 
     let r = ProcessRmapi::with(shim, conf.clone()).unwrap();
-    r.run(&["-ni", "put", "/out/a.pdf", "/2026"]).unwrap();
+    run_ok(&r, &["-ni", "put", "/out/a.pdf", "/2026"]);
 
     // Conf was restored to the good snapshot, and the call was retried (2 lines).
     assert_eq!(std::fs::read_to_string(&conf).unwrap(), GOOD_CONF);
