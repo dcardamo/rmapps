@@ -6,6 +6,7 @@ pub mod config;
 pub mod content;
 pub mod deploy;
 pub mod device;
+pub mod embed;
 pub mod generate;
 pub mod manifest;
 pub mod postprocess;
