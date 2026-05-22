@@ -1,0 +1,45 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-21-faster-pdf-generation.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 0: Add [cache] config section",
+      "status": "pending",
+      "description": "Add CacheConfig (enabled/dir/expiry_days) to Config with serde defaults; update Config struct literals in src/wizard.rs and tests/generate.rs.\n\n```json:metadata\n{\"files\": [\"src/config.rs\", \"src/wizard.rs\", \"tests/generate.rs\", \"tests/config.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test config\", \"acceptanceCriteria\": [\"cache defaults when absent\", \"Config has cache field\", \"workspace compiles\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 1: Cache module (key, atomic store, touch-on-hit, sweep)",
+      "status": "pending",
+      "description": "Create src/cache.rs (FNV-1a key, Cache get/put/sweep, default_cache_dir) + register in src/lib.rs. Tests in tests/cache.rs.\n\n```json:metadata\n{\"files\": [\"src/cache.rs\", \"src/lib.rs\", \"tests/cache.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test cache\", \"acceptanceCriteria\": [\"key sensitivity\", \"put/get roundtrip\", \"miss on disabled/absent\", \"touch on hit\", \"sweep stale/junk\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 2: Split content pipeline",
+      "status": "pending",
+      "description": "Split process_html into collect_doc_urls + assemble_processed; keep process_html as wrapper. Output unchanged.\n\n```json:metadata\n{\"files\": [\"src/content.rs\", \"tests/content.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test content\", \"acceptanceCriteria\": [\"collect_doc_urls dedup/truncate/flag\", \"assemble_processed legacy keys+sanitize\", \"process_html wrapper unchanged\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 3: Wire cache + global concurrent fetch into build pipeline",
+      "status": "pending",
+      "blockedBy": [1, 2, 3],
+      "description": "Rewrite build_one (cache classify -> global fetch -> assemble -> cache put); thread Cache through generate + sweep once; assemble_document Fn->FnMut. Cold==warm transparency test.\n\n```json:metadata\n{\"files\": [\"src/assemble.rs\", \"src/generate.rs\", \"tests/generate.rs\"], \"verifyCommand\": \"nix develop -c cargo test && make clippy\", \"acceptanceCriteria\": [\"cold==warm bytes\", \"cache built+swept once\", \"clippy clean\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 4: Parallelize Library and Feed pipelines",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "generate runs both collections in thread::scope; + Sync bounds; sweep before spawn; sleep_secs fn item. Concurrent-render determinism test. Contingency: RENDER_LOCK mutex in render.rs if fulgur not concurrency-safe.\n\n```json:metadata\n{\"files\": [\"src/generate.rs\", \"tests/render.rs\", \"src/render.rs\"], \"verifyCommand\": \"nix develop -c cargo test && make clippy\", \"acceptanceCriteria\": [\"parallel build produces both PDFs\", \"concurrent render == reference bytes\", \"compiles with Sync bounds\", \"suite+clippy green\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 5: Verify real-run performance (no commit)",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "Run release binary against scratch no-deploy config (token+locations from danout/rmreader.toml, [cache] at /tmp/rmperf/cache). Cold run (cleared cache) ~15s; warm run ~8s; PDFs start with %PDF-. Verification only.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"/usr/bin/env time -v ./target/release/rmreader /tmp/rmperf.toml\", \"acceptanceCriteria\": [\"cold ~15s\", \"warm ~8s with cached logs\", \"PDFs valid\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-21"
+}
