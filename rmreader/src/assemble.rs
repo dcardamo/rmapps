@@ -34,7 +34,6 @@ struct IndexTpl<'a> {
 #[template(path = "article.html")]
 struct ArticleTpl<'a> {
     anchor: &'a str,
-    category: &'a str,
     title: &'a str,
     author: &'a str,
     site_name: &'a str,
@@ -105,7 +104,6 @@ pub fn assemble_document(
         fragments.push(
             ArticleTpl {
                 anchor: &article_anchor,
-                category: &d.category,
                 title: &title,
                 author: &d.author,
                 site_name: &d.site_name,

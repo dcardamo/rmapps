@@ -29,14 +29,13 @@ pub fn build_css(device: &Device, theme: &Palette) -> String {
         "{vars}\n\
 /* The ENGINE margin (set in render_pdf) reserves space on EVERY physical page —\n\
    top 58pt (~36pt the device toolbar overlays + the post-processed nav bar below\n\
-   it), sides 26pt, bottom 30pt — so flowing articles never reach the toolbar/nav\n\
+   it), sides 16pt, bottom 30pt — so flowing articles never reach the toolbar/nav\n\
    band on any page. @page only carries size + paper background. */\n\
 @page {{ size: {w}pt {h}pt; margin: 0; background: var(--paper); }}\n\
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; background: var(--paper); }}\n\
 body {{ font-family: \"Lora\", serif; color: var(--ink); font-size:9.5pt; }}\n\
 .article {{ break-before: page; }}\n\
-.kicker {{ display:inline-block; font-family:\"Hanken Grotesk\",sans-serif; font-size:6.5pt; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--paper); background:var(--accent); padding:2pt 6pt; border-radius:3pt; margin-bottom:6pt; }}\n\
 .headline {{ font-weight:600; font-size:16pt; line-height:1.12; color:var(--heading); letter-spacing:-.01em; bookmark-level:1; }}\n\
 .byline {{ font-family:\"Hanken Grotesk\",sans-serif; font-size:8pt; color:var(--muted); margin-top:6pt; }}\n\
 .hr {{ height:0.5pt; background:var(--rule); margin:8pt 0; }}\n\
@@ -89,9 +88,9 @@ pub fn render_pdf(
         })
         .margin(Margin {
             top: 58.0,
-            right: 26.0,
+            right: 16.0,
             bottom: 30.0,
-            left: 26.0,
+            left: 16.0,
         })
         .assets(assets)
         .bookmarks(true)

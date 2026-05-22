@@ -102,8 +102,8 @@ fn try_add_per_page_nav(
     // transient page-indicator toolbar covers the BOTTOM, so the nav goes up top.
     let (br, bg, bb) = hex_rgb(nav_bg_hex).unwrap_or((0.16, 0.18, 0.40));
     let (fr, fg, fb) = hex_rgb(nav_fg_hex).unwrap_or((0.96, 0.95, 0.91));
-    let bar_x = 26.0_f32;
-    let bar_w = page_w - 52.0;
+    let bar_x = 16.0_f32;
+    let bar_w = page_w - 32.0;
     let bar_y = page_h - 58.0; // bottom edge of the bar
     let bar_h = 21.0_f32;
     let baseline_y = bar_y + 6.5; // text baseline, centred in the bar
@@ -125,7 +125,7 @@ fn try_add_per_page_nav(
         ));
         if prev.is_some() {
             content.push_str(&format!(
-                "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf 36 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
+                "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf 26 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
             ));
         }
         content.push_str(&format!(
@@ -183,9 +183,9 @@ enum NavSlot {
 /// rects are derived from the slot + page_w so geometry lives in one place.
 fn link_annot(target: ObjectId, page_w: f32, page_h: f32, slot: NavSlot) -> Dictionary {
     let (x0, x1) = match slot {
-        NavSlot::Prev => (20.0, page_w * 0.34),
+        NavSlot::Prev => (12.0, page_w * 0.34),
         NavSlot::Home => (page_w * 0.36, page_w * 0.64),
-        NavSlot::Next => (page_w * 0.66, page_w - 20.0),
+        NavSlot::Next => (page_w * 0.66, page_w - 12.0),
     };
     // Top nav band: just below the toolbar, above the content margin.
     let (y0, y1) = (page_h - 58.0, page_h - 38.0);
