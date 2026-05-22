@@ -18,13 +18,14 @@ fn pages(p: &std::path::Path) -> usize {
 
 #[test]
 fn month_pages() {
+    // monthly view + tasks + one page per day (May 2026 has 31 days)
     let cfg = Config {
-        daily_pages: 5,
+        pages_per_day: 1,
         ..Config::new(2026)
     };
     let out = tmp();
     month::build_month_pdf(&cfg, 5, &out).unwrap();
-    assert_eq!(pages(&out), 2 + 5);
+    assert_eq!(pages(&out), 2 + 31);
 }
 
 #[test]

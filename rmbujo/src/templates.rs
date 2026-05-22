@@ -67,3 +67,13 @@ pub struct MonthlyView<'a> {
 #[derive(Template)]
 #[template(path = "reference.html")]
 pub struct Reference;
+
+#[derive(Template)]
+#[template(path = "daily_page.html")]
+pub struct DailyPage<'a> {
+    pub day: u32,
+    pub day_pad: String,
+    pub month_num: u32,
+    pub weekday: &'a str,
+    pub event_count: usize,
+}

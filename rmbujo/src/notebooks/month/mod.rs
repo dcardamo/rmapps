@@ -4,7 +4,7 @@ use askama::Template;
 
 use crate::calendar::build_month;
 use crate::config::Config;
-use crate::templates::{DayRow, DotGrid, MonthlyView, Tasks};
+use crate::templates::{DailyPage, DayRow, DotGrid, MonthlyView, Tasks};
 
 pub fn build_month_pdf(config: &Config, month: u32, out_path: &Path) -> anyhow::Result<()> {
     let m = build_month(config.year, month, &config.week_start)?;
@@ -43,8 +43,20 @@ pub fn build_month_pdf(config: &Config, month: u32, out_path: &Path) -> anyhow::
         .render()?,
         Tasks.render()?,
     ];
-    for _ in 0..config.daily_pages {
-        fragments.push(DotGrid.render()?);
+    for d in &m.days {
+        fragments.push(
+            DailyPage {
+                day: d.day,
+                day_pad: format!("{:02}", d.day),
+                month_num: month,
+                weekday: d.weekday,
+                event_count: 0,
+            }
+            .render()?,
+        );
+        for _ in 1..config.pages_per_day {
+            fragments.push(DotGrid.render()?);
+        }
     }
     super::render_notebook(config, &fragments, out_path)
 }

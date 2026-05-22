@@ -76,7 +76,9 @@ body {{ font-family: \"{family}\", serif; color: #1a1a1a; }}\n\
 .fl-block .h-month {{ font-size: 12pt; }}\n\
 .legend {{ font-size: 9pt; line-height: 1.8; }}\n\
 .legend .sym {{ display: inline-block; width: 16pt; font-weight: bold; color: var(--navy); }}\n\
-.pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: #fff; background: var(--brick); font-size: 7pt; }}\n",
+.pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: #fff; background: var(--brick); font-size: 7pt; }}\n\
+.dayhead {{ display: flex; justify-content: space-between; align-items: center; }}\n\
+.dayhead-date {{ font-size: 13pt; text-decoration: none; color: var(--navy); }}\n",
         vars = css_vars(theme), w = w, h = h, m = m, sp = sp, half_sp = half_sp,
         top = top,
         head_fs = head_fs, num_fs = num_fs, wd_fs = wd_fs, family = FONT_FAMILY,
