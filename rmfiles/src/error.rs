@@ -24,4 +24,16 @@ pub enum Error {
     /// A structural problem was encountered while decoding the byte stream.
     #[error("parse error: {0}")]
     Parse(String),
+
+    /// An error from reading a zip archive.
+    #[error("zip error: {0}")]
+    Zip(#[from] zip::result::ZipError),
+
+    /// An error deserializing JSON metadata or content.
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    /// The bundle is missing a required file.
+    #[error("bundle missing file: {0}")]
+    BundleMissing(String),
 }
