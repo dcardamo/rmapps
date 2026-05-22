@@ -28,6 +28,7 @@ fn wizard_assemble() {
         deploy_backend: "rmapi".into(),
         base_folder: "/2026".into(),
         timezone: "America/Toronto".into(),
+        ics: vec![],
     });
     assert_eq!(config.year, 2026);
     assert_eq!(config.pages_per_day, 2);

@@ -46,7 +46,7 @@ fn round_trip() {
         ics: vec![IcsFeed {
             name: "Holidays".into(),
             url: "https://x/h.ics".into(),
-            color: "rust".into(),
+            color: Some("rust".into()),
         }],
         ..Config::new(2026)
     };
@@ -60,7 +60,7 @@ fn validate_rejects_unknown_feed_color() {
     let feed = |c: &str| IcsFeed {
         name: "Cal".into(),
         url: "https://x/c.ics".into(),
-        color: c.into(),
+        color: Some(c.into()),
     };
     assert!(Config {
         ics: vec![feed("chartreuse")],
@@ -74,6 +74,25 @@ fn validate_rejects_unknown_feed_color() {
     }
     .validate()
     .is_ok());
+}
+
+#[test]
+fn feed_color_auto_assigns_by_index() {
+    use rmbujo::config::CAL_PALETTE;
+    let auto = IcsFeed {
+        name: "A".into(),
+        url: "u".into(),
+        color: None,
+    };
+    assert_eq!(auto.color_for(0), CAL_PALETTE[0]);
+    assert_eq!(auto.color_for(2), CAL_PALETTE[2]);
+    assert_eq!(auto.color_for(10), CAL_PALETTE[0]); // cycles after 10
+    let explicit = IcsFeed {
+        name: "B".into(),
+        url: "u".into(),
+        color: Some("rust".into()),
+    };
+    assert_eq!(explicit.color_for(5), "rust"); // explicit overrides
 }
 
 #[test]

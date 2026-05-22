@@ -48,12 +48,12 @@ fn merges_and_orders_all_day_before_timed() {
         IcsFeed {
             name: "T".into(),
             url: "u-timed".into(),
-            color: "olive".into(),
+            color: Some("olive".into()),
         },
         IcsFeed {
             name: "H".into(),
             url: "u-allday".into(),
-            color: "brick".into(),
+            color: Some("brick".into()),
         },
     ];
     let mut ok = HashMap::new();
@@ -75,12 +75,12 @@ fn failing_feed_skipped_not_fatal() {
         IcsFeed {
             name: "Good".into(),
             url: "u-allday".into(),
-            color: "brick".into(),
+            color: Some("brick".into()),
         },
         IcsFeed {
             name: "Bad".into(),
             url: "u-missing".into(),
-            color: "navy".into(),
+            color: Some("navy".into()),
         },
     ];
     let mut ok = HashMap::new();

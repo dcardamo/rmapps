@@ -21,7 +21,7 @@ fn feed() -> IcsFeed {
     IcsFeed {
         name: "Holidays".into(),
         url: "https://x/h.ics".into(),
-        color: "brick".into(),
+        color: Some("brick".into()),
     }
 }
 

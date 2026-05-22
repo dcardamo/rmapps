@@ -41,26 +41,28 @@ A flat folder per year, one PDF per notebook: `2026 Future Log.pdf`,
 
 ## ICS calendar feeds
 
-Add calendar feeds to `rmbujo.toml` and they will be overlaid on monthly spreads:
+Add calendar feeds to `rmbujo.toml` (or run `rmbujo new`, which prompts to add feeds
+one at a time). Each feed's events are overlaid on monthly spreads:
 
 ```toml
 timezone = "America/Toronto"   # IANA timezone — used for all event rendering
 
 [[ics]]
 name    = "Holidays"
-url     = "https://example.com/holidays.ics"
-color   = "rust"               # swatch color (see below)
+url     = "https://example.com/holidays.ics"   # color omitted -> auto-assigned
 
 [[ics]]
 name    = "Work"
 url     = "webcal://example.com/work.ics"   # webcal:// is accepted (treated as https)
-color   = "primary"
+color   = "primary"                          # optional override
 ```
 
-**Feed color** picks the swatch shown beside each event in the agenda and details.
-Choose a theme color name; the readable choices are `primary` (indigo), `accent`
-(tomato), `rust`, and `muted`. An unknown name is rejected with the list of valid
-options.
+**Feed colors** are the swatch shown beside each event in the agenda and details.
+**Omit `color` and each feed is auto-assigned a distinct color** from a 10-color
+palette in order (feed 1, 2, 3, …) — so multiple calendars stay readable with no
+setup. To override, set `color` to a theme color: `primary` (indigo), `accent`
+(tomato), `rust`, `muted`, or `cal1`…`cal10`. An unknown name is rejected with the
+list of valid options.
 
 Events render with their start time, and the **details page shows the full start–end
 range** when the feed provides an end time. Timezones are handled robustly: IANA names,

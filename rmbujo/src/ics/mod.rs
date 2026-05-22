@@ -31,7 +31,7 @@ pub fn build_event_map(
 
     let mut map: BTreeMap<NaiveDate, Vec<EventOccurrence>> = BTreeMap::new();
 
-    for feed in &config.ics {
+    for (i, feed) in config.ics.iter().enumerate() {
         let bytes = match fetch::feed_bytes(out_dir, feed, refresh, fetcher) {
             Ok(b) => b,
             Err(e) => {
@@ -39,7 +39,8 @@ pub fn build_event_map(
                 continue;
             }
         };
-        for o in parse::parse_feed(&bytes, &feed.color, config.year, &tz)? {
+        let color = feed.color_for(i);
+        for o in parse::parse_feed(&bytes, &color, config.year, &tz)? {
             map.entry(o.date).or_default().push(o);
         }
     }

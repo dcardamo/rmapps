@@ -18,6 +18,7 @@ pub struct Answers {
     pub deploy_backend: String,
     pub base_folder: String,
     pub timezone: String,
+    pub ics: Vec<crate::config::IcsFeed>,
 }
 
 /// Build a Config + paths from gathered answers (no I/O).
@@ -31,7 +32,7 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
         theme: a.theme,
         pages_per_day: a.pages_per_day,
         timezone: a.timezone,
-        ics: Vec::new(),
+        ics: a.ics,
         deploy: DeployConfig {
             backend: a.deploy_backend,
             base_folder: a.base_folder,
@@ -44,7 +45,7 @@ pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
 
 /// Prompt the user (dialoguer), create the out dir, and return Config + paths.
 pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
-    use dialoguer::Input;
+    use dialoguer::{Confirm, Input};
 
     let year: i32 = Input::new()
         .with_prompt("Year")
@@ -91,6 +92,25 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         .default(iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into()))
         .interact_text()?;
 
+    // Optional calendar feeds. Colors auto-assign from the palette by order, so the
+    // wizard only needs a name + URL; edit the toml later to override a color.
+    let mut ics = Vec::new();
+    while Confirm::new()
+        .with_prompt("Add a calendar (ICS) feed?")
+        .default(false)
+        .interact()?
+    {
+        let name: String = Input::new().with_prompt("  Feed name").interact_text()?;
+        let url: String = Input::new()
+            .with_prompt("  Feed URL (https:// or webcal://)")
+            .interact_text()?;
+        ics.push(crate::config::IcsFeed {
+            name,
+            url,
+            color: None,
+        });
+    }
+
     let (config, out_dir, config_path) = assemble(Answers {
         year,
         base,
@@ -103,6 +123,7 @@ pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
         deploy_backend,
         base_folder,
         timezone,
+        ics,
     });
     // The caller validates and creates the directory after this returns, so
     // invalid input doesn't leave an orphan folder behind.

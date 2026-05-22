@@ -7,11 +7,26 @@ use std::path::Path;
 pub struct IcsFeed {
     pub name: String,
     pub url: String,
-    #[serde(default = "default_color")]
-    pub color: String,
+    /// Swatch color (a theme color name). Omit it to auto-assign a distinct color
+    /// from the calendar palette by feed order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
-fn default_color() -> String {
-    "primary".into()
+
+/// Calendar swatch palette: theme color names auto-assigned to feeds in order
+/// (feed 1 -> cal1, ...). Up to 10 distinct hues; cycles after that.
+pub const CAL_PALETTE: [&str; 10] = [
+    "cal1", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "cal9", "cal10",
+];
+
+impl IcsFeed {
+    /// The swatch color for this feed: its explicit `color`, else an auto-assigned
+    /// palette slot by `index` (0-based feed order).
+    pub fn color_for(&self, index: usize) -> String {
+        self.color
+            .clone()
+            .unwrap_or_else(|| CAL_PALETTE[index % CAL_PALETTE.len()].to_string())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -123,17 +138,19 @@ impl Config {
         if self.timezone.parse::<chrono_tz::Tz>().is_err() {
             anyhow::bail!("unknown timezone: {:?}", self.timezone);
         }
-        // Each ICS feed's swatch color must name a theme color (catch typos).
+        // An explicit ICS feed color must name a theme color (catch typos); an
+        // omitted color is auto-assigned from the palette, which is always valid.
         for feed in &self.ics {
-            if !theme.contains_key(feed.color.as_str()) {
-                let mut names: Vec<&str> = theme.keys().map(String::as_str).collect();
-                names.sort_unstable();
-                anyhow::bail!(
-                    "ics feed {:?}: unknown color {:?}; choose a theme color ({})",
-                    feed.name,
-                    feed.color,
-                    names.join(", ")
-                );
+            if let Some(c) = &feed.color {
+                if !theme.contains_key(c.as_str()) {
+                    let mut names: Vec<&str> = theme.keys().map(String::as_str).collect();
+                    names.sort_unstable();
+                    anyhow::bail!(
+                        "ics feed {:?}: unknown color {c:?}; choose a theme color ({})",
+                        feed.name,
+                        names.join(", ")
+                    );
+                }
             }
         }
         Ok(())

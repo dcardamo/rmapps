@@ -11,3 +11,17 @@ rule = "#E0DDD2"       # hairlines / dividers / underlines
 nav = "#F4F1E8"        # light text on the indigo bar / cover
 dot = "#55534C"        # dot-grid color — dark warm grey to match the device "Dots Small"
 cover_to = "#1A1E48"   # darker indigo for the cover gradient
+
+# Calendar swatch palette — up to 10 distinct hues, auto-assigned to ICS feeds in
+# order (feed 1 -> cal1, ...). Users can override a feed's `color` with any of these
+# (or any other theme color). cal1/cal2 reuse the brand indigo/tomato.
+cal1  = "#2A2F6B"      # indigo
+cal2  = "#CF3A2B"      # tomato
+cal3  = "#1F7A6B"      # teal
+cal4  = "#B5651D"      # amber
+cal5  = "#6C3FA0"      # purple
+cal6  = "#4F8A3F"      # green
+cal7  = "#B03060"      # magenta
+cal8  = "#2F6FB5"      # blue
+cal9  = "#9A7B1B"      # gold
+cal10 = "#8A4B2A"      # brown
