@@ -1,5 +1,6 @@
 //! rmreader — Readwise Reader -> reMarkable reader PDFs.
 pub mod assemble;
+pub mod cache;
 pub mod cli;
 pub mod config;
 pub mod content;
