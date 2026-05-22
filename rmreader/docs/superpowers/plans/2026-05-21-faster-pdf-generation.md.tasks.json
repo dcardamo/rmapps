@@ -10,13 +10,13 @@
     {
       "id": 2,
       "subject": "Task 1: Cache module (key, atomic store, touch-on-hit, sweep)",
-      "status": "pending",
+      "status": "completed",
       "description": "Create src/cache.rs (FNV-1a key, Cache get/put/sweep, default_cache_dir) + register in src/lib.rs. Tests in tests/cache.rs.\n\n```json:metadata\n{\"files\": [\"src/cache.rs\", \"src/lib.rs\", \"tests/cache.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test cache\", \"acceptanceCriteria\": [\"key sensitivity\", \"put/get roundtrip\", \"miss on disabled/absent\", \"touch on hit\", \"sweep stale/junk\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 2: Split content pipeline",
-      "status": "pending",
+      "status": "completed",
       "description": "Split process_html into collect_doc_urls + assemble_processed; keep process_html as wrapper. Output unchanged.\n\n```json:metadata\n{\"files\": [\"src/content.rs\", \"tests/content.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test content\", \"acceptanceCriteria\": [\"collect_doc_urls dedup/truncate/flag\", \"assemble_processed legacy keys+sanitize\", \"process_html wrapper unchanged\"]}\n```"
     },
     {
