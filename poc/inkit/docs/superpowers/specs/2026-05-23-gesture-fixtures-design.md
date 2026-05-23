@@ -133,11 +133,17 @@ pub struct CatalogEntry {
 |-------------------|-------------|-------------|------|-------------------------------------------------------|
 | `checkmark`       | pen         | aspect-fit  | sq   | `Checkbox` positive (e2e)                              |
 | `scribble-out`    | pen         | stretch-x   | sq   | `Checkbox` mark-vs-scribble discrimination (e2e)      |
-| `highlight-swipe` | highlighter | stretch-x   | wide | `HighlightableText` span selection (e2e)              |
+| `highlight-swipe` | highlighter | stretch     | wide | `HighlightableText` span selection (e2e)              |
 | `strike-through`  | pen         | stretch-x   | wide | future text-strike / span-delete widget               |
 | `handwritten-word`| pen         | aspect-fit  | wide | Spec #4 handwriting input (banked)                    |
 | `circle`          | pen         | aspect-fit  | sq   | "circle a task" / selection use case                  |
 | `arrow`           | pen         | aspect-fit  | wide | linking / pointing use case                           |
+
+> **As-built note:** `highlight-swipe` uses `stretch` (not `stretch-x`). A highlight
+> should *cover* the target word, so filling the token box on both axes is the right
+> behaviour; `stretch-x` is also numerically fragile for a near-horizontal swipe (its
+> normalized height is ~0, driving `native_aspect` to the degenerate guard). `stretch-x`
+> remains correct for a thin line *through* a region (`strike-through`).
 
 Three drive e2e assertions in *this* spec (`checkmark`, `scribble-out`, `highlight-swipe`);
 the rest are recorded-and-banked so a future widget gets real ink without another hardware
@@ -224,7 +230,8 @@ One JSON per gesture in `tests/fixtures/gestures/`. Multiple drawn samples are b
 - **Transplant (replay)** of a unit-box sample into a target rect `T`:
   - `stretch` → `x = T.x0 + u·T.w`, `y = T.y0 + v·T.h`. Fills `T`; ignores shape.
   - `stretch-x` → fill width; `height = T.w / native_aspect`, centred vertically in `T`.
-    Span gestures (swipe, strike, scribble) span the region and keep proportion.
+    A thin line *through* a region (`strike-through`, `scribble-out`) keeps proportion.
+    (`highlight-swipe` instead uses `stretch` — see the as-built note in section C.)
   - `aspect-fit` → fit a box of the native aspect inside `T`, centred:
     `W = min(T.w, native_aspect·T.h)`, `H = W / native_aspect`. Shape gestures
     (checkmark, circle, arrow, handwriting) keep their shape.
