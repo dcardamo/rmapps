@@ -1,1 +1,3 @@
-// placeholder — filled in by Task 10
+//! inkapp-harness — in-software loop simulator and layers inspector.
+
+pub mod inspector;
