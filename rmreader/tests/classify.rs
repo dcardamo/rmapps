@@ -1,6 +1,6 @@
 //! Geometric classification table tests.
 use rmreader::manifest::{EmbeddedDoc, EmbeddedManifest, LabelRect, ManifestRect, PageRange};
-use rmreader::readback::{classify, PdfRect, StrokeHit};
+use rmreader::readback::{classify, PdfRect, StrokeHit, TextHit};
 use rmreader::readwise::ActionKind;
 
 /// Page geometry: 260 pt wide × 462 pt tall.
@@ -77,13 +77,23 @@ fn hit(page: usize, x0: f64, y0: f64, x1: f64, y1: f64) -> StrokeHit {
     }
 }
 
+fn thit(page: usize, text: &str) -> TextHit {
+    TextHit {
+        page,
+        text: text.to_string(),
+    }
+}
+
 /// A stroke centred squarely in the Archive column → Archive action.
 #[test]
 fn stroke_over_archive_column_is_archive_action() {
     // center y = (378+398)/2 = 388, inside [376,400]; x overlaps archive [65,130]
-    let p = classify(&manifest(), &[hit(1, 70.0, 378.0, 125.0, 398.0)], |_, _| {
-        String::new()
-    });
+    let p = classify(
+        &manifest(),
+        &[],
+        &[hit(1, 70.0, 378.0, 125.0, 398.0)],
+        |_, _| String::new(),
+    );
     assert_eq!(p.actions, vec![("d1".into(), ActionKind::Archive)]);
     assert!(p.highlights.is_empty());
     assert!(p.warnings.is_empty());
@@ -94,9 +104,12 @@ fn stroke_over_archive_column_is_archive_action() {
 /// center y = (378+398)/2 = 388, inside band [376,400].
 #[test]
 fn stroke_spanning_two_columns_picks_max_overlap() {
-    let p = classify(&manifest(), &[hit(0, 80.0, 378.0, 170.0, 398.0)], |_, _| {
-        String::new()
-    });
+    let p = classify(
+        &manifest(),
+        &[],
+        &[hit(0, 80.0, 378.0, 170.0, 398.0)],
+        |_, _| String::new(),
+    );
     assert_eq!(p.actions, vec![("d1".into(), ActionKind::Archive)]);
     assert!(p.highlights.is_empty());
 }
@@ -105,7 +118,12 @@ fn stroke_spanning_two_columns_picks_max_overlap() {
 #[test]
 fn body_stroke_becomes_content_highlight() {
     let words = |_page: usize, _bbox: &PdfRect| "the highlighted sentence".to_string();
-    let p = classify(&manifest(), &[hit(2, 20.0, 100.0, 180.0, 115.0)], words);
+    let p = classify(
+        &manifest(),
+        &[],
+        &[hit(2, 20.0, 100.0, 180.0, 115.0)],
+        words,
+    );
     assert!(p.actions.is_empty());
     assert_eq!(p.highlights.len(), 1);
     assert_eq!(p.highlights[0].text, "the highlighted sentence");
@@ -116,9 +134,12 @@ fn body_stroke_becomes_content_highlight() {
 /// Body stroke where words_under returns "" → no highlight, one warning.
 #[test]
 fn content_with_no_text_warns() {
-    let p = classify(&manifest(), &[hit(2, 20.0, 100.0, 180.0, 115.0)], |_, _| {
-        String::new()
-    });
+    let p = classify(
+        &manifest(),
+        &[],
+        &[hit(2, 20.0, 100.0, 180.0, 115.0)],
+        |_, _| String::new(),
+    );
     assert!(p.highlights.is_empty());
     assert_eq!(p.warnings.len(), 1);
 }
@@ -130,7 +151,7 @@ fn two_distinct_actions_skip_with_warning() {
         hit(0, 70.0, 378.0, 125.0, 398.0), // Archive (center y=388 in band)
         hit(1, 200.0, 378.0, 255.0, 398.0), // Delete  (center y=388 in band)
     ];
-    let p = classify(&manifest(), &hits, |_, _| String::new());
+    let p = classify(&manifest(), &[], &hits, |_, _| String::new());
     assert!(p.actions.is_empty());
     assert_eq!(p.warnings.len(), 1);
 }
@@ -142,7 +163,7 @@ fn duplicate_same_action_applies_once() {
         hit(0, 70.0, 378.0, 125.0, 398.0),
         hit(1, 75.0, 379.0, 120.0, 397.0),
     ];
-    let p = classify(&manifest(), &hits, |_, _| String::new());
+    let p = classify(&manifest(), &[], &hits, |_, _| String::new());
     assert_eq!(p.actions, vec![("d1".into(), ActionKind::Archive)]);
 }
 
@@ -151,6 +172,7 @@ fn duplicate_same_action_applies_once() {
 fn stroke_off_manifest_warns() {
     let p = classify(
         &manifest(),
+        &[],
         &[hit(99, 50.0, 100.0, 150.0, 200.0)],
         |_, _| String::new(),
     );
@@ -178,7 +200,7 @@ fn first_body_line_inflated_bbox_not_misclassified_as_action() {
     let body_hit = hit(0, 70.0, 355.0, 200.0, 388.0);
 
     // Test the body hit in isolation — it must produce a content highlight, not an action.
-    let p_body = classify(&manifest(), std::slice::from_ref(&body_hit), |_, _| {
+    let p_body = classify(&manifest(), &[], std::slice::from_ref(&body_hit), |_, _| {
         "body text".to_string()
     });
     assert!(
@@ -195,7 +217,7 @@ fn first_body_line_inflated_bbox_not_misclassified_as_action() {
     assert!(p_body.warnings.is_empty());
 
     // Together: label hit → Archive action, body hit → content highlight (no confusion).
-    let p_both = classify(&manifest(), &[label_hit, body_hit], |_, _| {
+    let p_both = classify(&manifest(), &[], &[label_hit, body_hit], |_, _| {
         "body text".to_string()
     });
     assert_eq!(
@@ -209,4 +231,72 @@ fn first_body_line_inflated_bbox_not_misclassified_as_action() {
         "body hit should still be a content highlight"
     );
     assert!(p_both.warnings.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Text-highlight (GlyphRange) path — primary, exact strings from the device.
+// ---------------------------------------------------------------------------
+
+/// A text highlight whose verbatim string is an action label → that action.
+#[test]
+fn text_label_is_action() {
+    let p = classify(&manifest(), &[thit(1, "ARCHIVE")], &[], |_, _| {
+        String::new()
+    });
+    assert_eq!(p.actions, vec![("d1".into(), ActionKind::Archive)]);
+    assert!(p.highlights.is_empty());
+    assert!(p.warnings.is_empty());
+}
+
+/// A text highlight with a body sentence → content highlight with that exact
+/// text and the owning doc's url (no words_under reconstruction).
+#[test]
+fn text_body_becomes_content_highlight() {
+    // words_under intentionally returns garbage to prove the text path ignores it.
+    let p = classify(
+        &manifest(),
+        &[thit(2, "Sphinx of black quartz, judge my vow.")],
+        &[],
+        |_, _| "SHOULD NOT BE USED".to_string(),
+    );
+    assert!(p.actions.is_empty());
+    assert_eq!(p.highlights.len(), 1);
+    assert_eq!(
+        p.highlights[0].text,
+        "Sphinx of black quartz, judge my vow."
+    );
+    assert_eq!(p.highlights[0].source_url, "https://b");
+    assert_eq!(p.highlights[0].title, "Two");
+    assert!(p.warnings.is_empty());
+}
+
+/// A label text highlight plus a conflicting action-column stroke on the SAME
+/// doc → two distinct actions → skip + warn (acted map merges both paths).
+#[test]
+fn text_label_conflicts_with_ink_action_skips_and_warns() {
+    // Text label "archive" on doc d1 (page 0), ink stroke over Delete column on
+    // doc d1 (page 1). Two distinct actions for d1 → skipped with a warning.
+    let p = classify(
+        &manifest(),
+        &[thit(0, "archive")],
+        &[hit(1, 200.0, 378.0, 255.0, 398.0)], // Delete column
+        |_, _| String::new(),
+    );
+    assert!(
+        p.actions.is_empty(),
+        "conflicting text + ink actions should skip; got {:?}",
+        p.actions
+    );
+    assert_eq!(p.warnings.len(), 1);
+}
+
+/// A text highlight on a page not covered by the manifest → warn + skip.
+#[test]
+fn text_off_manifest_warns() {
+    let p = classify(&manifest(), &[thit(99, "ARCHIVE")], &[], |_, _| {
+        String::new()
+    });
+    assert!(p.actions.is_empty());
+    assert!(p.highlights.is_empty());
+    assert_eq!(p.warnings.len(), 1);
 }

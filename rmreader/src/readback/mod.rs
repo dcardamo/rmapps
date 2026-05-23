@@ -3,7 +3,7 @@ pub mod classify;
 pub mod coords;
 pub mod textlayer;
 
-pub use classify::{classify, Plan, StrokeHit};
+pub use classify::{classify, Plan, StrokeHit, TextHit};
 pub use coords::{PdfRect, Transform};
 pub use textlayer::{TextLayer, Word};
 
@@ -58,8 +58,18 @@ pub fn detect(bundle_path: &std::path::Path) -> anyhow::Result<Plan> {
     let textlayer = TextLayer::extract(&pdf)?;
 
     let mut hits = Vec::new();
+    let mut text_hits = Vec::new();
     for pg in bundle.pages() {
         if let Some(scene) = pg.scene()? {
+            // Primary path: snap-to-text highlights carry the exact string the
+            // device matched — no transform or text-layer lookup required.
+            for h in scene.text_highlights() {
+                text_hits.push(classify::TextHit {
+                    page: pg.index,
+                    text: h.text.clone(),
+                });
+            }
+            // Fallback path: highlighter ink strokes go through geometry.
             for s in scene.strokes() {
                 if !s.is_highlighter() {
                     continue;
@@ -89,7 +99,7 @@ pub fn detect(bundle_path: &std::path::Path) -> anyhow::Result<Plan> {
             }
         }
     }
-    Ok(classify(&manifest, &hits, |page, rect| {
+    Ok(classify(&manifest, &text_hits, &hits, |page, rect| {
         textlayer.words_under(page, rect)
     }))
 }
