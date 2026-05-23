@@ -102,6 +102,9 @@ impl Device for Remarkable {
                     .iter()
                     .map(|p| {
                         let d = self.pdf_to_device(*p, page_h_pt);
+                        // `.rm` stores scene coordinates as f32; this cast is the
+                        // sole source of round-trip quantization (error grows with
+                        // page height — see the tolerance note in tests/device.rs).
                         Point {
                             x: d.x as f32,
                             y: d.y as f32,
@@ -112,6 +115,8 @@ impl Device for Remarkable {
                         }
                     })
                     .collect();
+                // The harness only distinguishes highlighter vs. pen; the exact
+                // pen variant a real device would emit is a Spec 3 concern.
                 let (tool, color) = if s.highlighter {
                     (Pen::Highlighter2, PenColor::Highlight)
                 } else {
