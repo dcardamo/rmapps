@@ -8,6 +8,9 @@ The touchstone example throughout is a reading-queue app in the spirit of
 `rmreader`: articles flow in from a service, render as PDFs on the device, the
 user highlights and marks them read, and those actions flow back out.
 
+In a hurry? Jump to [the worked example](#a-worked-example-a-reading-queue) — the
+whole app in ~40 lines — then come back for the why.
+
 ---
 
 ## The mental model: MVU for pen devices
@@ -38,6 +41,18 @@ its UI thread must stay pure and can't block. inkapp runs server-side in batches
 between syncs, so `update` can just call connectors — reads hit their local cache,
 writes go straight through. One fewer concept; still testable via a fake
 `Connectors`.)
+
+**Where does my data live?** Two homes, one rule:
+
+- **Connector** if an external system owns the data (Readwise, a calendar). That
+  system is authoritative; the connector keeps a local replica and pushes writes
+  back out. `view` reads it; `update` writes it.
+- **Model** if *your app* owns the data and it lives nowhere else (a draft, a
+  cursor, a local toggle). Often empty — the reading app owns nothing; Readwise
+  holds it all.
+
+So `view` is a function of **both**: `view(&Model, &Connectors)`. Pure MVU implies
+`view(Model)` alone; inkapp adds connectors as a second read source.
 
 ```
               ┌──────────────────────── Model ───────────────────────┐
@@ -77,6 +92,8 @@ writes go straight through. One fewer concept; still testable via a fake
 - Syncs documents to the device and pulls annotated ones back.
 - Parses `.rm` ink, attributes it to component regions, asks components to **decode**
   it into `Msg`s, and folds them through your `update`.
+- **Reconciles** the document set your `view` returns against the device by key —
+  creating, updating, and deleting documents — preserving ink across updates.
 - Hides pages, device sizes, and per-page ink stitching from you entirely.
 
 ---
@@ -180,10 +197,12 @@ two places — so even then there's no fragile contract to typo.
 
 ### Components are real Typst components
 
-A component's render half is authored in **Typst's own scripting language** —
-functions, `#let`, conditionals, loops, `context` — not by string-building Typst
-markup from Rust. Region declaration, per-device conditional layout, and
-composition all live in Typst, where they belong.
+Most apps just **compose** components the framework already provides and never touch
+Typst. Authoring a *new* component is the advanced path — and when you take it, the
+render half is authored in **Typst's own scripting language** — functions, `#let`,
+conditionals, loops, `context` — not by string-building Typst markup from Rust.
+Region declaration, per-device conditional layout, and composition all live in
+Typst, where they belong.
 
 The boundary to keep in mind: **Typst owns the render half only.**
 
@@ -269,6 +288,13 @@ Two kinds, and the second is the hard one:
 - **Bidirectional** — `update` calls its write methods. (Readwise: mark read,
   archive, create highlight. CalDAV someday.)
 
+**Delivery & failures.** A connector's write methods *record* the write durably and
+return — they do **not** block `update` on the network. The connector flushes queued
+writes with retry; a write that keeps failing surfaces on the next render (e.g. a
+"couldn't sync to Readwise" note) rather than throwing inside `update`. So `update`
+expresses intent and the framework owns eventual delivery — which is also why
+`update` returns nothing.
+
 **Each connector owns its own cache.** Storage is the connector's choice — sqlite,
 plain files, whatever fits the system — hidden behind the connector interface; the
 framework imposes no storage engine. This settles most of the cache questions:
@@ -304,10 +330,11 @@ Three kinds of state, in three places:
 - **Document state** — small, per-document, *encoded into the PDF* (encrypted).
   Lets the framework decode ink against the right base version ("which article,
   which version, where the regions are").
-- **App state (the MVU `Model`)** — server-side, per user; the authoritative state
-  your `update` evolves. For multi-party apps this is an event log (below).
-- **Connector state** — the connector caches of external data. Server-side,
-  per user, owned per connector.
+- **App state (the MVU `Model`)** — server-side, per user; the state your app
+  *owns* and `update` evolves (often small — see "Where does my data live?"). For
+  multi-party apps this becomes an event log (below).
+- **Connector state** — local replicas of data owned by *external systems*; the
+  system is authoritative, the cache a replica. Server-side, per user, per connector.
 
 **Encryption — everything embedded is encrypted.** The rule is simple: *the device
 reads none of our embedded metadata; the framework reads all of it and holds the
@@ -334,9 +361,10 @@ state moved on to M. MVU already points at the answer, because **a `Msg` *is* an
 event and `update` *is* "apply event."** Event sourcing is just MVU with the
 message stream persisted — not a second architecture.
 
-- **The `Model` becomes an append-only log of events** (the decoded `Msg`s), each
-  tagged with the base version it was authored against; current state is a fold
-  over the log.
+- **App-owned state becomes an append-only log of the user's intents** (the decoded
+  `Msg`s), each tagged with the base version it was authored against; current state
+  is a fold over the log. Edits to external state are logged the same way before
+  being pushed to their connector.
 - **Staleness dissolves.** You don't overwrite — you *append* the user's events and
   re-fold. Most ink is *additive* (highlights, notes), so most events **commute**
   and merge cleanly regardless of base version. Real conflict shrinks to the few
@@ -396,15 +424,18 @@ fn update(msg: Msg, _m: &mut App, cx: &Connectors) {
 }
 ```
 
-**View — one document per article, keyed by a stable id** so the framework preserves
-ink across re-renders. It reads the queue straight from the connector cache:
+**View is declarative.** It returns the *complete set* of documents that should
+exist; the framework diffs that against the device by key — creating new ones,
+updating changed ones, deleting vanished ones (React, for a folder of PDFs). The
+stable key is what preserves ink across re-renders. Here: one document per article,
+read straight from the connector cache.
 
 ```rust
 fn view(_m: &App, cx: &Connectors) -> Documents {
     cx.readwise.queue().iter().map(|a| {
         Document::keyed(a.id, flow![
             ArticleBody { article: a.id, body: &a.body, highlights: &a.highlights },
-            Checkbox    { label: "Archive", on_check: Msg::Archived { article: a.id } },
+            Checkbox    { label: "Archive", checked: false, on_check: Msg::Archived { article: a.id } },
         ])
     }).collect()
 }
@@ -414,12 +445,13 @@ fn view(_m: &App, cx: &Connectors) -> Documents {
 message value to emit. One region (itself), so `decode` never names anything:
 
 ```rust
-struct Checkbox<M> { label: &'static str, on_check: M }
+struct Checkbox<M> { label: &'static str, checked: bool, on_check: M }
 
 impl<M: Clone> Component for Checkbox<M> {
     type Msg = M;
     fn render(&self, _: &mut Render) -> Typst {       // render half = Typst (inline here)
-        typst!(r#"#checkbox(label: "{label}")"#, label = self.label)
+        typst!(r#"#checkbox(label: "{label}", checked: {checked})"#,
+               label = self.label, checked = self.checked)
     }
     fn decode(&self, ink: Ink) -> Vec<M> {            // ink = whatever landed on me
         if ink.any() { vec![self.on_check.clone()] } else { vec![] }
@@ -429,8 +461,8 @@ impl<M: Clone> Component for Checkbox<M> {
 
 ```typst
 // components/checkbox.typ — render half only; the framework wraps it in a region
-#let checkbox(label: "") = box[
-  #box(width: 12pt, height: 12pt, stroke: 0.5pt) #h(4pt) #label
+#let checkbox(label: "", checked: false) = box[
+  #box(width: 12pt, height: 12pt, stroke: 0.5pt)[#if checked [✓]] #h(4pt) #label
 ]
 ```
 
@@ -455,6 +487,48 @@ impl Component for ArticleBody<'_> {
 **That's the whole app.** You never wrote the loop, sync, pagination, ink parsing,
 encryption, or per-device rendering. The framework calls `decode` on returned ink,
 folds the `Msg`s through `update` (handing it the connectors), and re-renders `view`.
+
+### Assembling & running
+
+`Model`, `update`, `view`, and connectors become a runnable app by wiring them once:
+
+```rust
+fn main() {
+    inkapp::app(App)
+        .connector(Readwise::new(token))   // this is what makes `cx.readwise` exist
+        .update(update)
+        .view(view)
+        .run();                            // the framework owns the loop, forever
+}
+```
+
+You never call `update` or `view` yourself — `run()` drives them on each sync. The
+`&Connectors` (`cx`) handed to them is the typed set of connectors you registered
+here, which is why `cx.readwise` resolves.
+
+### Testing
+
+The loop is just plumbing around your pure `view` and your `update`, so both test
+with no device and no network — inject fake connectors and synthetic ink:
+
+```rust
+#[test]
+fn archiving_pushes_to_readwise() {
+    let cx = Connectors::fake();
+    let mut m = App;
+    update(Msg::Archived { article: id(42) }, &mut m, &cx);
+    assert_eq!(cx.readwise.archived(), vec![id(42)]);
+}
+
+#[test]
+fn ink_on_the_box_decodes_to_archive() {
+    let c = Checkbox { label: "Archive", checked: false, on_check: Msg::Archived { article: id(42) } };
+    assert_eq!(c.decode(Ink::one_stroke()), vec![Msg::Archived { article: id(42) }]);
+}
+```
+
+This is the project's whole bet: a passing test exercises the same decode→update
+path a device would, without the device.
 
 ### Ergonomics check — what feels good, what's left
 
@@ -486,6 +560,9 @@ Left (accepted, not rough):
   (the common case) avoid it entirely.
 - **Connector-as-source-of-truth is a style, not a rule.** It makes this app tiny,
   but an app is free to hold real state in `Model` instead.
+- **`mode` wasn't needed here.** Every component has fixed affordances;
+  `mode: ReadOnly | Editable` earns its keep only when a component fronts connectors
+  of differing capability (a calendar on ICS vs CalDAV).
 
 ---
 
@@ -534,5 +611,6 @@ management and tenant-isolation mechanics are undesigned.
   re-ask on the next render?
 - The shape of the `Msg` batch handed from decode to update: flat stream vs a tree
   mirroring component nesting.
-- Connector write semantics: ordering and retries for the writes `update` issues
-  (now the connector's concern, not a runtime effect queue).
+- Connector write semantics: write *ordering* and the exact surfacing UX for
+  persistently-failed writes (delivery is recorded-and-retried by the connector —
+  see "Delivery & failures" — but ordering and the failure banner are undesigned).
