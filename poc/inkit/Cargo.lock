@@ -2626,6 +2626,7 @@ dependencies = [
  "inkapp",
  "inkapp-core",
  "inkapp-readwise",
+ "zip",
 ]
 
 [[package]]
