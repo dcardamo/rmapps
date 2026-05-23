@@ -64,6 +64,9 @@ impl World for InkWorld {
         self.fonts.get(index).cloned()
     }
     fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
+        // Returning None makes Typst date/time calls produce `none`, by design:
+        // the harness must never embed wall-clock time in compiled documents or
+        // PDF bytes, which would break determinism (and the no-secrets rule).
         None
     }
 }
