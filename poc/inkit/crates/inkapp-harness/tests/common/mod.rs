@@ -10,7 +10,7 @@ use inkapp_harness::recording::{
     bootstrap_strokes, extract_fixture, render_template, CatalogEntry, PAGE_H,
 };
 
-/// Read the `.pdf` and first `.rm` entries out of an `.rmdoc` zip.
+/// Read the `.pdf` and the `.rm` entry from an `.rmdoc` zip (single-page recording assumed).
 pub fn open_rmdoc(path: &Path) -> (Vec<u8>, Vec<u8>) {
     let file = std::fs::File::open(path).expect("open rmdoc");
     let mut archive = zip::ZipArchive::new(file).expect("read zip");
@@ -60,7 +60,7 @@ pub fn regen_fixture(
         let source = Source {
             recording: "synthetic".into(),
             device: "synthetic-bootstrap".into(),
-            recorded: "2026-05-23".into(),
+            recorded: "synthetic".into(),
         };
         extract_fixture(entry, &strokes, &manifest, source)
     }

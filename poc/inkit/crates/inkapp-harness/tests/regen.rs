@@ -1,7 +1,5 @@
 mod common;
 
-use std::path::Path;
-
 use inkapp_harness::recording::catalog;
 use inkapp_remarkable::Remarkable;
 
@@ -44,7 +42,20 @@ fn fixtures_match_regenerated() {
         !wrote_any,
         "wrote missing bootstrap fixtures; review and re-run"
     );
-    for entry in catalog() {
-        assert!(Path::new(&format!("{dir}/{}.json", entry.name)).exists());
-    }
+    // Guard against orphaned/missing fixtures: the set of committed gestures/*.json
+    // must exactly match the catalog (catches a fixture left behind after a gesture
+    // is renamed or removed).
+    use std::collections::BTreeSet;
+    let committed: BTreeSet<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.ends_with(".json"))
+        .map(|n| n.trim_end_matches(".json").to_string())
+        .collect();
+    let expected: BTreeSet<String> = catalog().iter().map(|e| e.name.to_string()).collect();
+    assert_eq!(
+        committed, expected,
+        "committed fixtures do not match the catalog"
+    );
 }

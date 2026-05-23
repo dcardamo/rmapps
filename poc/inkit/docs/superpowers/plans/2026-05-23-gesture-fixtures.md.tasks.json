@@ -22,13 +22,13 @@
     {
       "id": 4,
       "subject": "Task 4: Gesture catalog + template/calibration generation",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** recording.rs catalog() (7 gestures), render_template (3 boxes, self-instructing, manifest embedded), render_calibration + calibration_points; PAGE_W/PAGE_H constants.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/recording.rs\",\"crates/inkapp-harness/src/lib.rs\",\"crates/inkapp-harness/tests/templates.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test templates\",\"acceptanceCriteria\":[\"catalog() lists 7 gestures\",\"render_template regions box:<name>:0..2 recover\",\"render_calibration cross:<i> regions + known points\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Extraction (strokes->fixtures) + bootstrap synth",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "**Goal:** extract_samples (attribute to box:<name>:i + normalize), extract_fixture, bootstrap_strokes (synth ink per gesture). Routed through real write/read path.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/recording.rs\",\"crates/inkapp-harness/tests/extract.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test extract\",\"acceptanceCriteria\":[\"extract_samples one per box in order\",\"bootstrap_strokes plausible per gesture\",\"extract_fixture builds GestureFixture\",\"bootstrap round-trip yields unit-box samples\"]}\n```"
     },
