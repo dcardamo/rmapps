@@ -38,13 +38,13 @@ impl RenderCx {
 /// Region names are embedded into a Typst string literal by [`region_metadata`];
 /// a name containing `"`, `)`, `]`, or other markup characters would silently
 /// break compilation of the whole document. We constrain names to an identifier
-/// alphabet so that failure mode cannot occur. Widget authors mint names from
-/// this alphabet (e.g. `tok-3`, `done`).
+/// alphabet (plus `:` for namespacing, e.g. `box:checkmark:0`) so that failure
+/// mode cannot occur. Widget authors mint names from this alphabet.
 pub fn is_valid_region_name(name: &str) -> bool {
     !name.is_empty()
         && name
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ':')
 }
 
 /// Emit the `#place`d metadata markup that [`crate::manifest::recover_regions`]
@@ -73,6 +73,10 @@ mod tests {
         assert!(is_valid_region_name("done"));
         assert!(is_valid_region_name("tok-3"));
         assert!(is_valid_region_name("habit_streak"));
+        assert!(
+            is_valid_region_name("box:checkmark:0"),
+            "colon namespace separator is allowed"
+        );
         assert!(!is_valid_region_name(""), "empty is rejected");
         assert!(!is_valid_region_name("has space"), "space is rejected");
         assert!(!is_valid_region_name("quote\"inside"), "quote is rejected");

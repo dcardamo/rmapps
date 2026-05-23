@@ -2,4 +2,5 @@
 
 pub mod fixtures;
 pub mod inspector;
+pub mod recording;
 pub mod simulator;
