@@ -73,7 +73,7 @@
     {
       "id": 10,
       "subject": "Task 10: inkapp-harness scaffold + layers inspector",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "inkapp-harness crate. inspect(&PagedDocument,&Manifest,&[Stroke]) -> PNG via typst_render::render + tiny-skia overlays (regions blue, pen red, highlighter yellow), y flipped. Dimensions test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/Cargo.toml\", \"crates/inkapp-harness/src/lib.rs\", \"crates/inkapp-harness/src/inspector.rs\", \"crates/inkapp-harness/tests/inspector.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-harness --test inspector\", \"acceptanceCriteria\": [\"inspect returns PNG\", \"regions+ink composited, y flipped\", \"correct pixel dimensions\"]}\n```"
     },

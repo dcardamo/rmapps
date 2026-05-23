@@ -1546,6 +1546,13 @@ dependencies = [
 [[package]]
 name = "inkapp-harness"
 version = "0.1.0"
+dependencies = [
+ "image",
+ "inkapp-core",
+ "inkapp-remarkable",
+ "typst",
+ "typst-render",
+]
 
 [[package]]
 name = "inkapp-remarkable"
