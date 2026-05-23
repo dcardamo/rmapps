@@ -64,3 +64,282 @@ pub fn render_document<M>(doc: &Document<M>, version: u64) -> Result<RenderedDoc
         hash: hash_str(&src),
     })
 }
+
+// ---- Multi-cycle loop driver ------------------------------------------------
+
+use std::collections::HashMap;
+
+use crate::document::Documents;
+use crate::ink::Stroke;
+use crate::readback::{attribute, guard_version};
+use crate::reconcile::{reconcile, DocOp};
+
+/// Per-key state the framework carries between cycles.
+struct DocEntry {
+    manifest: Manifest,
+    page_h: f64,
+    hash: u64,
+    version: u64,
+    /// Accumulated user ink (PDF space) on this document — preserved across
+    /// re-renders by key.
+    ink: Vec<Stroke>,
+}
+
+/// The framework's view of the device's document set, keyed by `DocKey`.
+#[derive(Default)]
+pub struct DocSet {
+    entries: HashMap<String, DocEntry>,
+}
+
+impl DocSet {
+    /// The manifest of the document last rendered for `key`.
+    pub fn manifest(&self, key: &DocKey) -> Option<&Manifest> {
+        self.entries.get(&key.0).map(|e| &e.manifest)
+    }
+
+    /// The page height (points) last used for `key`.
+    pub fn page_h(&self, key: &DocKey) -> Option<f64> {
+        self.entries.get(&key.0).map(|e| e.page_h)
+    }
+
+    /// The preserved ink on `key` (empty if none / unknown).
+    pub fn ink(&self, key: &DocKey) -> &[Stroke] {
+        self.entries
+            .get(&key.0)
+            .map(|e| e.ink.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// All keys currently in the set.
+    pub fn keys(&self) -> Vec<DocKey> {
+        self.entries.keys().cloned().map(DocKey).collect()
+    }
+}
+
+type UpdateFn<M, Msg, Cx> = fn(Msg, &mut M, &Cx);
+type ViewFn<M, Msg, Cx> = fn(&M, &Cx) -> Documents<Msg>;
+
+/// The result of one `step`.
+pub struct Cycle<Msg> {
+    /// Messages decoded from this cycle's ink (before folding).
+    pub decoded: Vec<Msg>,
+    /// The reconciliation ops applied to the document set.
+    pub ops: Vec<DocOp>,
+    /// The documents that were created or updated (to push to the device).
+    pub rendered: Vec<RenderedDoc>,
+}
+
+/// An assembled MVU app: owned model + connectors, plus the `update`/`view`
+/// functions. `M` = model, `Msg` = message, `Cx` = the app's connectors struct.
+pub struct App<M, Msg, Cx> {
+    pub model: M,
+    pub connectors: Cx,
+    update: UpdateFn<M, Msg, Cx>,
+    view: ViewFn<M, Msg, Cx>,
+    version: u64,
+}
+
+impl<M, Msg, Cx> App<M, Msg, Cx> {
+    pub fn new(
+        model: M,
+        connectors: Cx,
+        update: UpdateFn<M, Msg, Cx>,
+        view: ViewFn<M, Msg, Cx>,
+    ) -> Self {
+        Self {
+            model,
+            connectors,
+            update,
+            view,
+            version: 1,
+        }
+    }
+
+    /// Render the full document set from current state, (re)populating `set`.
+    pub fn render(&mut self, set: &mut DocSet) -> Result<Vec<RenderedDoc>> {
+        let docs = (self.view)(&self.model, &self.connectors);
+        let mut out = Vec::new();
+        let mut entries = HashMap::new();
+        for doc in &docs.0 {
+            let rd = render_document(doc, self.version)?;
+            entries.insert(
+                rd.key.0.clone(),
+                DocEntry {
+                    manifest: rd.manifest.clone(),
+                    page_h: rd.page_h,
+                    hash: rd.hash,
+                    version: self.version,
+                    ink: Vec::new(),
+                },
+            );
+            out.push(rd);
+        }
+        set.entries = entries;
+        Ok(out)
+    }
+
+    /// One loop cycle: decode `ink_by_key` (pre-fold view + stored manifest),
+    /// fold the messages, re-render, reconcile, and update `set` (preserving ink
+    /// on surviving keys and appending this cycle's input ink).
+    pub fn step(
+        &mut self,
+        set: &mut DocSet,
+        ink_by_key: &HashMap<String, Vec<Stroke>>,
+    ) -> Result<Cycle<Msg>>
+    where
+        Msg: Clone,
+    {
+        // 1. Decode against the pre-fold trees + the stored manifests.
+        let pre = (self.view)(&self.model, &self.connectors);
+        let mut decoded: Vec<Msg> = Vec::new();
+        for doc in &pre.0 {
+            let Some(strokes) = ink_by_key.get(&doc.key.0) else {
+                continue;
+            };
+            let Some(entry) = set.entries.get(&doc.key.0) else {
+                continue;
+            };
+            // Staleness guard: the stored manifest's version is the base the ink
+            // was written against. Trivially holds single-user; the cheap seed of
+            // the future vector clock.
+            guard_version(entry.version, &entry.manifest)?;
+            let region_ink = attribute(strokes, &entry.manifest);
+            for c in &doc.flow {
+                decoded.extend(c.decode(&region_ink, &entry.manifest));
+            }
+        }
+
+        // 2. Fold each message through update, then bump version.
+        self.version += 1;
+        for m in decoded.clone() {
+            (self.update)(m, &mut self.model, &self.connectors);
+        }
+
+        // 3. Re-render the post-fold view.
+        let next = (self.view)(&self.model, &self.connectors);
+        let mut next_rendered: Vec<RenderedDoc> = Vec::new();
+        for doc in &next.0 {
+            next_rendered.push(render_document(doc, self.version)?);
+        }
+
+        // 4. Reconcile by key against the prior set.
+        let prev: Vec<(DocKey, u64)> = set
+            .entries
+            .iter()
+            .map(|(k, e)| (DocKey(k.clone()), e.hash))
+            .collect();
+        let next_pairs: Vec<(DocKey, u64)> = next_rendered
+            .iter()
+            .map(|rd| (rd.key.clone(), rd.hash))
+            .collect();
+        let ops = reconcile(&prev, &next_pairs);
+
+        // 5. Apply: build the new entry map, preserving ink on survivors and
+        //    appending this cycle's input ink. Collect created/updated for push.
+        let changed: HashMap<&str, ()> = ops
+            .iter()
+            .filter_map(|o| match o {
+                DocOp::Create(k) | DocOp::Update(k) => Some((k.0.as_str(), ())),
+                DocOp::Delete(_) => None,
+            })
+            .collect();
+        let mut new_entries: HashMap<String, DocEntry> = HashMap::new();
+        let mut rendered_out: Vec<RenderedDoc> = Vec::new();
+
+        for rd in next_rendered {
+            // Preserve prior ink for this key, then append this cycle's input.
+            let mut ink = set
+                .entries
+                .get(&rd.key.0)
+                .map(|e| e.ink.clone())
+                .unwrap_or_default();
+            if let Some(new_ink) = ink_by_key.get(&rd.key.0) {
+                ink.extend(new_ink.iter().cloned());
+            }
+            let is_changed = changed.contains_key(rd.key.0.as_str());
+            new_entries.insert(
+                rd.key.0.clone(),
+                DocEntry {
+                    manifest: rd.manifest.clone(),
+                    page_h: rd.page_h,
+                    hash: rd.hash,
+                    version: self.version,
+                    ink,
+                },
+            );
+            if is_changed {
+                rendered_out.push(rd);
+            }
+        }
+        set.entries = new_entries;
+
+        Ok(Cycle {
+            decoded,
+            ops,
+            rendered: rendered_out,
+        })
+    }
+}
+
+/// Builder entry point: `app(model).connector(cx).update(f).view(g).build()`.
+pub fn app<M>(model: M) -> Builder<M> {
+    Builder { model }
+}
+
+pub struct Builder<M> {
+    model: M,
+}
+
+impl<M> Builder<M> {
+    pub fn connector<Cx>(self, connectors: Cx) -> BuilderCx<M, Cx> {
+        BuilderCx {
+            model: self.model,
+            connectors,
+        }
+    }
+}
+
+pub struct BuilderCx<M, Cx> {
+    model: M,
+    connectors: Cx,
+}
+
+impl<M, Cx> BuilderCx<M, Cx> {
+    pub fn update<Msg>(self, update: UpdateFn<M, Msg, Cx>) -> BuilderUpd<M, Msg, Cx> {
+        BuilderUpd {
+            model: self.model,
+            connectors: self.connectors,
+            update,
+        }
+    }
+}
+
+pub struct BuilderUpd<M, Msg, Cx> {
+    model: M,
+    connectors: Cx,
+    update: UpdateFn<M, Msg, Cx>,
+}
+
+impl<M, Msg, Cx> BuilderUpd<M, Msg, Cx> {
+    pub fn view(self, view: ViewFn<M, Msg, Cx>) -> BuilderFull<M, Msg, Cx> {
+        BuilderFull {
+            model: self.model,
+            connectors: self.connectors,
+            update: self.update,
+            view,
+        }
+    }
+}
+
+pub struct BuilderFull<M, Msg, Cx> {
+    model: M,
+    connectors: Cx,
+    update: UpdateFn<M, Msg, Cx>,
+    view: ViewFn<M, Msg, Cx>,
+}
+
+impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
+    pub fn build(self) -> App<M, Msg, Cx> {
+        App::new(self.model, self.connectors, self.update, self.view)
+    }
+}

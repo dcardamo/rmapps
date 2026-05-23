@@ -24,4 +24,4 @@ pub use error::{Error, Result};
 pub use geometry::{DevicePoint, PdfPoint, PdfRect};
 pub use manifest::{Manifest, Region};
 pub use reconcile::{reconcile, DocOp};
-pub use runtime::{render_document, RenderedDoc};
+pub use runtime::{app, render_document, App, Cycle, DocSet, RenderedDoc};
