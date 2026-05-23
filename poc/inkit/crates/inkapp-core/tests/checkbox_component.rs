@@ -63,3 +63,24 @@ fn component_render_region_recovers() {
         "inline checkbox region recovers"
     );
 }
+
+#[test]
+fn decode_fires_on_scribble_out_too() {
+    // A dense scribble reads as ScribbledOut (non-Empty), so decode still emits
+    // the message. (Treating a scribble as an explicit un-check is future work.)
+    let cb = Checkbox::with_msg("done", Msg::Archived(42));
+    let mut pts = Vec::new();
+    for i in 0..12 {
+        let x = 2.0 + (i as f64) * 1.4;
+        let y = if i % 2 == 0 { 3.0 } else { 17.0 };
+        pts.push(PdfPoint { x, y });
+    }
+    let ink = vec![RegionInk {
+        region: "done".into(),
+        strokes: vec![Stroke {
+            points: pts,
+            highlighter: false,
+        }],
+    }];
+    assert_eq!(cb.decode(&ink, &manifest()), vec![Msg::Archived(42)]);
+}

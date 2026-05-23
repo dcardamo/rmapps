@@ -1,6 +1,6 @@
 use crate::component::Component;
 use crate::geometry::PdfPoint;
-use crate::ink::RegionInk;
+use crate::ink::{RegionInk, Stroke};
 use crate::manifest::Manifest;
 use crate::widget::{region_metadata, RenderCx, Widget};
 
@@ -73,7 +73,7 @@ impl<M> Checkbox<M> {
         };
         // Two stages: first the strokes bucketed to this region by name, then only
         // those with a point actually inside the rect.
-        let strokes: Vec<&crate::ink::Stroke> = ink
+        let strokes: Vec<&Stroke> = ink
             .iter()
             .filter(|ri| ri.region == self.name)
             .flat_map(|ri| &ri.strokes)
@@ -136,6 +136,10 @@ impl<M: Clone> Component for Checkbox<M> {
     }
 
     fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<M> {
+        // Any mark emits the message: ScribbledOut reads as non-Empty too, so a
+        // scribble also emits on_check. Treating a scribble as an explicit
+        // "un-check" is deferred; the keystone's archive is idempotent, so this
+        // is harmless for now.
         if self.read_state(ink, manifest) != CheckState::Empty {
             vec![self.on_check.clone()]
         } else {
