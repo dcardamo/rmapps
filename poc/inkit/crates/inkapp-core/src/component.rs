@@ -15,7 +15,8 @@ pub trait Component {
     type Msg;
     /// Emit Typst markup, including `<region>` metadata for each region.
     fn render(&self, cx: &mut RenderCx) -> String;
-    /// Interpret the attributed ink into messages. `ink` is the whole document's
-    /// region ink; the component filters to its own region name(s).
+    /// Interpret the attributed ink into messages. `ink` is pre-attributed: the
+    /// framework has already assigned strokes to regions (via `attribute`) before
+    /// calling `decode`. The component filters to its own region name(s).
     fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<Self::Msg>;
 }

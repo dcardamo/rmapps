@@ -48,4 +48,15 @@ fn decode_emits_on_ink() {
     }];
     assert_eq!(Marker.decode(&ink, &m), vec!["marked"]);
     assert!(Marker.decode(&[], &m).is_empty());
+    let other = vec![RegionInk {
+        region: "y".into(),
+        strokes: vec![Stroke {
+            points: vec![PdfPoint { x: 5.0, y: 5.0 }],
+            highlighter: false,
+        }],
+    }];
+    assert!(
+        Marker.decode(&other, &m).is_empty(),
+        "ink in another region is ignored"
+    );
 }
