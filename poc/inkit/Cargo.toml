@@ -6,6 +6,7 @@ members = [
     "crates/inkapp-remarkable",
     "crates/inkapp-harness",
     "crates/inkapp-readwise",
+    "crates/inkapp",
     "spikes/typst-readback",
 ]
 

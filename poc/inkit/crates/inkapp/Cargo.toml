@@ -1,0 +1,10 @@
+[package]
+name = "inkapp"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "inkapp facade: the app-authoring surface (core + default device)"
+
+[dependencies]
+inkapp-core = { path = "../inkapp-core" }
+inkapp-remarkable = { path = "../inkapp-remarkable" }

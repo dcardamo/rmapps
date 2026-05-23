@@ -45,14 +45,14 @@
     {
       "id": 7,
       "subject": "Task 7: Loop driver App/DocSet/step + builder",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6, 2],
       "description": "**Goal:** DocSet + App<M,Msg,Cx> render/step (decode pre-fold, fold, re-render, reconcile, preserve ink) + Cycle + builder.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/loop_driver.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test loop_driver\",\"acceptanceCriteria\":[\"DocSet{manifest,page_h,ink,keys}\",\"App render+step (Msg:Clone); Cycle{decoded,ops,rendered}\",\"decode pre-fold+guard; fold; re-render; reconcile; ink preserved\",\"builder app().connector().update().view().build()\",\"two-cycle archive->Delete + survivor preserved\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: inkapp-readwise cassette connector",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [],
       "description": "**Goal:** Cassette-backed Readwise connector: committed sample + overlay; queue/archive/add_highlight/archived/highlights; &self via Mutex; fake/from_cassette.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise/Cargo.toml\",\"crates/inkapp-readwise/src/lib.rs\",\"crates/inkapp-readwise/fixtures/cassette/articles.json\",\"Cargo.toml\",\"crates/inkapp-readwise/tests/connector.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-readwise\",\"acceptanceCriteria\":[\"ArticleId, Article{id,title,body,highlights}\",\"from_cassette/fake/queue/archive/add_highlight/archived/highlights\",\"queue excludes archived + merges highlights\",\"&self writes; cassette immutable\",\"committed articles.json >=3 short\"]}\n```"
     },
