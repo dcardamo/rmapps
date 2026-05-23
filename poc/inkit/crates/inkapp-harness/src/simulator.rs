@@ -29,13 +29,16 @@ impl Scenario {
     }
 
     /// Add a gesture targeting `region`.
+    #[must_use]
     pub fn mark(mut self, region: &str, g: Gesture) -> Self {
         self.steps.push((region.to_string(), g));
         self
     }
 }
 
-/// The result of one simulated cycle.
+/// The result of one simulated cycle. (The harness runs a single cycle per
+/// `simulate` call; a multi-cycle loop would collect a `Vec<StepTrace>` and this
+/// struct would gain a cycle/page index.)
 pub struct StepTrace {
     /// All synthesized strokes (PDF space).
     pub strokes: Vec<Stroke>,
@@ -50,6 +53,11 @@ fn synthesize(manifest: &Manifest, scenario: &Scenario) -> Vec<Stroke> {
     let mut strokes = Vec::new();
     for (region_name, gesture) in &scenario.steps {
         let Some(region) = manifest.regions.iter().find(|r| &r.name == region_name) else {
+            // A scenario targeting a region the manifest doesn't contain is almost
+            // always a typo; fail loudly in tests/debug rather than silently
+            // producing no ink (which could make an assertion pass for the wrong
+            // reason). Release builds skip it.
+            debug_assert!(false, "scenario targets unknown region {region_name:?}");
             continue;
         };
         let r = &region.rect;
@@ -70,6 +78,11 @@ fn synthesize(manifest: &Manifest, scenario: &Scenario) -> Vec<Stroke> {
 }
 
 /// Run one loop cycle entirely in software, through the real writer->parse path.
+///
+/// `manifest` MUST have been recovered from `render_src` (the same source is
+/// recompiled here to obtain page geometry for the device transform and the
+/// inspector). Passing a manifest from a different source would mismatch the
+/// page height. The exercisers build both in one chain.
 pub fn simulate(
     render_src: &str,
     manifest: &Manifest,
