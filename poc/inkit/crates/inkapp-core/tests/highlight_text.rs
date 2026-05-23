@@ -26,8 +26,16 @@ fn renders_one_region_per_token() {
         .collect();
     assert_eq!(toks.len(), TOKENS.len(), "one region per token");
     // Reading order: tok-0 left of tok-1 left of tok-2 ... on the same line.
+    // (Assumes all tokens fit on one line — true here: 6 short words on a 300pt page.)
     let mut ordered: Vec<&inkapp_core::manifest::Region> = toks.clone();
-    ordered.sort_by_key(|r| r.name.clone());
+    // Sort by numeric index so tok-10 sorts after tok-9, not after tok-1.
+    ordered.sort_by_key(|r| {
+        r.name
+            .strip_prefix("tok-")
+            .unwrap()
+            .parse::<usize>()
+            .unwrap()
+    });
     for pair in ordered.windows(2) {
         assert!(
             pair[0].rect.x0 <= pair[1].rect.x0,
@@ -96,4 +104,18 @@ fn non_highlighter_strokes_are_ignored() {
     ];
 
     assert!(w.read(&ink, &m).is_empty(), "pen strokes do not highlight");
+}
+
+#[test]
+fn tokens_with_markup_chars_are_safe() {
+    // Tokens containing Typst markup/string characters must not break compilation
+    // and must each still recover as a region.
+    let w = HighlightableText::new(&["a]b", "c\"d", "ok"]);
+    let m = rendered_manifest(&w);
+    let toks: Vec<_> = m
+        .regions
+        .iter()
+        .filter(|r| r.name.starts_with("tok-"))
+        .collect();
+    assert_eq!(toks.len(), 3, "all tokens recover despite markup chars");
 }

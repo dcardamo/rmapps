@@ -33,12 +33,20 @@ impl Widget for HighlightableText {
         //   0-based page and divide lengths by 1pt to get unitless floats.
         // - measure() inside #context returns a dict with .width and .height.
         // - Tokens are wrapped in #box[...] so they flow inline left-to-right.
+        // - The page index comes from Typst introspection (here().position().page),
+        //   not from the RenderCx page hint, which is why _cx is unused here.
         let mut s = String::new();
         for (i, tok) in self.tokens.iter().enumerate() {
+            // Escape backslash and double-quote for a Typst string literal.
+            // Other markup characters (], [, #) are literal inside a Typst string
+            // and don't need escaping. The string is bound to `t` and used for
+            // both measuring and inline display, so arbitrary token text is safe.
+            let esc = tok.replace('\\', "\\\\").replace('"', "\\\"");
             s.push_str(&format!(
-                "#box[#context [#metadata((name: \"tok-{i}\", page: here().position().page - 1, \
-                   x: here().position().x / 1pt, y: here().position().y / 1pt, \
-                   w: measure[\"{tok}\"].width / 1pt, h: measure[\"{tok}\"].height / 1pt)) <region>]{tok}] "
+                "#box[#let t = \"{esc}\"; #context [#metadata((name: \"tok-{i}\", \
+                   page: here().position().page - 1, x: here().position().x / 1pt, \
+                   y: here().position().y / 1pt, w: measure(t).width / 1pt, \
+                   h: measure(t).height / 1pt)) <region>]#t] "
             ));
         }
         s.push('\n');
