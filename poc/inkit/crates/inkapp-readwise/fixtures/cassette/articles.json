@@ -1,0 +1,7 @@
+{
+  "articles": [
+    { "id": "a1", "title": "On Slowness", "body": "the slow web rewards patience", "highlights": [] },
+    { "id": "a2", "title": "Ink and Paper", "body": "ink survives the round trip intact", "highlights": [] },
+    { "id": "a3", "title": "Lazy Dogs", "body": "the quick brown fox the lazy dog", "highlights": [] }
+  ]
+}

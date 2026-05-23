@@ -1560,6 +1560,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "inkapp-readwise"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "inkapp-remarkable"
 version = "0.1.0"
 dependencies = [
