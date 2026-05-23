@@ -1,0 +1,60 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-22-inkapp-foundation-typst-spike.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Monorepo skeleton + absorb rmfiles",
+      "status": "pending",
+      "description": "**Goal:** Cargo workspace under one nix flake and `make test`, with rmfiles moved in from ~/git/rmfiles and its tests green.\n\n**Files:** Cargo.toml (workspace), flake.nix, nix/overlays/rmapi.nix, .envrc, Makefile, .gitignore, .githooks/pre-commit, crates/rmfiles/** (copied).\n\n**Verify:** `make test` -> rmfiles tests pass.\n\n```json:metadata\n{\"files\": [\"Cargo.toml\", \"flake.nix\", \"nix/overlays/rmapi.nix\", \".envrc\", \"Makefile\", \".gitignore\", \".githooks/pre-commit\", \"crates/rmfiles\"], \"verifyCommand\": \"nix develop -c cargo test && nix develop -c cargo clippy --all-targets -- -D warnings\", \"acceptanceCriteria\": [\"workspace builds\", \"rmfiles tests pass\", \"clippy clean\", \"Cargo.lock committed\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: docs/ narrative set",
+      "status": "pending",
+      "description": "**Goal:** Foundational docs (why/how-it-works/inspiration/glossary) exist; remarkable-pdf-mechanics.md moved in. Independent of the spike (parallelizable).\n\n**Files:** docs/why.md, docs/how-it-works.md, docs/inspiration.md, docs/glossary.md, docs/remarkable-pdf-mechanics.md (moved), docs/README.md.\n\n**Verify:** all five narrative files non-empty; inter-doc links resolve; glossary defines app/handler/document/manifest/region/readback/sync/device.\n\n```json:metadata\n{\"files\": [\"docs/why.md\", \"docs/how-it-works.md\", \"docs/inspiration.md\", \"docs/glossary.md\", \"docs/remarkable-pdf-mechanics.md\", \"docs/README.md\"], \"verifyCommand\": \"bash -c 'for f in why how-it-works inspiration glossary remarkable-pdf-mechanics; do test -s docs/$f.md || exit 1; done && echo OK'\", \"acceptanceCriteria\": [\"five narrative files non-empty\", \"mechanics doc matches source\", \"links resolve\", \"glossary terms defined\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Typst spike scaffold - compile to PDF as a library",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** spikes/typst-readback crate compiles in-memory Typst to a valid PDF via the Typst library (World + compile + typst-pdf).\n\n**Files:** Cargo.toml (add member), spikes/typst-readback/Cargo.toml, src/lib.rs (compile_pdf), src/world.rs (SpikeWorld), tests/scaffold.rs.\n\n**Verify:** `cargo test -p typst-readback --test scaffold` PASS (PDF header + one page via lopdf).\n\n```json:metadata\n{\"files\": [\"Cargo.toml\", \"spikes/typst-readback/Cargo.toml\", \"spikes/typst-readback/src/lib.rs\", \"spikes/typst-readback/src/world.rs\", \"spikes/typst-readback/tests/scaffold.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p typst-readback --test scaffold\", \"acceptanceCriteria\": [\"compile_pdf returns %PDF bytes\", \"one page via lopdf\", \"runs device-free\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Bar 1 - recover region rects in PDF coordinates (make-or-break)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Typst doc computes labelled region rects, exposes them via metadata+query; converted to PDF bottom-left coords they match where regions render (within 1.0pt, cross-checked against PNG).\n\n**Files:** src/regions.rs (compile_with_regions, TypstRegion, PdfRect, typst_to_pdf_rect), tests/regions.rs, tests/fixtures/regions.typ, src/lib.rs (expose regions).\n\n**Verify:** `cargo test -p typst-readback --test regions` PASS.\n\n```json:metadata\n{\"files\": [\"spikes/typst-readback/src/regions.rs\", \"spikes/typst-readback/tests/regions.rs\", \"spikes/typst-readback/tests/fixtures/regions.typ\", \"spikes/typst-readback/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p typst-readback --test regions\", \"acceptanceCriteria\": [\"metadata+query yields label/page/pos/size\", \"typst_to_pdf_rect converts coords\", \"recovered rect within 1.0pt of expected\", \"PNG cross-check: border pixel inside rect\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Bar 2 - tappable internal + external links",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Links survive Typst->PDF as real annotations (internal Dest/GoTo + external URI), verified via lopdf.\n\n**Files:** tests/links.rs, tests/fixtures/links.typ.\n\n**Verify:** `cargo test -p typst-readback --test links` PASS.\n\n```json:metadata\n{\"files\": [\"spikes/typst-readback/tests/links.rs\", \"spikes/typst-readback/tests/fixtures/links.typ\"], \"verifyCommand\": \"nix develop -c cargo test -p typst-readback --test links\", \"acceptanceCriteria\": [\">=2 Link annotations\", \"external URI link == https://example.com\", \"internal Dest or GoTo present\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Bar 3 - HTML content into Typst",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Representative HTML (headings/paragraphs/bold/italic/list/link) converts to Typst markup; compiled PDF text contains expected strings. Limits documented in Task 8.\n\n**Files:** src/html.rs (html_to_typst), tests/html.rs, tests/fixtures/article.html.\n\n**Verify:** `cargo test -p typst-readback --test html` PASS.\n\n```json:metadata\n{\"files\": [\"spikes/typst-readback/src/html.rs\", \"spikes/typst-readback/tests/html.rs\", \"spikes/typst-readback/tests/fixtures/article.html\"], \"verifyCommand\": \"nix develop -c cargo test -p typst-readback --test html\", \"acceptanceCriteria\": [\"HTML fixture converts to Typst\", \"compiled PDF text contains heading/body/list items\", \"limits noted for findings\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Bar 5 (structure) - content-only leading-page invariant",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Re-rendering with appended trailing pages leaves leading pages' MediaBox/order intact and a leading region's rect unchanged (within 1.0pt), so rmapi --content-only won't scramble ink.\n\n**Files:** tests/content_only.rs, src/lib.rs (test_docs::{LEADING,V1,V2}).\n\n**Verify:** `cargo test -p typst-readback --test content_only` PASS.\n\n```json:metadata\n{\"files\": [\"spikes/typst-readback/tests/content_only.rs\", \"spikes/typst-readback/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p typst-readback --test content_only\", \"acceptanceCriteria\": [\"v2 has more pages than v1\", \"first N MediaBoxes identical\", \"leading region rect unchanged within 1.0pt\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: On-device harness + go/no-go findings doc",
+      "status": "pending",
+      "blockedBy": [4, 5, 6, 7],
+      "description": "**Goal:** Opt-in on-device push (mirrors rmreader rmapi) for manual bars 4 + device-half of 5 + optional stretch full loop; write the spike's go/no-go findings.\n\n**Files:** src/rmapi.rs (push_content_only), tests/on_device.rs (#[ignore]), docs/superpowers/spikes/2026-05-22-typst-readback-findings.md.\n\n**Verify:** `cargo test -p typst-readback` all non-ignored PASS; findings doc has go/no-go verdict.\n\n```json:metadata\n{\"files\": [\"spikes/typst-readback/src/rmapi.rs\", \"spikes/typst-readback/tests/on_device.rs\", \"docs/superpowers/spikes/2026-05-22-typst-readback-findings.md\"], \"verifyCommand\": \"nix develop -c cargo test -p typst-readback\", \"acceptanceCriteria\": [\"push_content_only shells out non-interactively\", \"on_device test ignored by default\", \"findings doc states go/no-go + per-bar results\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-22T21:00:00Z"
+}
