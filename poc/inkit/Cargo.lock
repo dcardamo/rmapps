@@ -3263,7 +3263,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "comemo",
+ "image",
  "lopdf",
+ "serde",
+ "serde_json",
  "tempfile",
  "typst",
  "typst-kit",

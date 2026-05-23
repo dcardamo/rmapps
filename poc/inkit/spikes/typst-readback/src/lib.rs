@@ -1,3 +1,4 @@
+pub mod regions;
 pub mod world;
 
 use anyhow::{anyhow, Result};
