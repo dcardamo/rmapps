@@ -300,3 +300,76 @@ fn text_off_manifest_warns() {
     assert!(p.highlights.is_empty());
     assert_eq!(p.warnings.len(), 1);
 }
+
+// ---------------------------------------------------------------------------
+// v2 category mapping — Bug B fix.
+// ---------------------------------------------------------------------------
+
+/// Build a one-doc manifest whose doc has the given Reader category string.
+fn manifest_with_category(reader_category: &str) -> EmbeddedManifest {
+    EmbeddedManifest {
+        schema_version: 1,
+        collection: "Library".into(),
+        docs: vec![EmbeddedDoc {
+            id: "d1".into(),
+            title: "One".into(),
+            url: "https://a".into(),
+            author: "A".into(),
+            category: reader_category.to_string(),
+            page_range: PageRange { first: 0, last: 0 },
+        }],
+        label_rects: vec![],
+    }
+}
+
+/// A Reader "article" (singular) category must map to the v2 "articles" value.
+#[test]
+fn reader_category_article_maps_to_v2_articles() {
+    let m = manifest_with_category("article");
+    let p = classify(&m, &[thit(0, "Some body text")], &[], |_, _| String::new());
+    assert_eq!(p.highlights.len(), 1);
+    assert_eq!(p.highlights[0].category, "articles");
+}
+
+/// Reader category "tweet" maps to v2 "tweets".
+#[test]
+fn reader_category_tweet_maps_to_v2_tweets() {
+    let m = manifest_with_category("tweet");
+    let p = classify(&m, &[thit(0, "Some tweet text")], &[], |_, _| String::new());
+    assert_eq!(p.highlights.len(), 1);
+    assert_eq!(p.highlights[0].category, "tweets");
+}
+
+/// An empty reader category falls back to "articles".
+#[test]
+fn empty_reader_category_maps_to_articles() {
+    let m = manifest_with_category("");
+    let p = classify(&m, &[thit(0, "Some text")], &[], |_, _| String::new());
+    assert_eq!(p.highlights.len(), 1);
+    assert_eq!(p.highlights[0].category, "articles");
+}
+
+// ---------------------------------------------------------------------------
+// HTML entity decoding — quality fix.
+// ---------------------------------------------------------------------------
+
+/// Highlight text containing `&apos;` should be decoded to `'` before upload.
+#[test]
+fn text_highlight_decodes_html_entities() {
+    let m = manifest_with_category("article");
+    let p = classify(&m, &[thit(0, "I&apos;m reading this")], &[], |_, _| {
+        String::new()
+    });
+    assert_eq!(p.highlights.len(), 1);
+    assert_eq!(p.highlights[0].text, "I'm reading this");
+}
+
+/// `&amp;` followed by another entity name must NOT double-decode.
+/// `&amp;lt;` → `&lt;` (one round of decoding), NOT `<`.
+#[test]
+fn amp_entity_is_decoded_only_once() {
+    let m = manifest_with_category("article");
+    let p = classify(&m, &[thit(0, "a &amp; b")], &[], |_, _| String::new());
+    assert_eq!(p.highlights.len(), 1);
+    assert_eq!(p.highlights[0].text, "a & b");
+}

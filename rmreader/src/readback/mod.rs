@@ -104,7 +104,7 @@ pub fn detect(bundle_path: &std::path::Path) -> anyhow::Result<Plan> {
     }))
 }
 
-fn execute(t: &dyn HttpTransport, token: &str, plan: &Plan) {
+pub fn execute(t: &dyn HttpTransport, token: &str, plan: &Plan) {
     for (id, kind) in &plan.actions {
         // Exhaustive match: a new ActionKind variant will cause a compile error
         // rather than a runtime panic.

@@ -5,6 +5,28 @@ use crate::manifest::EmbeddedManifest;
 use crate::readback::coords::PdfRect;
 use crate::readwise::{ActionKind, HighlightCreate};
 
+/// Map a Readwise Reader category to a valid v2 highlights category.
+/// Only `books`, `articles`, `tweets`, and `podcasts` are accepted by the v2 API.
+fn v2_category(reader_category: &str) -> &'static str {
+    match reader_category.trim().to_ascii_lowercase().as_str() {
+        "tweet" | "tweets" => "tweets",
+        "podcast" | "podcasts" => "podcasts",
+        "book" | "books" | "epub" => "books",
+        _ => "articles",
+    }
+}
+
+/// Decode common HTML entities in highlight text.
+/// Processes `&amp;` first to avoid double-decoding (e.g. `&amp;lt;` → `&lt;`, not `<`).
+fn decode_entities(s: &str) -> String {
+    s.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+}
+
 /// A highlighter stroke's bounding box on a page, in PDF points (bottom-left origin).
 #[derive(Debug, Clone)]
 pub struct StrokeHit {
@@ -80,7 +102,7 @@ pub fn classify(
         match ActionKind::parse_label(&hit.text) {
             Some(kind) => acted.entry(doc.id.clone()).or_default().push(kind),
             None => {
-                let text = hit.text.trim().to_string();
+                let text = decode_entities(hit.text.trim());
                 if text.is_empty() {
                     plan.warnings.push(format!(
                         "text highlight on page {} was empty; skipped",
@@ -92,11 +114,7 @@ pub fn classify(
                         title: doc.title.clone(),
                         author: doc.author.clone(),
                         source_url: doc.url.clone(),
-                        category: if doc.category.is_empty() {
-                            "articles".into()
-                        } else {
-                            doc.category.clone()
-                        },
+                        category: v2_category(&doc.category).to_string(),
                     });
                 }
             }
@@ -129,7 +147,7 @@ pub fn classify(
         match best.and_then(|(lr, _)| ActionKind::parse_label(&lr.kind)) {
             Some(kind) => acted.entry(doc.id.clone()).or_default().push(kind),
             None => {
-                let text = words_under(hit.page, &hit.bbox).trim().to_string();
+                let text = decode_entities(words_under(hit.page, &hit.bbox).trim());
                 if text.is_empty() {
                     plan.warnings.push(format!(
                         "content highlight on page {} recovered no text; skipped",
@@ -141,11 +159,7 @@ pub fn classify(
                         title: doc.title.clone(),
                         author: doc.author.clone(),
                         source_url: doc.url.clone(),
-                        category: if doc.category.is_empty() {
-                            "articles".into()
-                        } else {
-                            doc.category.clone()
-                        },
+                        category: v2_category(&doc.category).to_string(),
                     });
                 }
             }
