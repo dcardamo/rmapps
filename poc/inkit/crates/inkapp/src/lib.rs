@@ -5,7 +5,9 @@ pub use inkapp_core::component::Component;
 pub use inkapp_core::device::Device;
 pub use inkapp_core::document::{DocKey, Document, Documents};
 pub use inkapp_core::manifest::{Manifest, Region};
-pub use inkapp_core::runtime::{app, render_document, App, Cycle, DocSet, RenderedDoc};
+pub use inkapp_core::runtime::{
+    app, document_source, render_document, App, Cycle, DocSet, RenderedDoc,
+};
 pub use inkapp_core::{flow, widget, widgets};
 
 pub use inkapp_remarkable::Remarkable;

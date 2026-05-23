@@ -16,7 +16,10 @@ use reading_queue::{update, view, App, Connectors};
 fn on_device_round_trip() {
     let device = Remarkable::new();
     let mut application = app(App)
-        .connector(Connectors::from_cassette())
+        .connector(Connectors::persisted(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/.overlay.json"
+        )))
         .update(update)
         .view(view)
         .build();

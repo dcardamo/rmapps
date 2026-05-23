@@ -8,3 +8,6 @@ description = "Cassette-backed Readwise connector for inkapp (committed real-sha
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

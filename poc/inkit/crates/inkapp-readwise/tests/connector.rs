@@ -1,6 +1,25 @@
 use inkapp_readwise::Readwise;
 
 #[test]
+fn overlay_persists_across_instances() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("overlay.json");
+
+    let rw = Readwise::persisted(&path);
+    let id = rw.queue()[0].id.clone();
+    rw.archive(&id);
+    drop(rw);
+
+    // A fresh connector backed by the same path reloads the archive.
+    let rw2 = Readwise::persisted(&path);
+    assert!(rw2.archived().contains(&id), "archive survived reload");
+    assert!(
+        rw2.queue().iter().all(|a| a.id != id),
+        "archived article stays out of the queue after reload"
+    );
+}
+
+#[test]
 fn cassette_loads_articles() {
     let rw = Readwise::from_cassette();
     assert!(rw.queue().len() >= 3, "committed cassette has articles");

@@ -199,9 +199,10 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             let Some(entry) = set.entries.get(&doc.key.0) else {
                 continue;
             };
-            // Staleness guard: the stored manifest's version is the base the ink
-            // was written against. Trivially holds single-user; the cheap seed of
-            // the future vector clock.
+            // Entries are version-stamped at render time, so this check is
+            // structural today (entry.version == entry.manifest.version by
+            // construction). It reserves the call site for the future path where
+            // ink carries its own base version (multi-device / vector clock).
             guard_version(entry.version, &entry.manifest)?;
             let region_ink = attribute(strokes, &entry.manifest);
             for c in &doc.flow {

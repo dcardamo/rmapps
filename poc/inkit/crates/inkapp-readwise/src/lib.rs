@@ -32,7 +32,7 @@ struct Cassette {
     articles: Vec<Article>,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 struct Overlay {
     archived: Vec<ArticleId>,
     added: Vec<(ArticleId, String)>,
@@ -43,6 +43,7 @@ struct Overlay {
 pub struct Readwise {
     cassette: Vec<Article>,
     overlay: Mutex<Overlay>,
+    persist_path: Option<std::path::PathBuf>,
 }
 
 impl Readwise {
@@ -53,6 +54,7 @@ impl Readwise {
         Self {
             cassette: c.articles,
             overlay: Mutex::new(Overlay::default()),
+            persist_path: None,
         }
     }
 
@@ -75,6 +77,27 @@ impl Readwise {
         Self {
             cassette: articles,
             overlay: Mutex::new(Overlay::default()),
+            persist_path: None,
+        }
+    }
+
+    /// Like `from_cassette`, but the working overlay is loaded from `path` (if it
+    /// exists) and saved back on every write — so manual on-device use survives
+    /// process restarts. The committed cassette is still read-only.
+    pub fn persisted(path: impl Into<std::path::PathBuf>) -> Self {
+        let path = path.into();
+        let raw = include_str!("../fixtures/cassette/articles.json");
+        let cassette: Vec<Article> = serde_json::from_str::<Cassette>(raw)
+            .expect("valid committed cassette")
+            .articles;
+        let overlay = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        Self {
+            cassette,
+            overlay: Mutex::new(overlay),
+            persist_path: Some(path),
         }
     }
 
@@ -97,12 +120,22 @@ impl Readwise {
             .collect()
     }
 
+    /// Persist the overlay to `persist_path` if set (no-op for in-memory connectors).
+    fn save(&self, overlay: &Overlay) {
+        if let Some(path) = &self.persist_path {
+            if let Ok(json) = serde_json::to_string_pretty(overlay) {
+                let _ = std::fs::write(path, json);
+            }
+        }
+    }
+
     /// Record an archive (recorded, returns nothing — appdx write shape).
     pub fn archive(&self, id: &ArticleId) {
         let mut ov = self.overlay.lock().unwrap();
         if !ov.archived.contains(id) {
             ov.archived.push(id.clone());
         }
+        self.save(&ov);
     }
 
     /// Record a highlight (idempotent: a repeated (id, text) is recorded once,
@@ -112,6 +145,7 @@ impl Readwise {
         if !ov.added.iter().any(|(i, t)| i == id && t == text) {
             ov.added.push((id.clone(), text.to_string()));
         }
+        self.save(&ov);
     }
 
     /// The archived ids (for assertions / surfacing).

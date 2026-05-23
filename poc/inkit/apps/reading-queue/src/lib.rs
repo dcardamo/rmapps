@@ -42,6 +42,12 @@ impl Connectors {
             readwise: Readwise::from_cassette(),
         }
     }
+
+    pub fn persisted(path: impl Into<std::path::PathBuf>) -> Self {
+        Connectors {
+            readwise: Readwise::persisted(path),
+        }
+    }
 }
 
 /// The only place app logic lives: mutate state (none) and call connectors.
