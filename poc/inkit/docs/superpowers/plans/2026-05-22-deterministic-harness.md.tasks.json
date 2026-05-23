@@ -45,14 +45,14 @@
     {
       "id": 6,
       "subject": "Task 6: Widget trait + region helper + checkbox",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "ink.rs (Stroke{points,highlighter}+bbox, RegionInk), widget.rs (Widget, RenderCx, region_metadata), checkbox.rs. Tests for read true/false + render declares region.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/widget.rs\", \"crates/inkapp-core/src/ink.rs\", \"crates/inkapp-core/src/widgets/mod.rs\", \"crates/inkapp-core/src/widgets/checkbox.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/checkbox.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test checkbox\", \"acceptanceCriteria\": [\"Stroke/RegionInk defined\", \"Widget trait + region_metadata + RenderCx\", \"Checkbox read/render correct\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Device trait + attribution + diffing + version guard",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "device.rs Device trait (pdf_to_device, device_to_pdf, read_ink, write_ink); readback.rs attribute (containment), diff_new, guard_version. Tests.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/device.rs\", \"crates/inkapp-core/src/readback.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/readback.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test readback\", \"acceptanceCriteria\": [\"Device trait (4 methods)\", \"attribute by containment\", \"diff_new + guard_version\"]}\n```"
     },
