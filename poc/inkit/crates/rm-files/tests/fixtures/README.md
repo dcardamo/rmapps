@@ -1,4 +1,4 @@
-# rmfiles test fixtures
+# rm-files test fixtures
 
 Real reMarkable Paper Pro captures (committed) used as ground truth for the parser.
 
