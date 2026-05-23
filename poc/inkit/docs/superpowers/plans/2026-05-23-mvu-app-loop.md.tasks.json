@@ -4,7 +4,7 @@
     {
       "id": 1,
       "subject": "Task 1: Component trait (inkapp-core)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Add the `Component` trait (render Typst + decode ink->Vec<Msg>); keep `Widget` untouched.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/component.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/component.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test component\",\"acceptanceCriteria\":[\"Component trait: type Msg, render, decode\",\"re-exported as inkapp_core::Component\",\"test component renders region + decodes ink\"]}\n```"
     },
     {
@@ -85,5 +85,5 @@
       "description": "**Goal:** #[ignore] on-device round-trip via rmapi (serve.rs) + Readwise cassette refresh (READWISE_TOKEN); make test green; clippy clean.\n\n```json:metadata\n{\"files\":[\"apps/reading-queue/src/serve.rs\",\"apps/reading-queue/src/lib.rs\",\"apps/reading-queue/Cargo.toml\",\"apps/reading-queue/tests/device.rs\",\"crates/inkapp-readwise/tests/refresh.rs\",\"crates/inkapp-readwise/Cargo.toml\"],\"verifyCommand\":\"nix develop -c cargo test -p reading-queue && nix develop -c cargo test -p inkapp-readwise\",\"acceptanceCriteria\":[\"serve push/pull/delete + publish/sync_once\",\"#[ignore] on_device_round_trip rmapi-only\",\"#[ignore] refresh_cassette reads READWISE_TOKEN, rewrites articles.json\",\"rmapi v4/token/mkdir honored\",\"make test green; clippy clean\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-23"
+  "lastUpdated": "2026-05-23T01"
 }

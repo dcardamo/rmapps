@@ -128,7 +128,7 @@ impl<M: Clone> Component for Checkbox<M> {
         let name = &self.name;
         let label = self.label.replace('\\', "\\\\").replace('"', "\\\"");
         format!(
-            "#box[#let t = \"{name}\"; #context [#metadata((name: \"{name}\", \
+            "#box[#context [#metadata((name: \"{name}\", \
                page: here().position().page - 1, x: here().position().x / 1pt, \
                y: here().position().y / 1pt, w: 14, h: 14)) <region>]\
              #rect(width: 14pt, height: 14pt, stroke: 0.5pt)] #text[{label}]\n"
