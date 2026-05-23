@@ -1,5 +1,7 @@
 mod common;
 
+use std::path::Path;
+
 use inkapp_harness::recording::{catalog, render_calibration, render_template};
 
 use common::{rmapi_get, rmapi_mkdir, rmapi_put};
@@ -26,7 +28,8 @@ fn push_templates() {
         rmapi_put(&path, FIXTURES_FOLDER);
     }
     eprintln!(
-        "pushed templates to {FIXTURES_FOLDER}; draw on each, sync, then run pull_recordings"
+        "pushed calibration sheet + templates to {FIXTURES_FOLDER}; tap the calibration crosses \
+         and draw on each template, sync, then run pull_recordings"
     );
 }
 
@@ -37,6 +40,6 @@ fn push_templates() {
 fn pull_recordings() {
     let dest = format!("{}/tests/fixtures/recordings", env!("CARGO_MANIFEST_DIR"));
     std::fs::create_dir_all(&dest).unwrap();
-    rmapi_get(FIXTURES_FOLDER, std::path::Path::new(&dest));
+    rmapi_get(FIXTURES_FOLDER, Path::new(&dest));
     eprintln!("pulled {FIXTURES_FOLDER} into {dest}; re-run the regen test to extract fixtures");
 }

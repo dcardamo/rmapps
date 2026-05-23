@@ -30,7 +30,10 @@ fn writes_and_pushes_rm() {
         ],
         highlighter: false,
     };
-    let _rm = device.write_ink(&[stroke], PAGE_H).unwrap();
+    let rm = device.write_ink(&[stroke], PAGE_H).unwrap();
+    // Write to a persistent path (not the tempdir) so the operator can sideload it manually.
+    let rm_path = std::env::temp_dir().join("inkapp-acceptance.rm");
+    std::fs::write(&rm_path, &rm).unwrap();
 
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("acceptance.pdf");
@@ -39,9 +42,13 @@ fn writes_and_pushes_rm() {
     rmapi_mkdir("/InkAppDev");
     rmapi_mkdir(ACCEPTANCE_FOLDER);
     rmapi_put(&path, ACCEPTANCE_FOLDER);
+    // NOTE: the sideload step below is a MANUAL operator action — this test cannot do it
+    // automatically because rmapi content-only push carries the PDF only, not .rm bundles.
     eprintln!(
-        "pushed acceptance doc to {ACCEPTANCE_FOLDER}. NOTE: content-only push carries the \
-         PDF only; to verify the WRITTEN .rm renders, sideload the .rm into the page's \
-         annotation bundle and confirm the horizontal line at y=500 appears. See spec section H#3."
+        "pushed acceptance PDF to {ACCEPTANCE_FOLDER}; wrote the framework-generated .rm to {}.\n\
+         content-only push carries the PDF only — to verify the WRITTEN .rm renders, MANUALLY \
+         sideload that .rm into the page's annotation bundle and confirm the horizontal line at \
+         y=500 appears. See spec section H#3.",
+        rm_path.display()
     );
 }
