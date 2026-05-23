@@ -59,14 +59,14 @@
     {
       "id": 8,
       "subject": "Task 8: inkapp-remarkable Device impl",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7, 2],
       "description": "Remarkable Device: fit-to-width PDF<->scene transform (invertible), read_ink/write_ink via rm_files Scene::parse / write_scene; Highlighter2/Highlight vs Fineliner1/Black. Transform fidelity to real device is Spec 3.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-remarkable/Cargo.toml\", \"crates/inkapp-remarkable/src/lib.rs\", \"crates/inkapp-remarkable/tests/device.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-remarkable\", \"acceptanceCriteria\": [\"transform invertible\", \"ink round-trips through .rm with highlighter flag\", \"uses rm-files reader+writer\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 9: highlightable-text widget + span-level regions (central risk)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 3],
       "description": "HighlightableText: each token a `tok-<i>` region via #context here().position()/measure metadata; read returns highlighted token strings (pen ignored). CENTRAL RISK: if per-token rects unreliable, record finding in docs/superpowers/spikes/.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/widgets/highlight_text.rs\", \"crates/inkapp-core/src/widgets/mod.rs\", \"crates/inkapp-core/tests/highlight_text.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test highlight_text\", \"acceptanceCriteria\": [\"one region per token, ordered\", \"read returns highlighted token strings\", \"per-token rects recovered or finding recorded\"]}\n```"
     },
