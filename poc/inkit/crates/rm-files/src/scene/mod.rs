@@ -96,6 +96,36 @@ impl Scene {
     }
 }
 
+/// A structural summary of one top-level v6 block: its framing only, not its
+/// decoded body. Used to compare writer output against real device files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockSummary {
+    /// Block type byte (e.g. `0x05` for a scene line item).
+    pub block_type: u8,
+    /// The block's `current_version` header byte.
+    pub current_version: u8,
+    /// Content length in bytes (excludes the 8-byte block header).
+    pub content_len: usize,
+}
+
+/// Walk the top-level block stream and summarise each block's framing without
+/// decoding item bodies. A structural inspector for writer-vs-device comparison.
+pub fn block_structure(bytes: &[u8]) -> Result<Vec<BlockSummary>> {
+    let mut r = Reader::new(bytes);
+    let _version = r.read_header()?;
+    let mut out = Vec::new();
+    while let Some(h) = r.read_block_header()? {
+        out.push(BlockSummary {
+            block_type: h.block_type,
+            current_version: h.current_version,
+            // h.size is the declared content length (excludes the 8-byte block header).
+            content_len: h.size,
+        });
+        r.seek(h.end())?;
+    }
+    Ok(out)
+}
+
 /// Decode a `SceneLineItemBlock`. Mirrors rmscene's `SceneItemBlock`:
 /// parent_id(1), item_id(2), left_id(3), right_id(4), deleted_length(5), then an
 /// optional value sub-block(6) whose first byte is the item type, followed by
