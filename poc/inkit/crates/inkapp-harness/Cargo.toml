@@ -7,10 +7,11 @@ description = "In-software loop simulator and layers inspector for inkapp"
 
 [dependencies]
 inkapp-core = { path = "../inkapp-core" }
-inkapp-remarkable = { path = "../inkapp-remarkable" }
 typst = "0.14"
 typst-render = "0.14"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [dev-dependencies]
-image = { version = "0.25", default-features = false, features = ["png"] }
+# The harness src is generic over `&dyn Device`; the concrete reMarkable device
+# is only needed to drive the simulator/exercisers in tests.
+inkapp-remarkable = { path = "../inkapp-remarkable" }

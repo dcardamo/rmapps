@@ -1,6 +1,7 @@
 use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::recover_regions;
+use inkapp_core::readback::attribute;
 use inkapp_core::render::compile_to_document;
 use inkapp_core::widget::{RenderCx, Widget};
 use inkapp_core::widgets::highlight_text::HighlightableText;
@@ -76,6 +77,33 @@ fn read_returns_highlighted_tokens() {
     let mut got = w.read(&ink, &m);
     got.sort();
     assert_eq!(got, vec!["dog".to_string(), "lazy".to_string()]);
+}
+
+#[test]
+fn swipe_highlights_only_covered_tokens_via_real_attribution() {
+    // Discrimination check: a single highlighter swipe across only "lazy"/"dog",
+    // run through the REAL `attribute` over all six token regions, must highlight
+    // exactly those two — not neighbours like "fox" or "brown".
+    let w = HighlightableText::new(TOKENS);
+    let m = rendered_manifest(&w);
+
+    let lazy = m.regions.iter().find(|r| r.name == "tok-4").unwrap().rect;
+    let dog = m.regions.iter().find(|r| r.name == "tok-5").unwrap().rect;
+    let y = (lazy.y0 + lazy.y1) / 2.0;
+    let swipe = Stroke {
+        points: vec![PdfPoint { x: lazy.x0, y }, PdfPoint { x: dog.x1, y }],
+        highlighter: true,
+    };
+
+    // Real attribution decides which token regions the swipe falls in.
+    let ink = attribute(&[swipe], &m);
+    let mut got = w.read(&ink, &m);
+    got.sort();
+    assert_eq!(
+        got,
+        vec!["dog".to_string(), "lazy".to_string()],
+        "only the covered tokens are highlighted (no false positives on neighbours)"
+    );
 }
 
 #[test]
