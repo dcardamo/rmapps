@@ -38,7 +38,7 @@
     {
       "id": 5,
       "subject": "Task 5: Embed manifest in PDF + extract",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "embed_manifest/extract_manifest via lopdf Info dict key InkappManifest. Round-trip test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/embed.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/embed.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test embed\", \"acceptanceCriteria\": [\"embed writes Info dict JSON\", \"extract reads it\", \"round-trip equals original\"]}\n```"
     },
