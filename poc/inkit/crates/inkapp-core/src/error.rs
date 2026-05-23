@@ -9,6 +9,8 @@ pub enum Error {
     Region(String),
     #[error("manifest (de)serialisation failed: {0}")]
     Manifest(String),
+    #[error("readback failed: {0}")]
+    Readback(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

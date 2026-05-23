@@ -52,6 +52,41 @@ fn attributes_strokes_to_regions() {
 }
 
 #[test]
+fn stroke_in_overlap_is_attributed_to_both_regions() {
+    // Two overlapping regions; a stroke point in the overlap must land in BOTH.
+    // This is the behaviour the span-level highlight widget (Task 9) relies on.
+    let m = Manifest {
+        version: 1,
+        regions: vec![
+            Region {
+                name: "a".into(),
+                page: 0,
+                rect: PdfRect {
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: 20.0,
+                    y1: 20.0,
+                },
+            },
+            Region {
+                name: "b".into(),
+                page: 0,
+                rect: PdfRect {
+                    x0: 5.0,
+                    y0: 5.0,
+                    x1: 25.0,
+                    y1: 25.0,
+                },
+            },
+        ],
+    };
+    let ink = attribute(&[stroke(10.0, 10.0)], &m);
+    assert!(ink.iter().any(|ri| ri.region == "a"), "attributed to a");
+    assert!(ink.iter().any(|ri| ri.region == "b"), "attributed to b");
+    assert_eq!(ink.iter().map(|ri| ri.strokes.len()).sum::<usize>(), 2);
+}
+
+#[test]
 fn diff_returns_only_new_strokes() {
     let prev = vec![stroke(5.0, 5.0)];
     let current = vec![stroke(5.0, 5.0), stroke(25.0, 25.0)];

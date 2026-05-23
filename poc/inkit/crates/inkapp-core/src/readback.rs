@@ -7,6 +7,11 @@ use crate::manifest::Manifest;
 /// match multiple regions; it is added to each. Strokes matching no region are
 /// dropped. Output preserves manifest region order and only includes regions
 /// that received at least one stroke.
+///
+/// This does NOT filter by [`crate::manifest::Region::page`]: callers must pass
+/// only strokes from the page(s) the manifest covers (the harness processes one
+/// page per cycle), otherwise a stroke could be attributed to a same-rect region
+/// on a different page.
 pub fn attribute(strokes: &[Stroke], manifest: &Manifest) -> Vec<RegionInk> {
     let mut out: Vec<RegionInk> = Vec::new();
     for region in &manifest.regions {
@@ -27,6 +32,11 @@ pub fn attribute(strokes: &[Stroke], manifest: &Manifest) -> Vec<RegionInk> {
 }
 
 /// Return strokes present in `current` that are not in `prev` (by value).
+///
+/// Comparison is exact-equality over `f64` point coordinates, so both slices
+/// must originate from the same coordinate path (e.g. both PDF-space, or both
+/// post-`read_ink`) — comparing pre- and post-device-round-trip strokes would
+/// not de-duplicate due to f32 quantization in the device transform.
 pub fn diff_new(prev: &[Stroke], current: &[Stroke]) -> Vec<Stroke> {
     current
         .iter()
@@ -40,7 +50,7 @@ pub fn guard_version(ink_version: u64, manifest: &Manifest) -> Result<()> {
     if ink_version == manifest.version {
         Ok(())
     } else {
-        Err(Error::Manifest(format!(
+        Err(Error::Readback(format!(
             "stale ink: written against version {ink_version}, manifest is {}",
             manifest.version
         )))
