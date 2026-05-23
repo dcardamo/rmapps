@@ -17,4 +17,7 @@ serde_json = "1"
 # The harness src is generic over `&dyn Device`; the concrete reMarkable device
 # is only needed to drive the simulator/exercisers in tests.
 inkapp-remarkable = { path = "../inkapp-remarkable" }
+# rm-files is needed by the transform-fidelity test to read raw device coords
+# from a synthesized .rm capture and measure centroid error directly.
+rm-files = { path = "../rm-files" }
 zip = "2"

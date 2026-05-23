@@ -1,9 +1,10 @@
 //! On-device recording: the gesture catalog, self-instructing template
 //! generation, and extraction of captures into fixtures.
 
+use inkapp_core::device::Device;
 use inkapp_core::embed::embed_manifest;
 use inkapp_core::error::Result;
-use inkapp_core::geometry::{PdfPoint, PdfRect};
+use inkapp_core::geometry::{DevicePoint, PdfPoint, PdfRect};
 use inkapp_core::ink::Stroke;
 use inkapp_core::manifest::{recover_regions, Manifest};
 use inkapp_core::readback::attribute;
@@ -385,4 +386,43 @@ pub fn bootstrap_strokes(entry: &CatalogEntry, manifest: &Manifest) -> Vec<Strok
         });
     }
     out
+}
+
+// ── Transform-fidelity validation ────────────────────────────────────────────
+
+/// Synthesize a calibration capture: a short tap centred exactly on each known
+/// point's `pdf_to_device` image, so a correct model measures ~0 error.
+///
+/// Each tap is 3 identical PDF-space points at the known calibration location.
+/// `write_ink` maps them to device coords (casting to f32), so the recorded
+/// centroid equals `pdf_to_device(p)` up to f32 quantisation noise.
+pub fn synth_calibration(device: &dyn Device) -> Result<(Vec<u8>, Vec<u8>)> {
+    let pdf = render_calibration()?;
+    let strokes: Vec<Stroke> = calibration_points()
+        .into_iter()
+        .map(|p| Stroke {
+            // A 3-sample dot in PDF space at the known point; write_ink maps it
+            // to device coords, so its recorded centroid equals pdf_to_device(p).
+            points: vec![p, p, p],
+            highlighter: false,
+        })
+        .collect();
+    let rm = device.write_ink(&strokes, PAGE_H)?;
+    Ok((pdf, rm))
+}
+
+/// Least-squares uniform scale relating known device points to recorded ones,
+/// reported as an adoption suggestion when validation fails.
+pub fn fit_scale(expected: &[DevicePoint], actual: &[DevicePoint]) -> f64 {
+    let mut num = 0.0f64;
+    let mut den = 0.0f64;
+    for (e, a) in expected.iter().zip(actual) {
+        num += e.x * a.x + e.y * a.y;
+        den += e.x * e.x + e.y * e.y;
+    }
+    if den.abs() < f64::EPSILON {
+        1.0
+    } else {
+        num / den
+    }
 }
