@@ -7,6 +7,24 @@ pub const SCREEN_HEIGHT: f32 = 1872.0;
 /// Nominal screen resolution in dots per inch.
 pub const SCREEN_DPI: f32 = 226.0;
 
+/// An axis-aligned rectangle in device/scene space.
+///
+/// Used for text-highlight (`GlyphRange`) bounding boxes, where the device
+/// records one rectangle per highlighted line run. Coordinates are in the same
+/// scene space as [`Point`] (centered on the page origin; values can be
+/// negative).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rect {
+    /// Left edge (scene x).
+    pub x: f64,
+    /// Top edge (scene y).
+    pub y: f64,
+    /// Width.
+    pub w: f64,
+    /// Height.
+    pub h: f64,
+}
+
 /// A single point along a stroke.
 ///
 /// `x`/`y` are scene coordinates (centered around the page origin; they can be

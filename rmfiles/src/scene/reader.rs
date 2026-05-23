@@ -242,6 +242,42 @@ impl<'a> Reader<'a> {
         self.read_u32()
     }
 
+    /// Read a tagged 4-byte unsigned integer at `index` if present, else `None`.
+    ///
+    /// Mirrors rmscene's `read_int_optional`: the field is absent if the next
+    /// tag doesn't match, in which case the cursor is left unmoved.
+    pub fn read_int_optional(&mut self, index: u32) -> Option<u32> {
+        if self.check_tag(index, TagType::Byte4) {
+            self.read_int(index).ok()
+        } else {
+            None
+        }
+    }
+
+    /// Read a length-prefixed UTF-8 string sub-block at `index`.
+    ///
+    /// Mirrors rmscene's `read_string`: a sub-block containing a varuint byte
+    /// length, a 1-byte "is-ascii" flag, then that many UTF-8 bytes. Trailing
+    /// bytes inside the sub-block are skipped via the declared sub-block length.
+    pub fn read_string(&mut self, index: u32) -> Result<String> {
+        let end = self.read_subblock(index)?;
+        let len = self.read_varuint()? as usize;
+        let _is_ascii = self.read_u8()?;
+        if self.pos + len > end {
+            return Err(Error::Parse(format!(
+                "string length {len} overflows sub-block at offset {}",
+                self.pos
+            )));
+        }
+        let bytes = self.read_bytes(len)?;
+        let s = std::str::from_utf8(bytes)
+            .map_err(|e| Error::Parse(format!("invalid UTF-8 in string: {e}")))?
+            .to_string();
+        // Skip any trailing bytes inside the string sub-block.
+        self.seek(end)?;
+        Ok(s)
+    }
+
     /// Read a tagged 4-byte float at `index`.
     pub fn read_float(&mut self, index: u32) -> Result<f32> {
         self.read_tag(index, TagType::Byte4)?;

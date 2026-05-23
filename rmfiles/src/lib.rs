@@ -25,5 +25,5 @@ mod scene;
 
 pub use bundle::{Bundle, Metadata, Page};
 pub use error::{Error, Result};
-pub use geometry::{Point, SCREEN_DPI, SCREEN_HEIGHT, SCREEN_WIDTH};
-pub use scene::{Pen, PenColor, Scene, SceneItem, Stroke};
+pub use geometry::{Point, Rect, SCREEN_DPI, SCREEN_HEIGHT, SCREEN_WIDTH};
+pub use scene::{Pen, PenColor, Scene, SceneItem, Stroke, TextHighlight};
