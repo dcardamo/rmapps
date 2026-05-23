@@ -27,3 +27,15 @@ fn manifest_round_trips_through_pdf() {
     let got = extract_manifest(&embedded).unwrap();
     assert_eq!(got, manifest);
 }
+
+#[test]
+fn extract_from_unembedded_pdf_errors() {
+    // A freshly compiled PDF carries no InkappManifest key; extraction must
+    // return an error, not panic.
+    let doc = compile_to_document("#set page(width: 100pt, height: 100pt)\nhi").unwrap();
+    let pdf = document_to_pdf(&doc).unwrap();
+    assert!(
+        extract_manifest(&pdf).is_err(),
+        "plain PDF has no manifest to extract"
+    );
+}
