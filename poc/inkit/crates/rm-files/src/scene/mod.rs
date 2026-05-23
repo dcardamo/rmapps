@@ -2,10 +2,10 @@
 
 mod items;
 pub(crate) mod reader;
-#[allow(dead_code)] // TODO(Task 2): remove once write_scene consumes the writer primitives
 pub(crate) mod writer;
 
 pub use items::{Pen, PenColor, SceneItem, Stroke, TextHighlight};
+pub use writer::write_scene;
 
 use crate::error::Result;
 use reader::Reader;

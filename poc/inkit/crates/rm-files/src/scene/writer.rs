@@ -39,6 +39,7 @@ impl Writer {
     }
 
     /// Finished bytes.
+    #[allow(dead_code)]
     pub fn as_bytes(&self) -> &[u8] {
         &self.buf
     }
@@ -132,6 +133,7 @@ impl Writer {
 
     /// Write a length-prefixed UTF-8 string sub-block at `index`
     /// (varuint length, 1-byte is-ascii flag, then the bytes).
+    #[allow(dead_code)]
     pub fn write_string(&mut self, index: u32, s: &str) {
         let mark = self.begin_subblock(index);
         self.write_varuint(s.len() as u64);
@@ -189,6 +191,127 @@ impl Default for Writer {
     fn default() -> Self {
         Writer::new()
     }
+}
+
+// ─── Line-item writer ────────────────────────────────────────────────────────
+
+use crate::scene::items::{Pen, PenColor, SceneItem, Stroke};
+
+/// Map a [`Pen`] back to its raw tool id (inverse of `Pen::from_id`).
+fn pen_to_id(p: Pen) -> u32 {
+    match p {
+        Pen::Paintbrush1 => 0,
+        Pen::Paintbrush2 => 12,
+        Pen::Pencil1 => 1,
+        Pen::Pencil2 => 14,
+        Pen::Ballpoint1 => 2,
+        Pen::Ballpoint2 => 15,
+        Pen::Marker1 => 3,
+        Pen::Marker2 => 16,
+        Pen::Fineliner1 => 4,
+        Pen::Fineliner2 => 17,
+        Pen::Highlighter1 => 5,
+        Pen::Highlighter2 => 18,
+        Pen::Eraser => 6,
+        Pen::EraserArea => 8,
+        Pen::MechanicalPencil1 => 7,
+        Pen::MechanicalPencil2 => 13,
+        Pen::Calligraphy => 21,
+        Pen::Shader => 23,
+        Pen::Other(id) => id,
+    }
+}
+
+/// Map a [`PenColor`] back to its raw color id (inverse of `PenColor::from_id`).
+fn color_to_id(c: PenColor) -> u32 {
+    match c {
+        PenColor::Black => 0,
+        PenColor::Gray => 1,
+        PenColor::White => 2,
+        PenColor::Yellow => 3,
+        PenColor::Green => 4,
+        PenColor::Pink => 5,
+        PenColor::Blue => 6,
+        PenColor::Red => 7,
+        PenColor::GrayOverlap => 8,
+        PenColor::Highlight => 9,
+        PenColor::Green2 => 10,
+        PenColor::Cyan => 11,
+        PenColor::Magenta => 12,
+        PenColor::Yellow2 => 13,
+        PenColor::Other(id) => id,
+    }
+}
+
+/// Block type for a `SceneLineItemBlock`, per rmscene.
+const BLOCK_TYPE_SCENE_LINE_ITEM: u8 = 0x05;
+/// Item type byte for a `Line` inside a value sub-block, per rmscene.
+const ITEM_TYPE_LINE: u8 = 0x03;
+
+impl Writer {
+    /// Write a single raw byte (no tag). Used for the untagged item-type byte
+    /// that sits at the start of a value sub-block.
+    fn push_raw_u8(&mut self, v: u8) {
+        self.buf.push(v);
+    }
+
+    /// Write one `SceneLineItemBlock` for `stroke` using v2 (14-byte) points.
+    fn write_line_item(&mut self, stroke: &Stroke, item_id_counter: u64) {
+        // current_version=2 tells the reader to use 14-byte v2 point decoding.
+        let block = self.begin_block(0, 2, 2, BLOCK_TYPE_SCENE_LINE_ITEM);
+
+        self.write_id(1, 0, 0); // parent_id  (ignored by reader)
+        self.write_id(2, 1, item_id_counter); // item_id
+        self.write_id(3, 0, 0); // left_id    (ignored by reader)
+        self.write_id(4, 0, 0); // right_id   (ignored by reader)
+        self.write_int(5, 0); // deleted_length
+
+        // value sub-block (tag 6): raw item-type byte + line body
+        let value = self.begin_subblock(6);
+        self.push_raw_u8(ITEM_TYPE_LINE);
+
+        // Line body — mirrors read_line field order in items.rs
+        self.write_int(1, pen_to_id(stroke.tool));
+        self.write_int(2, color_to_id(stroke.color));
+        self.write_double(3, 2.0); // thickness_scale (ignored on read)
+        self.write_float(4, 0.0); // starting_length (ignored on read)
+
+        // Points sub-block (tag 5): 14 raw bytes per point, no inner tags
+        let points = self.begin_subblock(5);
+        for p in &stroke.points {
+            let speed = p.speed.unwrap_or(0.0).round().clamp(0.0, u16::MAX as f32) as u16;
+            let width = p.width.unwrap_or(2.0).round().clamp(0.0, u16::MAX as f32) as u16;
+            let dir = p
+                .direction
+                .unwrap_or(0.0)
+                .round()
+                .clamp(0.0, u8::MAX as f32) as u8;
+            let pressure = p.pressure.unwrap_or(0.0).round().clamp(0.0, u8::MAX as f32) as u8;
+            self.write_point_v2(p.x, p.y, speed, width, dir, pressure);
+        }
+        self.end_subblock(points);
+        self.end_subblock(value);
+
+        self.end_block(block);
+    }
+}
+
+/// Write a complete v6 `.rm` file from scene items.
+///
+/// Only [`SceneItem::Line`] items are emitted; other variants are skipped.
+/// `version` must be `6` — the only output format currently supported.
+pub fn write_scene(version: u32, items: &[SceneItem]) -> Vec<u8> {
+    assert_eq!(version, 6, "only v6 output is supported");
+    let mut w = Writer::new();
+    w.write_header();
+    let mut counter = 1u64;
+    for item in items {
+        if let SceneItem::Line(stroke) = item {
+            w.write_line_item(stroke, counter);
+            counter += 1;
+        }
+    }
+    w.into_bytes()
 }
 
 #[cfg(test)]
