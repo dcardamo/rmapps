@@ -137,7 +137,7 @@ pub struct CatalogEntry {
 | `strike-through`  | pen         | stretch-x   | wide | future text-strike / span-delete widget               |
 | `handwritten-word`| pen         | aspect-fit  | wide | Spec #4 handwriting input (banked)                    |
 | `circle`          | pen         | aspect-fit  | sq   | "circle a task" / selection use case                  |
-| `arrow`           | pen         | aspect-fit  | wide | linking / pointing use case                           |
+| `arrow`           | pen         | aspect-fit  | sq   | linking / pointing use case                           |
 
 > **As-built note:** `highlight-swipe` uses `stretch` (not `stretch-x`). A highlight
 > should *cover* the target word, so filling the token box on both axes is the right
@@ -183,14 +183,17 @@ and everything downstream is automated and regenerable. Re-recording one gesture
 and re-pulls a single document; no other gesture is touched.
 
 **Bootstrap vs. recorded.** So `make test` is green *before* the one-time recording, the
-suite ships with **synthetic bootstrap recordings** — `.rmdoc`s fabricated deterministically
-from the catalog (simple shapes drawn into each box, calibration taps placed exactly
-on-model) — and the fixtures extracted from them. Their provenance is stamped
-`"device": "synthetic-bootstrap"` so real vs. bootstrap is auditable. The manual recording
-bar **replaces** the bootstrap `.rmdoc`s with real captures and re-runs extraction (and
-golden regeneration). The pipeline is identical for both; only the input `.rmdoc` changes.
-Because the e2e assertions are behavioural (reads `Marked` / `{lazy, dog}`), they hold for
-bootstrap and real ink alike; only the golden composites differ and regenerate on swap.
+suite ships **synthetic bootstrap fixtures**. As-built, the bootstrap path synthesizes ink
+**in memory** (`recording::bootstrap_strokes` draws a simple shape into each box) and routes
+it through the real `write_ink → read_ink` path before extraction — so no synthetic `.rmdoc`
+is fabricated or committed; only the extracted `gestures/*.json` are checked in, stamped
+`"device": "synthetic-bootstrap"`. The regen guard (`tests/regen.rs`) prefers a real
+`recordings/<name>.rmdoc` if present and otherwise regenerates from the in-memory synth, so
+dropping in a real capture and re-running extraction is the one-line swap to real ink (and
+regenerates that gesture's golden). The extraction/transplant/readback pipeline is identical
+for both; only the stroke *source* differs. Because the e2e assertions are behavioural (reads
+`Marked` / `{lazy, dog}`), they hold for bootstrap and real ink alike; only the golden
+composites differ and regenerate on swap.
 
 ## E. Fixture format + provenance
 
@@ -312,12 +315,13 @@ mirroring the spike's `#[ignore] on_device` pattern.
 
 - The gesture catalog drives self-instructing per-gesture template PDFs (+ a calibration
   sheet); the `#[ignore]` push/pull bars target `/InkAppDev/fixtures/`.
-- The vocabulary is recorded once; per-gesture `.rmdoc` captures **and** extracted
-  `gestures/*.json` fixtures are checked in.
+- Per-gesture `gestures/*.json` fixtures are checked in. As-built these are synthetic
+  bootstrap fixtures (no `.rmdoc` committed); the one-time recording bar adds real
+  `recordings/*.rmdoc` captures and re-extracts.
 - Transplant math is unit-tested across `aspect-fit` / `stretch` / `stretch-x`.
 - `Checkbox` gains `CheckState` + `read_state` (mark-vs-scribble discrimination), unit-tested.
-- The suite ships synthetic bootstrap recordings + fixtures so `make test` is green before
-  the one-time recording; provenance distinguishes bootstrap from real.
+- The suite ships synthetic bootstrap fixtures (in-memory synth, no committed `.rmdoc`) so
+  `make test` is green before the one-time recording; provenance distinguishes bootstrap from real.
 - `Gesture::Fixture` is wired into the simulator; the three real-ink exercisers pass
   (`checkmark`, `scribble-out`, `highlight-swipe`) with committed goldens.
 - Writer structural-diff is automated vs. `stamped-labels.rmdoc`; device-acceptance
