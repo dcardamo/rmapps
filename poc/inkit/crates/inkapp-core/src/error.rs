@@ -11,6 +11,8 @@ pub enum Error {
     Manifest(String),
     #[error("readback failed: {0}")]
     Readback(String),
+    #[error("render/raster failed: {0}")]
+    Render(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

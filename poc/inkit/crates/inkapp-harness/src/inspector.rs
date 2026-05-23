@@ -15,16 +15,21 @@ pub fn inspect(doc: &PagedDocument, manifest: &Manifest, ink: &[Stroke]) -> Resu
     let page = doc
         .pages
         .first()
-        .ok_or_else(|| Error::Region("no pages".into()))?;
+        .ok_or_else(|| Error::Render("no pages".into()))?;
     let page_h_pt = page.frame.height().to_pt() as f32;
 
     // Rasterize via typst-render -> tiny_skia::Pixmap, then copy pixels into an
     // image::RgbaImage so we don't couple to typst-render's tiny-skia version.
+    //
+    // NOTE: tiny-skia stores pixels premultiplied; image::RgbaImage assumes
+    // straight alpha. For the opaque (white-background) pages the harness renders
+    // these are identical, so we copy bytes directly. Semi-transparent Typst
+    // content would appear desaturated — acceptable for a debug/vision artifact.
     let pixmap = typst_render::render(page, SCALE);
     let w = pixmap.width();
     let h = pixmap.height();
     let mut img: RgbaImage = RgbaImage::from_raw(w, h, pixmap.data().to_vec())
-        .ok_or_else(|| Error::Region("pixmap->image size mismatch".into()))?;
+        .ok_or_else(|| Error::Render("pixmap->image size mismatch".into()))?;
 
     // Convert PDF-space (pt, y-up) to image-space (px, y-down).
     let to_px = |x_pt: f64, y_pt: f64| -> (i64, i64) {
@@ -65,7 +70,7 @@ pub fn inspect(doc: &PagedDocument, manifest: &Manifest, ink: &[Stroke]) -> Resu
 
     let mut out = std::io::Cursor::new(Vec::new());
     img.write_to(&mut out, ImageFormat::Png)
-        .map_err(|e| Error::Region(format!("png encode: {e}")))?;
+        .map_err(|e| Error::Render(format!("png encode: {e}")))?;
     Ok(out.into_inner())
 }
 

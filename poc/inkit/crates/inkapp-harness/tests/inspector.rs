@@ -61,3 +61,26 @@ fn overlays_paint_non_background_pixels() {
         "region outline (blue) should be visible at (50,120): {px:?}"
     );
 }
+
+#[test]
+fn ink_strokes_paint_non_background_pixels() {
+    use image::GenericImageView;
+    let doc = compile_to_document("#set page(width: 100pt, height: 100pt, margin: 0pt)\n").unwrap();
+    let manifest = Manifest {
+        version: 1,
+        regions: vec![],
+    };
+    // A horizontal pen stroke at PDF y=50 from x=20 to x=80.
+    let ink = vec![Stroke {
+        points: vec![PdfPoint { x: 20.0, y: 50.0 }, PdfPoint { x: 80.0, y: 50.0 }],
+        highlighter: false,
+    }];
+    let png = inspect(&doc, &manifest, &ink).unwrap();
+    let img = image::load_from_memory(&png).unwrap();
+    // Midpoint x=50pt -> 100px; y=50pt -> (100-50)*2 = 100px. Pen is red.
+    let px = img.get_pixel(100, 100);
+    assert!(
+        px[0] > 150 && px[2] < 80,
+        "pen stroke (red) visible at (100,100): {px:?}"
+    );
+}
