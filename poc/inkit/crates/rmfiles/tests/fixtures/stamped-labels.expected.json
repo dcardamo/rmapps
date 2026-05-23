@@ -1,0 +1,12 @@
+{
+  "note": "Real reMarkable Paper Pro capture (software 3.x, 2026-05). Snap-to-text was ON, but the device stored highlighter INK strokes (v6 SceneLineItemBlock / Line items), NOT GlyphRange text. There is no recoverable highlighted text in this bundle. This fixture is the ground truth for stroke-GEOMETRY read-back.",
+  "device_canvas": [1404, 1872],
+  "min_highlighter_strokes": 2,
+  "highlighter_tool": "HIGHLIGHTER_2",
+  "strokes": [
+    { "role": "action-label ARCHIVE (top band)", "y_approx": 154, "x_min": -588, "x_max": -339 },
+    { "role": "body sentence (fox)", "y_approx": 313, "x_min": -786, "x_max": 402 }
+  ],
+  "embedded_manifest_collection": "Spike",
+  "source_pdf_unchanged": true
+}
