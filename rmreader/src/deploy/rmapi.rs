@@ -11,6 +11,11 @@ use super::Deployer;
 pub trait RmapiRunner: std::fmt::Debug {
     /// Run `rmapi <args...>`; `args` never includes the binary name.
     fn run(&self, args: &[&str]) -> anyhow::Result<()>;
+
+    /// Run `rmapi <args>` with `dir` as the working directory. Returns `Ok(true)` on
+    /// success, `Ok(false)` on a clean non-zero exit (e.g. doc not found). `Err` only
+    /// on failure to spawn.
+    fn try_run_in(&self, dir: &Path, args: &[&str]) -> anyhow::Result<bool>;
 }
 
 /// Uploads / refreshes PDFs via an [`RmapiRunner`], using (pdf, folder) pairs.
@@ -35,14 +40,29 @@ impl<R: RmapiRunner> RmapiDeployer<R> {
         a.push(folder);
         a
     }
+
+    /// Idempotently create every ancestor of `folder` (mkdir -p semantics).
+    /// rmapi mkdir errors on an existing dir; ignore those.
+    fn mkdir_p(&self, folder: &str) {
+        let mut path = String::new();
+        for comp in folder
+            .trim_matches('/')
+            .split('/')
+            .filter(|c| !c.is_empty())
+        {
+            path.push('/');
+            path.push_str(comp);
+            let _ = self.runner.run(&["-ni", "mkdir", &path]);
+        }
+    }
 }
 
 impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
     fn deploy(&self, targets: &[(PathBuf, String)]) -> anyhow::Result<()> {
-        // mkdir is idempotent: a pre-existing folder makes rmapi error, which we
-        // ignore. A genuine auth/connectivity failure surfaces on the first `put`.
+        // mkdir_p is idempotent: rmapi errors on existing dirs, which we ignore.
+        // A genuine auth/connectivity failure surfaces on the first `put`.
         for (pdf, folder) in targets {
-            let _ = self.runner.run(&["-ni", "mkdir", folder.as_str()]);
+            self.mkdir_p(folder);
             self.runner
                 .run(&self.put_args(path_str(pdf)?, folder, false))?;
         }
@@ -55,6 +75,38 @@ impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
                 .run(&self.put_args(path_str(pdf)?, folder, true))?;
         }
         Ok(())
+    }
+
+    fn fetch(&self, folder: &str, name: &str) -> anyhow::Result<Option<PathBuf>> {
+        let tmp = tempfile::tempdir()?;
+        let remote = format!("{folder}/{name}");
+        let ok = self
+            .runner
+            .try_run_in(tmp.path(), &["-ni", "get", &remote])?;
+        if !ok {
+            return Ok(None);
+        }
+        let produced = tmp.path().join(format!("{name}.rmdoc"));
+        if !produced.exists() {
+            return Ok(None);
+        }
+        let dest = std::env::temp_dir().join(format!("rmreader-{name}.rmdoc"));
+        let _ = std::fs::remove_file(&dest);
+        std::fs::rename(&produced, &dest)
+            .or_else(|_| std::fs::copy(&produced, &dest).map(|_| ()))?;
+        Ok(Some(dest))
+    }
+
+    fn replace(&self, pdf: &Path, folder: &str) -> anyhow::Result<()> {
+        let name = pdf
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow::anyhow!("bad pdf path: {}", pdf.display()))?;
+        // Ensure the target folder exists (mkdir -p) before removing/uploading.
+        self.mkdir_p(folder);
+        // rm is best-effort: a missing doc is fine.
+        let _ = self.runner.run(&["-ni", "rm", &format!("{folder}/{name}")]);
+        self.runner.run(&["-ni", "put", path_str(pdf)?, folder])
     }
 }
 
@@ -111,6 +163,15 @@ impl ProcessRmapi {
         Ok(status.success())
     }
 
+    fn attempt_in(&self, dir: &Path, args: &[&str]) -> anyhow::Result<bool> {
+        let status = Command::new(&self.bin)
+            .args(args)
+            .current_dir(dir)
+            .stdin(Stdio::null())
+            .status()?;
+        Ok(status.success())
+    }
+
     fn conf_blanked(&self) -> bool {
         std::fs::read(&self.conf_path)
             .map(|b| is_blank_conf(&b))
@@ -132,6 +193,19 @@ impl RmapiRunner for ProcessRmapi {
             }
         }
         anyhow::bail!("rmapi {:?} failed", args);
+    }
+
+    fn try_run_in(&self, dir: &Path, args: &[&str]) -> anyhow::Result<bool> {
+        let ok = self.attempt_in(dir, args)?;
+        if ok {
+            return Ok(true);
+        }
+        // Apply the same token-clobber guard as `run`.
+        if self.conf_blanked() {
+            std::fs::write(&self.conf_path, &self.snapshot)?;
+            return self.attempt_in(dir, args);
+        }
+        Ok(false)
     }
 }
 

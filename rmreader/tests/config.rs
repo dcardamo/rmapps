@@ -130,6 +130,23 @@ token = "t"
 }
 
 #[test]
+fn deploy_folders_default_under_rmdev() {
+    let toml = "device=\"paper-pro-move\"\noutput_dir=\".\"\n[readwise]\ntoken=\"x\"\n[deploy]\nbackend=\"rmapi\"\n";
+    let cfg: Config = toml::from_str(toml).unwrap();
+    assert_eq!(cfg.deploy.library_folder, "/RMDev/Reader");
+    assert_eq!(cfg.deploy.feed_folder, "/RMDev/Reader");
+    // Also verify Default impl matches
+    assert_eq!(
+        rmreader::config::DeployConfig::default().library_folder,
+        "/RMDev/Reader"
+    );
+    assert_eq!(
+        rmreader::config::DeployConfig::default().feed_folder,
+        "/RMDev/Reader"
+    );
+}
+
+#[test]
 fn cache_config_parses_explicit_values() {
     let toml = r#"
 device = "paper-pro-move"

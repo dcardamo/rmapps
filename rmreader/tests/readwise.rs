@@ -1,4 +1,7 @@
-use rmreader::readwise::{fetch_documents, HttpResponse, HttpTransport};
+use rmreader::readwise::{
+    create_highlights, delete_document, fetch_documents, update_location, ActionKind,
+    HighlightCreate, HttpMethod, HttpResponse, HttpTransport,
+};
 use std::cell::RefCell;
 
 /// Fake transport returning canned responses per URL substring.
@@ -8,7 +11,13 @@ struct Fake {
     idx: RefCell<usize>,
 }
 impl HttpTransport for Fake {
-    fn get(&self, url: &str, _token: &str) -> anyhow::Result<HttpResponse> {
+    fn request(
+        &self,
+        _method: HttpMethod,
+        url: &str,
+        _token: &str,
+        _body: Option<&str>,
+    ) -> anyhow::Result<HttpResponse> {
         self.calls.borrow_mut().push(url.to_string());
         let mut i = self.idx.borrow_mut();
         let (status, retry, body) = self.script[*i].clone();
@@ -161,4 +170,137 @@ fn dedupes_across_locations() {
     };
     let docs = fetch_documents(&fake, "tok", &["new".into(), "later".into()], 10, |_| {}).unwrap();
     assert_eq!(docs.len(), 1);
+}
+
+// --- Recording fake for new action tests ---
+
+#[allow(clippy::type_complexity)]
+struct Recording {
+    last: RefCell<Option<(HttpMethod, String, String, Option<String>)>>,
+    status: u16,
+}
+
+impl HttpTransport for Recording {
+    fn request(
+        &self,
+        method: HttpMethod,
+        url: &str,
+        token: &str,
+        body: Option<&str>,
+    ) -> anyhow::Result<HttpResponse> {
+        *self.last.borrow_mut() = Some((
+            method,
+            url.to_string(),
+            token.to_string(),
+            body.map(|s| s.to_string()),
+        ));
+        Ok(HttpResponse {
+            status: self.status,
+            retry_after: None,
+            body: String::new(),
+        })
+    }
+}
+
+#[test]
+fn update_location_issues_patch_with_body_and_auth() {
+    let r = Recording {
+        last: RefCell::new(None),
+        status: 200,
+    };
+    update_location(&r, "TKN", "doc123", "archive").unwrap();
+    let last = r.last.borrow().clone().unwrap();
+    assert_eq!(last.0, HttpMethod::Patch);
+    assert_eq!(last.1, "https://readwise.io/api/v3/update/doc123/");
+    assert_eq!(last.2, "TKN");
+    assert_eq!(last.3, Some("{\"location\":\"archive\"}".to_string()));
+}
+
+#[test]
+fn delete_issues_delete() {
+    let r = Recording {
+        last: RefCell::new(None),
+        status: 204,
+    };
+    delete_document(&r, "TKN", "doc9").unwrap();
+    let last = r.last.borrow().clone().unwrap();
+    assert_eq!(last.0, HttpMethod::Delete);
+    assert_eq!(last.1, "https://readwise.io/api/v3/delete/doc9/");
+}
+
+#[test]
+fn create_highlights_posts_v2_with_source_url() {
+    let r = Recording {
+        last: RefCell::new(None),
+        status: 200,
+    };
+    create_highlights(
+        &r,
+        "TKN",
+        &[HighlightCreate {
+            text: "hello".into(),
+            title: "T".into(),
+            author: "A".into(),
+            source_url: "https://x/y".into(),
+            category: "articles".into(),
+        }],
+    )
+    .unwrap();
+    let last = r.last.borrow().clone().unwrap();
+    assert_eq!(last.0, HttpMethod::Post);
+    assert_eq!(last.1, "https://readwise.io/api/v2/highlights/");
+    assert_eq!(last.2, "TKN");
+    let body = last.3.unwrap();
+    assert!(
+        body.contains("\"source_url\":\"https://x/y\""),
+        "body: {body}"
+    );
+    assert!(body.contains("\"text\":\"hello\""), "body: {body}");
+}
+
+/// A fake that panics if request() is ever called — used to verify no-op paths.
+struct Counting {
+    n: std::cell::RefCell<usize>,
+}
+impl HttpTransport for Counting {
+    fn request(
+        &self,
+        _method: HttpMethod,
+        _url: &str,
+        _token: &str,
+        _body: Option<&str>,
+    ) -> anyhow::Result<HttpResponse> {
+        *self.n.borrow_mut() += 1;
+        Ok(HttpResponse {
+            status: 200,
+            retry_after: None,
+            body: String::new(),
+        })
+    }
+}
+
+#[test]
+fn create_highlights_empty_is_noop() {
+    let fake = Counting {
+        n: std::cell::RefCell::new(0),
+    };
+    create_highlights(&fake, "TKN", &[]).unwrap();
+    assert_eq!(
+        *fake.n.borrow(),
+        0,
+        "must make zero HTTP calls for empty input"
+    );
+}
+
+#[test]
+fn action_kind_maps_locations() {
+    assert_eq!(ActionKind::Inbox.location(), Some("new"));
+    assert_eq!(ActionKind::Later.location(), Some("later"));
+    assert_eq!(ActionKind::Archive.location(), Some("archive"));
+    assert_eq!(ActionKind::Delete.location(), None);
+    assert_eq!(
+        ActionKind::parse_label("ARCHIVE"),
+        Some(ActionKind::Archive)
+    );
+    assert_eq!(ActionKind::parse_label("nope"), None);
 }

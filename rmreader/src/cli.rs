@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::{config, deploy, generate, readwise, wizard};
+use crate::{config, deploy, generate, readback, readwise, wizard};
 
 #[derive(Parser)]
 #[command(
@@ -50,8 +50,32 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
                 timeout_secs: cfg.images.timeout_secs,
                 concurrency: cfg.images.concurrency,
             };
+            let deployer = deploy::get_deployer(&cfg)?;
+            // Read-back on-device annotations and apply them, BEFORE regenerating.
+            if let Err(e) = readback::sync_collection(
+                &*deployer,
+                &transport,
+                &cfg.readwise.token,
+                &cfg.deploy.library_folder,
+                "Library",
+            ) {
+                eprintln!("[rmreader] Library read-back failed (continuing): {e:#}");
+            }
+            if cfg.feed.enabled {
+                if let Err(e) = readback::sync_collection(
+                    &*deployer,
+                    &transport,
+                    &cfg.readwise.token,
+                    &cfg.deploy.feed_folder,
+                    "Feed",
+                ) {
+                    eprintln!("[rmreader] Feed read-back failed (continuing): {e:#}");
+                }
+            }
             let targets = generate::generate(&cfg, &transport, &fetcher)?;
-            deploy::get_deployer(&cfg)?.refresh(&targets)?;
+            for (pdf, folder) in &targets {
+                deployer.replace(pdf, folder)?;
+            }
             println!("Regenerated {} PDF(s)", targets.len());
             Ok(())
         }

@@ -15,9 +15,14 @@ use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 
 /// Paint a full-bleed paper background on every page, then draw a filled,
 /// clickable full-width `< Prev   Home   Next >` bar across the top of every
-/// article page. `num_articles` = index-row count; colours come from the theme
+/// article page, and stamp the four action-label columns (inbox/archive/later/
+/// delete) in the band just below the nav bar. Fills `embedded.label_rects` and
+/// each doc's `page_range`, then embeds the manifest into the PDF.
+///
+/// `num_articles` = index-row count; colours come from the theme
 /// (`paper_hex`/`nav_bg_hex`/`nav_fg_hex`). Best-effort: on any error, log to
 /// stderr and leave the rendered PDF intact (do not lose it).
+#[allow(clippy::too_many_arguments)]
 pub fn finalize_pdf(
     path: &Path,
     num_articles: usize,
@@ -26,6 +31,7 @@ pub fn finalize_pdf(
     paper_hex: &str,
     nav_bg_hex: &str,
     nav_fg_hex: &str,
+    embedded: &mut crate::manifest::EmbeddedManifest,
 ) -> anyhow::Result<()> {
     if let Err(e) = try_finalize_pdf(
         path,
@@ -35,6 +41,7 @@ pub fn finalize_pdf(
         paper_hex,
         nav_bg_hex,
         nav_fg_hex,
+        embedded,
     ) {
         eprintln!("[rmreader] postprocess: finalize skipped ({e:#}); rendered PDF left intact");
     }
@@ -55,6 +62,7 @@ fn hex_rgb(s: &str) -> Option<(f32, f32, f32)> {
     Some((c(0)?, c(2)?, c(4)?))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn try_finalize_pdf(
     path: &Path,
     num_articles: usize,
@@ -63,7 +71,10 @@ fn try_finalize_pdf(
     paper_hex: &str,
     nav_bg_hex: &str,
     nav_fg_hex: &str,
+    embedded: &mut crate::manifest::EmbeddedManifest,
 ) -> anyhow::Result<()> {
+    use crate::manifest::{LabelRect, ManifestRect, PageRange};
+
     let mut doc = Document::load(path)?;
 
     // BTreeMap is ordered by page number, so into_values() yields page order.
@@ -89,6 +100,7 @@ fn try_finalize_pdf(
     // The nav bar only applies when there are article pages; save the background
     // work either way.
     if num_articles == 0 {
+        crate::embed::write(&mut doc, embedded)?;
         doc.save(path)?;
         return Ok(());
     }
@@ -113,10 +125,42 @@ fn try_finalize_pdf(
         }
     }
     if starts.is_empty() {
+        crate::embed::write(&mut doc, embedded)?;
         doc.save(path)?;
         return Ok(());
     }
     let first_article = starts[0];
+
+    // Fill per-doc page ranges: doc i spans [starts[i], starts[i+1]-1] (or last page).
+    let total_pages = pages.len();
+    for (i, &first) in starts.iter().enumerate() {
+        let last = starts.get(i + 1).map(|&s| s - 1).unwrap_or(total_pages - 1);
+        if let Some(doc_entry) = embedded.docs.get_mut(i) {
+            doc_entry.page_range = PageRange { first, last };
+        }
+    }
+
+    // Compute the 4 label column rects (PDF points, bottom-left origin).
+    // The action band sits 26pt below the nav bar bottom (page_h-58), giving a
+    // clear ≥22pt gap: y ∈ [page_h-112, page_h-84] (28pt tall).
+    // Page width is split into 4 equal columns.
+    let label_kinds = ["inbox", "archive", "later", "delete"];
+    let label_band_y0 = f64::from(page_h) - 112.0;
+    let label_band_y1 = f64::from(page_h) - 84.0;
+    let pw = f64::from(page_w);
+    embedded.label_rects = label_kinds
+        .iter()
+        .enumerate()
+        .map(|(i, &kind)| LabelRect {
+            kind: kind.to_string(),
+            rect: ManifestRect {
+                x0: pw * i as f64 / 4.0,
+                y0: label_band_y0,
+                x1: pw * (i + 1) as f64 / 4.0,
+                y1: label_band_y1,
+            },
+        })
+        .collect();
 
     // One shared Helvetica font for all nav labels.
     let font_id = doc.add_object(dictionary! {
@@ -129,15 +173,23 @@ fn try_finalize_pdf(
     let home_x = page_w * 0.5 - 14.0; // ~"Home" centered at midpage
     let next_x = page_w * 0.80;
     // A filled nav bar in the top band — below the ~36pt the device toolbar overlays
-    // and above the content (which starts at the @page top margin, 58pt). The device's
+    // and above the content (which starts at the @page top margin, 92pt). The device's
     // transient page-indicator toolbar covers the BOTTOM, so the nav goes up top.
     let (br, bg, bb) = hex_rgb(nav_bg_hex).unwrap_or((0.16, 0.18, 0.40));
     let (fr, fg, fb) = hex_rgb(nav_fg_hex).unwrap_or((0.96, 0.95, 0.91));
     let bar_x = 0.0_f32; // full-bleed bar (100% width)
     let bar_w = page_w;
-    let bar_y = page_h - 58.0; // bottom edge of the bar
+    let bar_y = page_h - 58.0; // bottom edge of the nav bar
     let bar_h = 21.0_f32;
-    let baseline_y = bar_y + 6.5; // text baseline, centred in the bar
+    let baseline_y = bar_y + 6.5; // nav text baseline, centred in the nav bar
+
+    // Action band geometry (PDF bottom-left origin; y increases upward).
+    // The band is 26pt below the nav bar bottom (page_h-58), giving a clear
+    // ≥22pt gap.  Band: bottom=page_h-112, top=page_h-84 (28pt tall).
+    let label_bar_y = page_h - 112.0; // bottom edge of action band
+    let label_bar_h = 28.0_f32; // height of action band (112-84 = 28)
+    let label_baseline_y = page_h - 103.0; // text baseline ~9pt above band bottom
+    let label_font_size = 12.0_f32; // larger than nav (8.5pt) for easy targeting
 
     for pi in first_article..pages.len() {
         let page_id = pages[pi];
@@ -148,12 +200,15 @@ fn try_finalize_pdf(
 
         ensure_nav_font(&mut doc, page_id, font_id)?;
 
-        // --- draw the labels (after existing content, so nav is on top) ---
+        // --- draw the nav bar and label band (after existing content, on top) ---
         let mut content = String::new();
-        // full-width filled nav bar
+
+        // Full-width filled nav bar.
         content.push_str(&format!(
             "q {br:.3} {bg:.3} {bb:.3} rg {bar_x:.2} {bar_y:.2} {bar_w:.2} {bar_h:.2} re f Q\n"
         ));
+
+        // Nav text labels.
         if prev.is_some() {
             content.push_str(&format!(
                 "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf 16 {baseline_y:.2} Td (< Prev) Tj ET Q\n"
@@ -167,6 +222,40 @@ fn try_finalize_pdf(
                 "q {fr:.3} {fg:.3} {fb:.3} rg BT /NAVF 8.5 Tf {next_x:.2} {baseline_y:.2} Td (Next >) Tj ET Q\n"
             ));
         }
+
+        // Action bar: outlined rectangle (not filled) so it reads as distinct from
+        // the SOLID nav bar above. Use the nav BACKGROUND colour (indigo) for the
+        // stroke + text so it is clearly visible on the light paper (navfg is light
+        // and would vanish on paper since the bar is unfilled).
+        // 0.6pt line width; stroke the outer border.
+        content.push_str(&format!(
+            "q {br:.3} {bg:.3} {bb:.3} RG 0.6 w {bar_x:.2} {label_bar_y:.2} {bar_w:.2} {label_bar_h:.2} re S Q\n"
+        ));
+
+        // Vertical dividers between the four cells (thin, same stroke colour).
+        // Lines run from label_bar_y to label_bar_y + label_bar_h.
+        let label_bar_top = label_bar_y + label_bar_h;
+        for div in 1..4_u32 {
+            let div_x = page_w * div as f32 / 4.0;
+            content.push_str(&format!(
+                "q {br:.3} {bg:.3} {bb:.3} RG 0.4 w {div_x:.2} {label_bar_y:.2} m {div_x:.2} {label_bar_top:.2} l S Q\n"
+            ));
+        }
+
+        // Four label words (12pt), one per column, centred horizontally in each cell.
+        // Helvetica width ≈ 0.5 * font_size * char_count (good enough for centering).
+        for (i, &kind) in label_kinds.iter().enumerate() {
+            let col_w = page_w / 4.0;
+            let col_x = col_w * i as f32;
+            // Uppercase so it reads clearly on a small device.
+            let label = kind.to_uppercase();
+            let text_w = 0.5 * label_font_size * label.len() as f32;
+            let text_x = col_x + (col_w - text_w) / 2.0;
+            content.push_str(&format!(
+                "q {br:.3} {bg:.3} {bb:.3} rg BT /NAVF {label_font_size:.1} Tf {text_x:.2} {label_baseline_y:.2} Td ({label}) Tj ET Q\n"
+            ));
+        }
+
         let stream_id = doc.add_object(Object::Stream(Stream::new(
             dictionary! {},
             content.into_bytes(),
@@ -200,6 +289,8 @@ fn try_finalize_pdf(
         append_annots(&mut doc, page_id, new_annots)?;
     }
 
+    // Embed the populated manifest before saving.
+    crate::embed::write(&mut doc, embedded)?;
     doc.save(path)?;
     Ok(())
 }

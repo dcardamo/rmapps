@@ -1,11 +1,17 @@
 use rmreader::config::*;
 use rmreader::content::{FetchedImage, ImageFetcher};
 use rmreader::generate::generate;
-use rmreader::readwise::{HttpResponse, HttpTransport};
+use rmreader::readwise::{HttpMethod, HttpResponse, HttpTransport};
 
 struct FakeT;
 impl HttpTransport for FakeT {
-    fn get(&self, url: &str, _t: &str) -> anyhow::Result<HttpResponse> {
+    fn request(
+        &self,
+        _method: HttpMethod,
+        url: &str,
+        _token: &str,
+        _body: Option<&str>,
+    ) -> anyhow::Result<HttpResponse> {
         let body = if url.contains("location=feed") {
             r#"{"nextPageCursor":null,"results":[]}"#.to_string()
         } else {
@@ -131,7 +137,13 @@ fn png_8x8() -> Vec<u8> {
 /// Library doc carries one `<img>`; feed is empty.
 struct FakeTImg;
 impl HttpTransport for FakeTImg {
-    fn get(&self, url: &str, _t: &str) -> anyhow::Result<HttpResponse> {
+    fn request(
+        &self,
+        _method: HttpMethod,
+        url: &str,
+        _token: &str,
+        _body: Option<&str>,
+    ) -> anyhow::Result<HttpResponse> {
         let body = if url.contains("location=feed") {
             r#"{"nextPageCursor":null,"results":[]}"#.to_string()
         } else {

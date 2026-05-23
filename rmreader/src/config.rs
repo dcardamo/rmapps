@@ -93,20 +93,23 @@ impl Default for ContentConfig {
 pub struct DeployConfig {
     #[serde(default = "default_backend")]
     pub backend: String,
-    #[serde(default)]
+    #[serde(default = "default_reader_folder")]
     pub library_folder: String,
-    #[serde(default)]
+    #[serde(default = "default_reader_folder")]
     pub feed_folder: String,
 }
 fn default_backend() -> String {
     "none".into()
 }
+fn default_reader_folder() -> String {
+    "/RMDev/Reader".into()
+}
 impl Default for DeployConfig {
     fn default() -> Self {
         Self {
             backend: "none".into(),
-            library_folder: String::new(),
-            feed_folder: String::new(),
+            library_folder: default_reader_folder(),
+            feed_folder: default_reader_folder(),
         }
     }
 }

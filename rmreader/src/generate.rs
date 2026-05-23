@@ -215,10 +215,12 @@ fn build_one(
         pdf_path.display(),
         t.elapsed().as_secs_f32()
     );
-    // Paint the full-page paper background and stamp the clickable nav bar.
+    // Paint the full-page paper background, stamp the clickable nav bar and action
+    // labels, fill page ranges, and embed the manifest in the PDF.
     let paper = theme.get("paper").map(|s| s.as_str()).unwrap_or("#F3F1EA");
     let navbg = theme.get("navbg").map(|s| s.as_str()).unwrap_or("#2A2F6B");
     let navfg = theme.get("navfg").map(|s| s.as_str()).unwrap_or("#F4F1E8");
+    let mut embedded = built.manifest.to_embedded();
     crate::postprocess::finalize_pdf(
         &pdf_path,
         docs.len(),
@@ -227,11 +229,30 @@ fn build_one(
         paper,
         navbg,
         navfg,
+        &mut embedded,
     )?;
+    // Sidecar JSON: non-authoritative debug artifact (the PDF embed is canonical).
     built
         .manifest
         .write(&out_dir.join(format!("{collection}.manifest.json")))?;
     Ok(pdf_path)
+}
+
+/// Build a PDF from explicit documents (no Readwise fetch; images disabled).
+/// Used by the make_test_pdf example to produce a small, controlled document.
+pub fn build_pdf_from_docs(
+    collection: &str,
+    docs: &[crate::readwise::Document],
+    config: &Config,
+    out_dir: &std::path::Path,
+) -> anyhow::Result<std::path::PathBuf> {
+    // fetcher is constructed but never called because images are disabled
+    let fetcher = UreqImageFetcher {
+        timeout_secs: 5,
+        concurrency: 1,
+    };
+    let cache = crate::cache::Cache::from_config(&config.cache);
+    build_one(collection, docs, config, &fetcher, out_dir, &cache)
 }
 
 /// Returns deploy targets: (pdf_path, remarkable_folder).

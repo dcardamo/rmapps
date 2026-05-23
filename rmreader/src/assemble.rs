@@ -187,6 +187,10 @@ pub fn assemble_document(
             title,
             url: d.url.clone(),
             article_anchor,
+            author: d.author.clone(),
+            source_url: d.source_url.clone(),
+            category: d.category.clone(),
+            page_range: None,
         });
     }
 

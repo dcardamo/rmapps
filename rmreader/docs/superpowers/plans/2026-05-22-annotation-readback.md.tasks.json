@@ -1,0 +1,30 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-22-annotation-readback.md",
+  "note": "Pivoted 2026-05-22 to geometry-based read-back after the hardware spike (Paper Pro stores highlighter ink, not text). Original text-based tasks 1,2,3,7,10,12 are superseded by G1-G7. Tasks 4,6,8,9,11,13 are complete and mechanism-independent. Task 5 (spike) is complete.",
+  "tasks": [
+    { "id": 4, "subject": "Task 4: embedded PDF manifest write/read", "status": "completed" },
+    { "id": 6, "subject": "Task 6: Manifest::to_embedded()", "status": "completed" },
+    { "id": 8, "subject": "Task 8: Readwise transport + update_location/delete_document", "status": "completed" },
+    { "id": 9, "subject": "Task 9: Readwise create_highlights (v2)", "status": "completed" },
+    { "id": 11, "subject": "Task 11: deploy fetch + replace", "status": "completed" },
+    { "id": 13, "subject": "Task 13: /RMDev config defaults + wizard", "status": "completed" },
+    { "id": 5, "subject": "Task 5: SPIKE (snap-to-text storage + embed round trip)", "status": "completed",
+      "result": "embed survives round trip; snap-to-text stores highlighter INK (Line strokes), not GlyphRange text -> pivot to geometry. Fixture: rmfiles/tests/fixtures/stamped-labels.rmdoc" },
+
+    { "id": 14, "subject": "G1: rmfiles v6 parser -> highlighter strokes", "status": "completed",
+      "description": "Bootstrap rmfiles; parse v6 header+blocks; extract SceneLineItemBlock Line items (tool,color,points). Tolerate Paper Pro 'newer format'. Scene::strokes(); SceneItem::Line(Stroke). Fixture test: >=2 HIGHLIGHTER_2 strokes in expected device ranges.\n\n```json:metadata\n{\"files\":[\"../rmfiles/Cargo.toml\",\"../rmfiles/src/lib.rs\",\"../rmfiles/src/error.rs\",\"../rmfiles/src/geometry.rs\",\"../rmfiles/src/scene/mod.rs\",\"../rmfiles/src/scene/reader.rs\",\"../rmfiles/src/scene/items.rs\",\"../rmfiles/tests/strokes.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmfiles && cargo test\",\"fixture\":\"tests/fixtures/stamped-labels.rmdoc (committed)\"}\n```" },
+    { "id": 15, "subject": "G2: rmfiles Bundle/Page + canvas dims + source PDF", "status": "completed", "blockedBy": [14],
+      "description": "Bundle::open (zip OR dir), .content (page order + customZoomPageWidth/Height), .metadata, source_pdf(), pages()/page.scene(). Expose device canvas size. Fixture test: zip==dir, source_pdf present, canvas 1404x1872.\n\n```json:metadata\n{\"files\":[\"../rmfiles/src/bundle/mod.rs\",\"../rmfiles/src/bundle/content.rs\",\"../rmfiles/src/bundle/metadata.rs\",\"../rmfiles/src/lib.rs\",\"../rmfiles/tests/bundle.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmfiles && cargo test --test bundle\"}\n```" },
+    { "id": 16, "subject": "G3: device->PDF coordinate transform", "status": "completed", "blockedBy": [15],
+      "description": "src/readback/coords.rs: map device(x,y) [canvas WxH, X-centered, y-down] -> PDF points [page WxH, y-up], uniform fit + letterbox. Fixture-validated: ARCHIVE stroke maps into top band/label column.\n\n```json:metadata\n{\"files\":[\"src/readback/coords.rs\",\"tests/coords.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test coords\"}\n```" },
+    { "id": 17, "subject": "G4: PDF text-layer word boxes (pdftotext -bbox)", "status": "completed",
+      "description": "src/readback/textlayer.rs: run pdftotext -bbox on source PDF; parse word boxes (PDF points); words_under(page,rect)->String. Test on spike source PDF: finds ARCHIVE/quick/brown/fox; words_under(body region) returns the sentence.\n\n```json:metadata\n{\"files\":[\"src/readback/textlayer.rs\",\"tests/textlayer.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test textlayer\"}\n```" },
+    { "id": 18, "subject": "G5: postprocess stamp labels + record label rects in manifest", "status": "completed",
+      "description": "Stamp 4 labels every article page (real text, known coords); record per-page label rects (PDF coords) + page_range in EmbeddedManifest; embed. Extend EmbeddedManifest/EmbeddedDoc with label band rects.\n\n```json:metadata\n{\"files\":[\"src/postprocess.rs\",\"src/manifest.rs\",\"src/generate.rs\",\"tests/postprocess.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test postprocess\"}\n```" },
+    { "id": 19, "subject": "G6: geometric classification (rewrite classify)", "status": "completed", "blockedBy": [16, 17, 18],
+      "description": "src/readback/classify.rs rewrite: input transformed strokes (PDF coords) + manifest (label rects, page_range) + words_under closure. Stroke over label rect -> Action; else ContentHighlight{text:words_under(stroke)}. Per-doc 0/1/>=2 skip+warn.\n\n```json:metadata\n{\"files\":[\"src/readback/classify.rs\",\"tests/classify.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test classify\"}\n```" },
+    { "id": 20, "subject": "G7: read-back orchestration + sync wiring", "status": "completed", "blockedBy": [14, 15, 19],
+      "description": "readback/mod.rs: fetch bundle -> embed::read manifest -> rmfiles strokes per page -> coords transform -> classify (with textlayer) -> execute Readwise -> regenerate -> replace. Wire into rmreader <config>.\n\n```json:metadata\n{\"files\":[\"src/readback/mod.rs\",\"src/cli.rs\",\"src/generate.rs\",\"tests/readback.rs\"],\"verifyCommand\":\"cd /home/dan/git/rmreader && cargo test --test readback\"}\n```" }
+  ],
+  "lastUpdated": "2026-05-22T15:10:00Z"
+}
