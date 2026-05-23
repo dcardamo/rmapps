@@ -3,6 +3,7 @@
 
 pub mod component;
 pub mod device;
+pub mod document;
 pub mod embed;
 pub mod error;
 pub mod geometry;
@@ -16,6 +17,7 @@ pub mod world;
 
 pub use component::Component;
 pub use device::Device;
+pub use document::{DocKey, Document, Documents};
 pub use error::{Error, Result};
 pub use geometry::{DevicePoint, PdfPoint, PdfRect};
 pub use manifest::{Manifest, Region};
