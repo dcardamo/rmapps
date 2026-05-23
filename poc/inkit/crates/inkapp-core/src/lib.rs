@@ -4,8 +4,11 @@
 pub mod embed;
 pub mod error;
 pub mod geometry;
+pub mod ink;
 pub mod manifest;
 pub mod render;
+pub mod widget;
+pub mod widgets;
 pub mod world;
 
 pub use error::{Error, Result};
