@@ -1,4 +1,4 @@
-use crate::geometry::PdfPoint;
+use crate::geometry::{PdfPoint, PdfRect};
 
 /// A device-agnostic ink stroke in PDF-point coordinates.
 #[derive(Debug, Clone, PartialEq)]
@@ -9,8 +9,10 @@ pub struct Stroke {
 }
 
 impl Stroke {
-    /// Axis-aligned bounding box `(x0, y0, x1, y1)` of the stroke, or `None` if empty.
-    pub fn bbox(&self) -> Option<(f64, f64, f64, f64)> {
+    /// Axis-aligned bounding box of the stroke as a [`PdfRect`], or `None` if the
+    /// stroke has no points. Returning a `PdfRect` lets callers use
+    /// [`PdfRect::contains`]/[`PdfRect::overlaps`] directly for hit-testing.
+    pub fn bbox(&self) -> Option<PdfRect> {
         let mut it = self.points.iter();
         let first = it.next()?;
         let (mut x0, mut y0, mut x1, mut y1) = (first.x, first.y, first.x, first.y);
@@ -20,7 +22,7 @@ impl Stroke {
             x1 = x1.max(p.x);
             y1 = y1.max(p.y);
         }
-        Some((x0, y0, x1, y1))
+        Some(PdfRect { x0, y0, x1, y1 })
     }
 }
 

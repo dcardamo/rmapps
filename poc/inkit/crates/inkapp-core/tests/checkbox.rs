@@ -53,10 +53,7 @@ fn checkbox_render_declares_its_region() {
     let cb = Checkbox::new("done");
     let markup = cb.render_at(0, 10.0, 10.0, 20.0, 20.0);
     assert!(markup.contains("<region>"), "declares a region label");
-    assert!(
-        markup.contains("\"done\"") || markup.contains("name: \"done\""),
-        "names the region"
-    );
+    assert!(markup.contains("name: \"done\""), "names the region");
 }
 
 #[test]
