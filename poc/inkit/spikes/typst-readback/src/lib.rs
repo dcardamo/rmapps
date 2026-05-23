@@ -1,5 +1,6 @@
 pub mod html;
 pub mod regions;
+pub mod test_docs;
 pub mod world;
 
 use anyhow::{anyhow, Result};
