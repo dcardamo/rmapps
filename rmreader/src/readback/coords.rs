@@ -1,14 +1,22 @@
 //! Map reMarkable device-space coordinates to PDF points.
-//! Device: canvas_w x canvas_h px, origin top-left, X centered on 0, y down.
-//! PDF: origin bottom-left, y up. reMarkable fits an imported portrait PDF to the
-//! canvas WIDTH; the inverse transform below recovers PDF points from stroke coords.
+//!
+//! Device space: the v6 logical canvas, origin top-left, **X centered on 0**, y down.
+//! PDF space: origin bottom-left, y up.
+//!
+//! Empirically (verified against a real Paper Pro Move capture), reMarkable renders
+//! an imported PDF at its **native 226 dpi (1:1 points), centered horizontally and
+//! top-aligned** — it does NOT scale the page to fit the canvas width. So a device
+//! unit is a fixed `72/226` PDF points regardless of page or canvas size, the PDF's
+//! horizontal centre sits at device x = 0, and the PDF's top sits at device y = 0.
+//! (This matches the constant used by rmc.)
+
+/// reMarkable v6 device resolution (dots per inch) for the logical canvas.
+const DEVICE_DPI: f64 = 226.0;
+/// PDF points per device unit.
+const PT_PER_DEVICE: f64 = 72.0 / DEVICE_DPI;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Transform {
-    canvas_w: f64,
-    /// Stored for future use (e.g. vertical clipping); not used by current transforms.
-    #[allow(dead_code)]
-    canvas_h: f64,
     page_w: f64,
     page_h: f64,
 }
@@ -37,24 +45,30 @@ impl PdfRect {
 }
 
 impl Transform {
-    pub fn new(canvas: (f64, f64), page: (f64, f64)) -> Self {
+    /// `page` is the source PDF page size in points. The device canvas size is not
+    /// needed: the PDF is rendered at native dpi (see module docs), so the mapping
+    /// depends only on the page size and the fixed device dpi.
+    pub fn new(page: (f64, f64)) -> Self {
         Self {
-            canvas_w: canvas.0,
-            canvas_h: canvas.1,
             page_w: page.0,
             page_h: page.1,
         }
     }
 
-    /// The device-to-PDF scale factor: device pixels per PDF point.
+    /// Device units per PDF point (e.g. for converting a stroke's ink width to
+    /// points). The inverse of `PT_PER_DEVICE`.
     pub fn scale(&self) -> f64 {
-        self.canvas_w / self.page_w
+        DEVICE_DPI / 72.0
     }
 
-    /// Convert one device point to a PDF point.
+    /// Convert one device point to a PDF point. The PDF is centered horizontally
+    /// (device x = 0 is the page's horizontal centre) and top-aligned (device y = 0
+    /// is the page top), rendered at native dpi.
     pub fn device_to_pdf(&self, dx: f64, dy: f64) -> (f64, f64) {
-        let s = self.scale();
-        ((dx + self.canvas_w / 2.0) / s, self.page_h - dy / s)
+        (
+            dx * PT_PER_DEVICE + self.page_w / 2.0,
+            self.page_h - dy * PT_PER_DEVICE,
+        )
     }
 
     /// Axis-aligned PDF bounding box of a set of device points (e.g. a stroke).

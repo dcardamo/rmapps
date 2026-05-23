@@ -50,9 +50,11 @@ pub fn detect(bundle_path: &std::path::Path) -> anyhow::Result<Plan> {
         eprintln!("[rmreader] no embedded manifest in fetched PDF; skipping read-back");
         return Ok(Plan::default());
     };
-    let canvas = bundle.canvas_size();
-    let page = first_page_size(&doc).unwrap_or(canvas); // (w,h) PDF points
-    let transform = Transform::new(canvas, page);
+    // Page size from the source PDF MediaBox; fall back to the device canvas only if
+    // it is somehow missing (the transform renders at native dpi, so it needs the
+    // PDF page size, not the canvas size).
+    let page = first_page_size(&doc).unwrap_or_else(|| bundle.canvas_size());
+    let transform = Transform::new(page);
     let textlayer = TextLayer::extract(&pdf)?;
 
     let mut hits = Vec::new();
@@ -62,16 +64,18 @@ pub fn detect(bundle_path: &std::path::Path) -> anyhow::Result<Plan> {
                 if !s.is_highlighter() {
                     continue;
                 }
-                // Expand the centre-line bbox by the stroke's physical half-height
-                // in PDF points so that horizontal highlights cover the text they
-                // visually overlay (the raw points lie on the centre axis of the
-                // rendered ink band).
-                let half_h = s
+                // Expand the centre-line bbox vertically so a horizontal highlight
+                // covers the text line it overlays (the raw points lie on the ink
+                // band's centre axis). Cap the expansion at ~half a text line so a
+                // single-line highlight doesn't also grab the lines above/below.
+                const MAX_HALF_H_PT: f64 = 6.0;
+                let ink_half_h_pt = s
                     .points
                     .iter()
                     .filter_map(|p| p.width)
                     .fold(0.0f32, f32::max) as f64
                     / (2.0 * transform.scale());
+                let half_h = ink_half_h_pt.min(MAX_HALF_H_PT);
                 if let Some(mut bbox) =
                     transform.pdf_bbox(s.points.iter().map(|p| (p.x as f64, p.y as f64)))
                 {

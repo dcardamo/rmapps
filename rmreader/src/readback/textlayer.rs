@@ -69,13 +69,12 @@ impl TextLayer {
                 )
         });
 
-        matched
-            .iter()
-            .map(|w| w.text.as_str())
-            .collect::<Vec<_>>()
-            .join(" ")
-            .trim()
-            .to_string()
+        // fulgur emits whole sentences as single text runs, so pdftotext can report
+        // the same run text for each wrapped visual line; collapse consecutive
+        // identical texts so a single highlight doesn't repeat the sentence.
+        let mut texts: Vec<&str> = matched.iter().map(|w| w.text.as_str()).collect();
+        texts.dedup();
+        texts.join(" ").trim().to_string()
     }
 }
 

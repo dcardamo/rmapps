@@ -26,7 +26,7 @@ fn maps_fixture_strokes_into_expected_pdf_regions() {
             .unwrap()
     };
     let (page_w, page_h) = (num(&mb[2]) - num(&mb[0]), num(&mb[3]) - num(&mb[1])); // ~595 x 842
-    let t = Transform::new(canvas, (page_w, page_h));
+    let t = Transform::new((page_w, page_h));
 
     // Collect highlighter stroke bboxes (device -> PDF).
     let mut boxes = Vec::new();
