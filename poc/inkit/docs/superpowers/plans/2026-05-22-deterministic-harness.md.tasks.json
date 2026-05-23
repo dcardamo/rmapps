@@ -80,14 +80,14 @@
     {
       "id": 11,
       "subject": "Task 11: inkapp-harness loop simulator",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9, 10],
       "description": "Gesture (Tap/Swipe), Scenario(.mark), StepTrace, synthesize, simulate (compile, write_ink->read_ink real path, attribute, inspect). Stroke-in-region read-back test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/src/simulator.rs\", \"crates/inkapp-harness/src/lib.rs\", \"crates/inkapp-harness/tests/simulator.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-harness --test simulator\", \"acceptanceCriteria\": [\"Scenario gestures by region\", \"simulate round-trips through real .rm path\", \"readback contains targeted region\"]}\n```"
     },
     {
       "id": 12,
       "subject": "Task 12: Exerciser e2e + golden images + green make test",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11, 9, 6],
       "description": "checkbox + highlightable-text exercisers through simulator with assert_golden (bootstrap+review); flake font note; supersede spike findings line; make test + make clippy green.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/tests/exercisers.rs\", \"crates/inkapp-harness/tests/golden/\", \"flake.nix\", \"docs/superpowers/spikes/2026-05-22-typst-readback-findings.md\"], \"verifyCommand\": \"make test\", \"acceptanceCriteria\": [\"checkbox + highlight exercisers pass\", \"golden inspector images match\", \"make test + make clippy green\"]}\n```"
     }
