@@ -76,3 +76,15 @@ fn read_bool_tracks_state() {
         cb.read(&[], &manifest_with(RECT))
     });
 }
+
+#[test]
+fn read_bool_true_when_marked() {
+    use inkapp_core::widget::Widget;
+    let cb = Checkbox::new("done");
+    let pts = vec![
+        PdfPoint { x: 4.0, y: 12.0 },
+        PdfPoint { x: 9.0, y: 5.0 },
+        PdfPoint { x: 16.0, y: 16.0 },
+    ];
+    assert!(cb.read(&ink(pts), &manifest_with(RECT)));
+}

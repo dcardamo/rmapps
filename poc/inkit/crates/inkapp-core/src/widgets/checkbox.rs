@@ -1,5 +1,5 @@
 use crate::geometry::PdfPoint;
-use crate::ink::RegionInk;
+use crate::ink::{RegionInk, Stroke};
 use crate::manifest::Manifest;
 use crate::widget::{region_metadata, RenderCx, Widget};
 
@@ -43,10 +43,12 @@ impl Checkbox {
 
     /// Classify the ink attributed to this checkbox's region.
     pub fn read_state(&self, ink: &[RegionInk], manifest: &Manifest) -> CheckState {
+        // Unknown region name → treat as empty (no layout to test against).
         let Some(region) = manifest.regions.iter().find(|r| r.name == self.name) else {
             return CheckState::Empty;
         };
-        let strokes: Vec<&crate::ink::Stroke> = ink
+        // Two stages: first the strokes bucketed to this region by name, then only those with a point actually inside the rect (a bucketed stroke may still lie outside).
+        let strokes: Vec<&Stroke> = ink
             .iter()
             .filter(|ri| ri.region == self.name)
             .flat_map(|ri| &ri.strokes)
