@@ -1,14 +1,19 @@
 //! On-device recording: the gesture catalog, self-instructing template
-//! generation, and (later task) extraction of captures into fixtures.
+//! generation, and extraction of captures into fixtures.
 
 use inkapp_core::embed::embed_manifest;
 use inkapp_core::error::Result;
-use inkapp_core::geometry::PdfPoint;
-use inkapp_core::manifest::recover_regions;
+use inkapp_core::geometry::{PdfPoint, PdfRect};
+use inkapp_core::ink::Stroke;
+use inkapp_core::manifest::{recover_regions, Manifest};
+use inkapp_core::readback::attribute;
 use inkapp_core::render::{compile_to_document, document_to_pdf};
 use inkapp_core::widget::region_metadata;
 
-use crate::fixtures::{Fit, Tool};
+use crate::fixtures::{normalize, Fit, GestureFixture, Sample, Tool};
+
+/// Re-export `Source` so tests can import it from `recording` alongside the other public API.
+pub use crate::fixtures::Source;
 
 /// Template page width in points. 0.75 aspect approximates the reMarkable canvas;
 /// the device fits to width. Shared by generation and (later) extraction.
@@ -252,4 +257,122 @@ pub fn render_calibration() -> Result<Vec<u8>> {
     let manifest = recover_regions(&doc)?.with_version(1);
     let pdf = document_to_pdf(&doc)?;
     embed_manifest(&pdf, &manifest)
+}
+
+// ── Extraction ────────────────────────────────────────────────────────────────
+
+/// Collect strokes attributed to each `box:<name>:i` region (in index order)
+/// and normalize each box's strokes into a [`Sample`].
+pub fn extract_samples(strokes_pdf: &[Stroke], manifest: &Manifest, name: &str) -> Vec<Sample> {
+    let region_ink = attribute(strokes_pdf, manifest);
+    let mut samples = Vec::new();
+    for i in 0..BOXES_PER_GESTURE {
+        let region_name = format!("box:{name}:{i}");
+        let strokes: Vec<Stroke> = region_ink
+            .iter()
+            .filter(|ri| ri.region == region_name)
+            .flat_map(|ri| ri.strokes.clone())
+            .collect();
+        if !strokes.is_empty() {
+            samples.push(normalize(&strokes));
+        }
+    }
+    samples
+}
+
+/// Build a [`GestureFixture`] from already-PDF-space strokes (real or synthetic).
+pub fn extract_fixture(
+    entry: &CatalogEntry,
+    strokes_pdf: &[Stroke],
+    manifest: &Manifest,
+    source: Source,
+) -> GestureFixture {
+    GestureFixture {
+        name: entry.name.to_string(),
+        tool: entry.tool,
+        fit: entry.fit,
+        default: 0,
+        samples: extract_samples(strokes_pdf, manifest, entry.name),
+        source,
+    }
+}
+
+// ── Bootstrap synthesis ───────────────────────────────────────────────────────
+
+/// Return the PDF rect of `box:<name>:i` from the manifest, or `None` if absent.
+fn box_rect(manifest: &Manifest, name: &str, i: usize) -> Option<PdfRect> {
+    manifest
+        .regions
+        .iter()
+        .find(|r| r.name == format!("box:{name}:{i}"))
+        .map(|r| r.rect)
+}
+
+/// Synthesize plausible PDF-space ink in each guide box for bootstrap fixtures.
+///
+/// Shapes are representative of the gesture: checkmark = short V-shape,
+/// scribble-out = dense zigzag, swipe/strike = horizontal line, circle = ellipse,
+/// arrow = line + arrowhead, default = wave. Both pen and highlighter gestures are
+/// handled; the `highlighter` flag on each stroke follows the catalog entry's tool.
+pub fn bootstrap_strokes(entry: &CatalogEntry, manifest: &Manifest) -> Vec<Stroke> {
+    let mut out = Vec::new();
+    let hi = entry.tool.is_highlighter();
+    for i in 0..BOXES_PER_GESTURE {
+        let Some(r) = box_rect(manifest, entry.name, i) else {
+            continue;
+        };
+        let w = r.x1 - r.x0;
+        let h = r.y1 - r.y0;
+        // 15% padding so points land inside the region and survive containment checks.
+        let pad = 0.15;
+        let pt = |u: f64, v: f64| PdfPoint {
+            x: r.x0 + (pad + u * (1.0 - 2.0 * pad)) * w,
+            y: r.y0 + (pad + v * (1.0 - 2.0 * pad)) * h,
+        };
+        let points = match entry.name {
+            // Short downstroke then upstroke-right — classic checkmark shape.
+            "checkmark" => vec![pt(0.0, 0.45), pt(0.35, 0.0), pt(1.0, 1.0)],
+            // Dense vertical zigzag covers most of the box.
+            "scribble-out" => {
+                let mut v = Vec::new();
+                for k in 0..14u32 {
+                    let u = k as f64 / 13.0;
+                    v.push(pt(u, if k % 2 == 0 { 0.0 } else { 1.0 }));
+                }
+                v
+            }
+            // Horizontal sweep across the full width, centered vertically.
+            "highlight-swipe" | "strike-through" => vec![pt(0.0, 0.5), pt(1.0, 0.5)],
+            // 16-segment ellipse approximation.
+            "circle" => {
+                let mut v = Vec::new();
+                for k in 0..=16u32 {
+                    let t = std::f64::consts::TAU * (k as f64) / 16.0;
+                    v.push(pt(0.5 + 0.5 * t.cos(), 0.5 + 0.5 * t.sin()));
+                }
+                v
+            }
+            // Horizontal line + two arrowhead lines.
+            "arrow" => vec![
+                pt(0.0, 0.5),
+                pt(1.0, 0.5),
+                pt(0.7, 0.2),
+                pt(1.0, 0.5),
+                pt(0.7, 0.8),
+            ],
+            // Generic wave — recognisable as a gesture without matching any specific one.
+            _ => vec![
+                pt(0.0, 0.5),
+                pt(0.25, 0.2),
+                pt(0.5, 0.6),
+                pt(0.75, 0.2),
+                pt(1.0, 0.6),
+            ],
+        };
+        out.push(Stroke {
+            points,
+            highlighter: hi,
+        });
+    }
+    out
 }
