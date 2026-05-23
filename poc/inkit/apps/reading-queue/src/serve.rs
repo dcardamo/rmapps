@@ -2,9 +2,16 @@
 //! framework runtime — it lives in the app, shells out to `rmapi`, and is used
 //! by the manual device bar. The framework owns only the loop *body*
 //! (`App::step`); push/pull/delete are here.
+//!
+//! The `rmapi` invocations mirror the proven Spec #3 helpers
+//! (`inkapp-harness/tests/common/mod.rs`): always `-ni` (non-interactive) with
+//! stdin nulled (token-clobber guard, mechanics doc §10); `put --content-only`
+//! (PDF-blob-only push, which preserves the device ink layer on a re-push, §3);
+//! folder pulls via `mget` (plain `get` is single-file and errors on a folder).
 
 use std::collections::HashMap;
-use std::process::Command;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 use inkapp::{App as Framework, DocSet, Remarkable};
 use inkapp_core::device::Device;
@@ -15,55 +22,124 @@ use crate::{Connectors, Msg};
 /// reMarkable folder for the app's documents.
 const FOLDER: &str = "/ReadingQueue";
 
-/// Push a rendered PDF as `<key>` under FOLDER (writing a temp file, then
-/// `rmapi put`). Non-recursive mkdir per the mechanics doc.
+/// `rmapi -ni mkdir` (non-interactive; stdin nulled). Errors (e.g. "already
+/// exists") are ignored — create each ancestor level separately (mechanics §10).
+fn rmapi_mkdir(folder: &str) {
+    let _ = Command::new("rmapi")
+        .args(["-ni", "mkdir", folder])
+        .stdin(Stdio::null())
+        .status();
+}
+
+/// Push a rendered PDF as document `<key>` under FOLDER via
+/// `rmapi -ni put --content-only`. On first push this creates the document; on a
+/// re-push of the same name it swaps only the PDF blob, preserving the device's
+/// ink layer (remarkable-pdf-mechanics.md §3) — which is how an updated article
+/// keeps the user's annotations.
 pub fn push_doc(key: &str, pdf: &[u8]) -> std::io::Result<()> {
-    let _ = Command::new("rmapi").args(["mkdir", FOLDER]).status(); // ignore "exists"
+    rmapi_mkdir(FOLDER);
+    // The on-device visibleName is the file stem, so name the temp file <key>.pdf.
     let tmp = std::env::temp_dir().join(format!("{key}.pdf"));
     std::fs::write(&tmp, pdf)?;
-    let status = Command::new("rmapi")
-        .args(["put", tmp.to_str().unwrap(), FOLDER])
-        .status()?;
-    assert!(status.success(), "rmapi put failed for {key}");
+    let ok = Command::new("rmapi")
+        .args([
+            "-ni",
+            "put",
+            "--content-only",
+            tmp.to_str().unwrap(),
+            FOLDER,
+        ])
+        .stdin(Stdio::null())
+        .status()?
+        .success();
+    assert!(ok, "rmapi put failed for {key}");
     Ok(())
 }
 
-/// Pull ink for `key` from the device, returning PDF-space strokes (empty if the
-/// document has no annotations yet). Uses `rmapi get` into a temp `.rmdoc`, reads
-/// the first `.rm`, and parses it through the device transform.
-pub fn pull_ink(device: &Remarkable, key: &str, page_h: f64) -> std::io::Result<Vec<Stroke>> {
-    // Temp file is intentionally left in place (manual bar; clean by reboot).
-    let out = std::env::temp_dir().join(format!("{key}.rmdoc"));
-    let status = Command::new("rmapi")
-        .args([
-            "get",
-            &format!("{FOLDER}/{key}"),
-            "-o",
-            out.to_str().unwrap(),
-        ])
-        .status()?;
-    if !status.success() {
-        return Ok(Vec::new());
+/// Delete document `<key>` from the device (`rmapi -ni rm`). Non-fatal on failure
+/// (a missing doc is fine).
+pub fn delete_doc(key: &str) {
+    let _ = Command::new("rmapi")
+        .args(["-ni", "rm", &format!("{FOLDER}/{key}")])
+        .stdin(Stdio::null())
+        .status();
+}
+
+/// Recursively collect `*.rmdoc` files under `dir` (rmapi `mget` nests downloads
+/// under a subdir named after the remote folder, so we walk rather than assume a
+/// flat layout).
+fn find_rmdocs(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            find_rmdocs(&p, out);
+        } else if p.extension().is_some_and(|x| x == "rmdoc") {
+            out.push(p);
+        }
     }
-    let file = std::fs::File::open(&out)?;
-    let mut zip = zip::ZipArchive::new(file).expect("rmdoc zip");
+}
+
+/// Read the first `.rm` entry's PDF-space strokes out of an `.rmdoc` zip, via the
+/// device transform. Empty if the document has no ink yet.
+fn strokes_from_rmdoc(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Stroke> {
+    use std::io::Read;
+    let Ok(file) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
+    let Ok(mut zip) = zip::ZipArchive::new(file) else {
+        return Vec::new();
+    };
     let names: Vec<String> = (0..zip.len())
         .map(|i| zip.by_index(i).unwrap().name().to_string())
         .collect();
-    let Some(rm_name) = names.into_iter().find(|n| n.ends_with(".rm")) else {
-        return Ok(Vec::new());
+    let Some(rm) = names.into_iter().find(|n| n.ends_with(".rm")) else {
+        return Vec::new();
     };
-    use std::io::Read;
     let mut bytes = Vec::new();
-    zip.by_name(&rm_name).unwrap().read_to_end(&mut bytes)?;
-    Ok(device.read_ink(&bytes, page_h).unwrap_or_default())
+    if zip.by_name(&rm).unwrap().read_to_end(&mut bytes).is_err() {
+        return Vec::new();
+    }
+    device.read_ink(&bytes, page_h).unwrap_or_default()
 }
 
-/// Delete a document from the device.
-pub fn delete_doc(key: &str) {
-    let _ = Command::new("rmapi")
-        .args(["rm", &format!("{FOLDER}/{key}")])
-        .status();
+/// Pull the whole FOLDER once (`rmapi -ni mget`) and return per-key ink. The doc
+/// filename stem is the key (we push `<key>.pdf`), so a pulled `<key>.rmdoc` maps
+/// back to its key and is decoded with that key's page height. Returns empty if
+/// nothing has been pulled yet (e.g. before the first device sync).
+pub fn pull_ink(
+    device: &Remarkable,
+    page_h_by_key: &HashMap<String, f64>,
+) -> HashMap<String, Vec<Stroke>> {
+    let dir = std::env::temp_dir().join("reading-queue-pull");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mk pull dir");
+    let ok = Command::new("rmapi")
+        .args(["-ni", "mget", FOLDER])
+        .current_dir(&dir)
+        .stdin(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    let mut out = HashMap::new();
+    if !ok {
+        return out;
+    }
+    let mut rmdocs = Vec::new();
+    find_rmdocs(&dir, &mut rmdocs);
+    for p in rmdocs {
+        let Some(key) = p.file_stem().and_then(|s| s.to_str()).map(str::to_string) else {
+            continue;
+        };
+        let page_h = page_h_by_key.get(&key).copied().unwrap_or(0.0);
+        let strokes = strokes_from_rmdoc(device, &p, page_h);
+        if !strokes.is_empty() {
+            out.insert(key, strokes);
+        }
+    }
+    out
 }
 
 /// Render + push the current set (the "publish" half of a cycle).
@@ -75,22 +151,19 @@ pub fn publish(app: &mut Framework<crate::App, Msg, Connectors>, set: &mut DocSe
     println!("published {} document(s) to {FOLDER}", rendered.len());
 }
 
-/// Pull ink for every current key, step once, and apply ops to the device
-/// (push updated/created, delete removed).
+/// Pull ink for the whole folder, step once, and apply ops to the device (push
+/// updated/created, delete removed).
 pub fn sync_once(
     app: &mut Framework<crate::App, Msg, Connectors>,
     device: &Remarkable,
     set: &mut DocSet,
 ) {
-    let mut ink: HashMap<String, Vec<Stroke>> = HashMap::new();
-    for key in set.keys() {
-        let ph = set.page_h(&key).unwrap_or(0.0);
-        if let Ok(strokes) = pull_ink(device, &key.0, ph) {
-            if !strokes.is_empty() {
-                ink.insert(key.0.clone(), strokes);
-            }
-        }
-    }
+    let page_h: HashMap<String, f64> = set
+        .keys()
+        .into_iter()
+        .filter_map(|k| set.page_h(&k).map(|h| (k.0, h)))
+        .collect();
+    let ink = pull_ink(device, &page_h);
     let cycle = app.step(set, &ink).expect("step");
     for op in &cycle.ops {
         if let inkapp_core::reconcile::DocOp::Delete(k) = op {
