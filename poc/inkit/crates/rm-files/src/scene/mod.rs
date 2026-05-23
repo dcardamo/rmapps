@@ -1,7 +1,8 @@
 //! v6 scene parsing: walks the tagged-block stream and extracts scene items.
 
 mod items;
-mod reader;
+pub(crate) mod reader;
+mod writer;
 
 pub use items::{Pen, PenColor, SceneItem, Stroke, TextHighlight};
 
