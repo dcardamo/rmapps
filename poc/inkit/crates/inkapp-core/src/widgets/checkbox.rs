@@ -1,5 +1,6 @@
+use crate::component::Component;
 use crate::geometry::PdfPoint;
-use crate::ink::{RegionInk, Stroke};
+use crate::ink::RegionInk;
 use crate::manifest::Manifest;
 use crate::widget::{region_metadata, RenderCx, Widget};
 
@@ -18,21 +19,45 @@ pub enum CheckState {
 /// scribble-out rather than a mark. A tick is ~1–2 diagonals; a scribble many.
 const SCRIBBLE_RATIO: f64 = 3.0;
 
-/// A single tappable checkbox bound to a named region.
-pub struct Checkbox {
+/// A single tappable checkbox bound to a named region, carrying the message to
+/// emit when marked (Elm's value-message; no stored closure). `M` defaults to
+/// `()` so a presence-only `Checkbox::new(name)` keeps working.
+pub struct Checkbox<M = ()> {
     name: String,
+    label: String,
+    on_check: M,
 }
 
-impl Checkbox {
+impl Checkbox<()> {
+    /// A presence-only checkbox (no message). Back-compatible constructor.
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
+            label: String::new(),
+            on_check: (),
+        }
+    }
+}
+
+impl<M> Checkbox<M> {
+    /// A checkbox that carries `on_check` to emit when marked.
+    pub fn with_msg(name: &str, on_check: M) -> Self {
+        Self {
+            name: name.to_string(),
+            label: String::new(),
+            on_check,
         }
     }
 
+    /// Set the visible label (builder).
+    #[must_use]
+    pub fn label(mut self, label: &str) -> Self {
+        self.label = label.to_string();
+        self
+    }
+
     /// Render the checkbox glyph and its region at an explicit position
-    /// (Typst-space points). Used directly by tests and apps that lay out
-    /// absolutely; `render` wraps this with a default box.
+    /// (Typst-space points). Used by tests/apps that lay out absolutely.
     pub fn render_at(&self, page: usize, x: f64, y: f64, w: f64, h: f64) -> String {
         let mut s = region_metadata(&self.name, page, x, y, w, h);
         s.push_str(&format!(
@@ -43,12 +68,12 @@ impl Checkbox {
 
     /// Classify the ink attributed to this checkbox's region.
     pub fn read_state(&self, ink: &[RegionInk], manifest: &Manifest) -> CheckState {
-        // Unknown region name → treat as empty (no layout to test against).
         let Some(region) = manifest.regions.iter().find(|r| r.name == self.name) else {
             return CheckState::Empty;
         };
-        // Two stages: first the strokes bucketed to this region by name, then only those with a point actually inside the rect (a bucketed stroke may still lie outside).
-        let strokes: Vec<&Stroke> = ink
+        // Two stages: first the strokes bucketed to this region by name, then only
+        // those with a point actually inside the rect.
+        let strokes: Vec<&crate::ink::Stroke> = ink
             .iter()
             .filter(|ri| ri.region == self.name)
             .flat_map(|ri| &ri.strokes)
@@ -81,7 +106,7 @@ fn polyline_len(points: &[PdfPoint]) -> f64 {
         .sum()
 }
 
-impl Widget for Checkbox {
+impl<M> Widget for Checkbox<M> {
     type Output = bool;
 
     fn render(&self, cx: &mut RenderCx) -> String {
@@ -90,5 +115,31 @@ impl Widget for Checkbox {
 
     fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> bool {
         self.read_state(ink, manifest) != CheckState::Empty
+    }
+}
+
+impl<M: Clone> Component for Checkbox<M> {
+    type Msg = M;
+
+    /// Inline render: an in-flow box whose region rect is recovered from layout
+    /// (via `here().position()`), so it composes after flowing content in a
+    /// document. The page index comes from Typst introspection.
+    fn render(&self, _cx: &mut RenderCx) -> String {
+        let name = &self.name;
+        let label = self.label.replace('\\', "\\\\").replace('"', "\\\"");
+        format!(
+            "#box[#let t = \"{name}\"; #context [#metadata((name: \"{name}\", \
+               page: here().position().page - 1, x: here().position().x / 1pt, \
+               y: here().position().y / 1pt, w: 14, h: 14)) <region>]\
+             #rect(width: 14pt, height: 14pt, stroke: 0.5pt)] #text[{label}]\n"
+        )
+    }
+
+    fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<M> {
+        if self.read_state(ink, manifest) != CheckState::Empty {
+            vec![self.on_check.clone()]
+        } else {
+            vec![]
+        }
     }
 }
