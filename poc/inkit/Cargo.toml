@@ -8,6 +8,7 @@ members = [
     "crates/inkapp-readwise",
     "crates/inkapp",
     "spikes/typst-readback",
+    "apps/reading-queue",
 ]
 
 [workspace.package]
