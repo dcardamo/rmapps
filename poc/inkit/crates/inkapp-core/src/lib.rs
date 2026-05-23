@@ -1,6 +1,7 @@
 //! inkapp-core — the device-agnostic framework: render, manifest, widgets,
 //! readback, and the minimal `Device` seam.
 
+pub mod component;
 pub mod device;
 pub mod embed;
 pub mod error;
@@ -13,6 +14,7 @@ pub mod widget;
 pub mod widgets;
 pub mod world;
 
+pub use component::Component;
 pub use device::Device;
 pub use error::{Error, Result};
 pub use geometry::{DevicePoint, PdfPoint, PdfRect};
