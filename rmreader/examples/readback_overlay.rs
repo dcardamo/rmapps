@@ -1,14 +1,18 @@
-//! Visual debugger: render PDF pages with highlighter ink + action-label cells.
+//! Visual debugger: render PDF pages with highlighter ink + action-label cells
+//! + snap-to-text GlyphRange rectangles.
 //!
 //! Usage: `cargo run --example readback_overlay -- <bundle.rmdoc> <out_dir>`
 //!
-//! For each page that has at least one highlighter stroke:
+//! For each page that has at least one highlighter stroke or text highlight:
 //!   - renders the source PDF page to a PNG via pdftoppm
 //!   - draws action-label cell rects in BLUE
 //!   - draws each highlighter stroke's polyline in RED, plus its bbox as a thin
 //!     red rectangle
+//!   - draws each GlyphRange text-highlight rectangle in GREEN
 //!   - prints per-stroke: PDF bbox, center_y, and which label cell (if any) it
 //!     hits — mirroring the actual classification logic
+//!   - prints per-GlyphRange: text, PDF bbox, and words from the PDF text layer
+//!     that sit under the snap rectangle
 //!
 //! Saves `<out_dir>/page_<N>.png` for every matching page.
 
@@ -21,7 +25,10 @@ use image::{ImageBuffer, Rgb, RgbImage};
 use rmreader::{
     embed,
     manifest::EmbeddedManifest,
-    readback::coords::{PdfRect, Transform},
+    readback::{
+        coords::{PdfRect, Transform},
+        textlayer::TextLayer,
+    },
 };
 
 const RENDER_DPI: f64 = 150.0;
@@ -226,6 +233,16 @@ fn main() -> anyhow::Result<()> {
 
     let blue = Rgb([0u8, 0u8, 220u8]);
     let red = Rgb([220u8, 0u8, 0u8]);
+    let green = Rgb([0u8, 200u8, 0u8]);
+
+    // Extract the PDF text layer once for GlyphRange analysis.
+    let textlayer = match TextLayer::extract(&pdf_bytes) {
+        Ok(tl) => tl,
+        Err(e) => {
+            eprintln!("warning: could not extract PDF text layer: {e:#}");
+            TextLayer::default()
+        }
+    };
 
     let mut pages_written = 0usize;
 
@@ -240,7 +257,10 @@ fn main() -> anyhow::Result<()> {
             .into_iter()
             .filter(|s| s.is_highlighter())
             .collect();
-        if hl_strokes.is_empty() {
+        let text_highlights = scene.text_highlights();
+
+        // Render a page only if it has ink highlights or GlyphRange highlights.
+        if hl_strokes.is_empty() && text_highlights.is_empty() {
             continue;
         }
 
@@ -308,6 +328,46 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
+        // Draw each GlyphRange text-highlight rectangle in GREEN and print analysis.
+        for hl in &text_highlights {
+            for rect in &hl.rectangles {
+                // Rect corners in device space: (x, y) top-left, (x+w, y+h) bottom-right.
+                let (pdf_x0, pdf_y0) = transform.device_to_pdf(rect.x, rect.y);
+                let (pdf_x1, pdf_y1) = transform.device_to_pdf(rect.x + rect.w, rect.y + rect.h);
+
+                // After the flip (device y-down → PDF y-up) the smaller device y maps to
+                // the larger PDF y, so normalise into a proper PdfRect (y0 < y1).
+                let bbox = PdfRect {
+                    x0: pdf_x0.min(pdf_x1),
+                    y0: pdf_y0.min(pdf_y1),
+                    x1: pdf_x0.max(pdf_x1),
+                    y1: pdf_y0.max(pdf_y1),
+                };
+
+                let (px0, py0, px1, py1) = rect_to_pixels(bbox, page_h, scale);
+                draw_rect(&mut img, px0, py0, px1, py1, green, 2);
+
+                // Per-highlight analysis: stored text vs. words physically under bbox.
+                let snippet: String = hl.text.chars().take(50).collect();
+                let truncated = if hl.text.chars().count() > 50 {
+                    format!("{snippet}…")
+                } else {
+                    snippet
+                };
+                let under = textlayer.words_under(pg.index, &bbox);
+                let under_snippet: String = under.chars().take(80).collect();
+                let under_display = if under.chars().count() > 80 {
+                    format!("{under_snippet}…")
+                } else {
+                    under_snippet
+                };
+                println!(
+                    "page={} GLYPH text={:?} pdf_bbox=[{:.1},{:.1},{:.1},{:.1}] textlayer_under={:?}",
+                    pg.index, truncated, bbox.x0, bbox.y0, bbox.x1, bbox.y1, under_display
+                );
+            }
+        }
+
         img.save(&out_path)
             .with_context(|| format!("failed to save {out_path}"))?;
         println!("wrote {out_path}");
@@ -315,7 +375,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     if pages_written == 0 {
-        println!("no pages with highlighter strokes found");
+        println!("no pages with highlighter strokes or text highlights found");
     } else {
         println!("done: {pages_written} page(s) written to {out_dir}");
     }
