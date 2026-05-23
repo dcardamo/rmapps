@@ -1,0 +1,17 @@
+[package]
+name = "typst-readback"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+typst = "0.14"
+typst-pdf = "0.14"
+typst-kit = { version = "0.14", features = ["fonts"] }
+comemo = "0.5"
+anyhow = "1"
+
+[dev-dependencies]
+lopdf = "0.36"
+tempfile = "3"
