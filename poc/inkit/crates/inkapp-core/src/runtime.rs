@@ -1,5 +1,5 @@
 //! The MVU loop runtime: the render walk (`render_document`) and the multi-cycle
-//! driver (`App`, `DocSet`, `step` — added in a later task).
+//! driver (`App`, `DocSet`, `step`).
 
 use crate::document::{DocKey, Document};
 use crate::embed::embed_manifest;
@@ -209,9 +209,12 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             }
         }
 
-        // 2. Fold each message through update, then bump version.
+        // 2. Bump version, then fold each message through update. The version
+        //    stamps the post-fold render in phase 3.
         self.version += 1;
-        for m in decoded.clone() {
+        // Clone each message to fold; `decoded` itself is moved into the
+        // returned `Cycle` for the caller to inspect.
+        for m in decoded.iter().cloned() {
             (self.update)(m, &mut self.model, &self.connectors);
         }
 

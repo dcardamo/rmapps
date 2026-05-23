@@ -38,7 +38,7 @@
     {
       "id": 6,
       "subject": "Task 6: Keyed reconcile (Create/Update/Delete)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** reconcile(prev,next) by key+hash -> DocOp Create/Update/Delete/no-op; deterministic order.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/reconcile.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/reconcile.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test reconcile\",\"acceptanceCriteria\":[\"DocOp Create/Update/Delete\",\"diff by key+hash; next-order creates/updates then prev-order deletes\"]}\n```"
     },
