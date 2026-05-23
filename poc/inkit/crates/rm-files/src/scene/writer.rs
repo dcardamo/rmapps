@@ -39,6 +39,7 @@ impl Writer {
     }
 
     /// Finished bytes.
+    // exercised by this module's #[cfg(test)] tests; not yet called from non-test code
     #[allow(dead_code)]
     pub fn as_bytes(&self) -> &[u8] {
         &self.buf
@@ -133,6 +134,7 @@ impl Writer {
 
     /// Write a length-prefixed UTF-8 string sub-block at `index`
     /// (varuint length, 1-byte is-ascii flag, then the bytes).
+    // exercised by this module's #[cfg(test)] tests; not yet called from non-test code
     #[allow(dead_code)]
     pub fn write_string(&mut self, index: u32, s: &str) {
         let mark = self.begin_subblock(index);
@@ -196,6 +198,7 @@ impl Default for Writer {
 // ─── Line-item writer ────────────────────────────────────────────────────────
 
 use crate::scene::items::{Pen, PenColor, SceneItem, Stroke};
+use crate::scene::protocol::{BLOCK_TYPE_SCENE_LINE_ITEM, ITEM_TYPE_LINE};
 
 /// Map a [`Pen`] back to its raw tool id (inverse of `Pen::from_id`).
 fn pen_to_id(p: Pen) -> u32 {
@@ -243,15 +246,10 @@ fn color_to_id(c: PenColor) -> u32 {
     }
 }
 
-/// Block type for a `SceneLineItemBlock`, per rmscene.
-const BLOCK_TYPE_SCENE_LINE_ITEM: u8 = 0x05;
-/// Item type byte for a `Line` inside a value sub-block, per rmscene.
-const ITEM_TYPE_LINE: u8 = 0x03;
-
 impl Writer {
     /// Write a single raw byte (no tag). Used for the untagged item-type byte
     /// that sits at the start of a value sub-block.
-    fn push_raw_u8(&mut self, v: u8) {
+    fn write_raw_u8(&mut self, v: u8) {
         self.buf.push(v);
     }
 
@@ -268,7 +266,7 @@ impl Writer {
 
         // value sub-block (tag 6): raw item-type byte + line body
         let value = self.begin_subblock(6);
-        self.push_raw_u8(ITEM_TYPE_LINE);
+        self.write_raw_u8(ITEM_TYPE_LINE);
 
         // Line body — mirrors read_line field order in items.rs
         self.write_int(1, pen_to_id(stroke.tool));

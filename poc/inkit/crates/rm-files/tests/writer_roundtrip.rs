@@ -74,14 +74,44 @@ fn real_fixture_strokes_round_trip() {
         .collect();
 
     assert_eq!(reparsed.len(), original.len());
-    for (a, b) in original.iter().zip(&reparsed) {
-        assert_eq!(a.tool, b.tool, "tool preserved");
-        assert_eq!(a.color, b.color, "color preserved");
+    for (stroke_idx, (a, b)) in original.iter().zip(&reparsed).enumerate() {
+        assert_eq!(a.tool, b.tool, "stroke {stroke_idx}: tool preserved");
+        assert_eq!(a.color, b.color, "stroke {stroke_idx}: color preserved");
         let ax: Vec<i32> = a.points.iter().map(|p| p.x.round() as i32).collect();
         let bx: Vec<i32> = b.points.iter().map(|p| p.x.round() as i32).collect();
         let ay: Vec<i32> = a.points.iter().map(|p| p.y.round() as i32).collect();
         let by: Vec<i32> = b.points.iter().map(|p| p.y.round() as i32).collect();
-        assert_eq!(ax, bx, "x geometry preserved");
-        assert_eq!(ay, by, "y geometry preserved");
+        assert_eq!(ax, bx, "stroke {stroke_idx}: x geometry preserved");
+        assert_eq!(ay, by, "stroke {stroke_idx}: y geometry preserved");
+
+        // v2 points encode telemetry as integer-valued u16/u8 decoded to f32,
+        // so write→read is lossless; assert exact Option<f32> equality.
+        assert_eq!(
+            a.points.len(),
+            b.points.len(),
+            "stroke {stroke_idx}: point count preserved"
+        );
+        for (i, (pa, pb)) in a.points.iter().zip(&b.points).enumerate() {
+            assert_eq!(
+                pa.speed, pb.speed,
+                "stroke {stroke_idx} point {i}: speed preserved (original={:?}, reparsed={:?})",
+                pa.speed, pb.speed
+            );
+            assert_eq!(
+                pa.width, pb.width,
+                "stroke {stroke_idx} point {i}: width preserved (original={:?}, reparsed={:?})",
+                pa.width, pb.width
+            );
+            assert_eq!(
+                pa.direction, pb.direction,
+                "stroke {stroke_idx} point {i}: direction preserved (original={:?}, reparsed={:?})",
+                pa.direction, pb.direction
+            );
+            assert_eq!(
+                pa.pressure, pb.pressure,
+                "stroke {stroke_idx} point {i}: pressure preserved (original={:?}, reparsed={:?})",
+                pa.pressure, pb.pressure
+            );
+        }
     }
 }

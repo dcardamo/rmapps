@@ -1,6 +1,7 @@
 //! v6 scene parsing: walks the tagged-block stream and extracts scene items.
 
 mod items;
+pub(crate) mod protocol;
 pub(crate) mod reader;
 pub(crate) mod writer;
 
@@ -8,16 +9,10 @@ pub use items::{Pen, PenColor, SceneItem, Stroke, TextHighlight};
 pub use writer::write_scene;
 
 use crate::error::Result;
+use protocol::{
+    BLOCK_TYPE_SCENE_GLYPH_ITEM, BLOCK_TYPE_SCENE_LINE_ITEM, ITEM_TYPE_GLYPH, ITEM_TYPE_LINE,
+};
 use reader::Reader;
-
-/// Block type for a `SceneLineItemBlock` (an ink stroke), per rmscene.
-const BLOCK_TYPE_SCENE_LINE_ITEM: u8 = 0x05;
-/// Item type byte inside a line item's value sub-block, per rmscene.
-const ITEM_TYPE_LINE: u8 = 0x03;
-/// Block type for a `SceneGlyphItemBlock` (a text highlight), per rmscene.
-const BLOCK_TYPE_SCENE_GLYPH_ITEM: u8 = 0x03;
-/// Item type byte inside a glyph item's value sub-block, per rmscene.
-const ITEM_TYPE_GLYPH: u8 = 0x01;
 
 /// A parsed reMarkable scene: its format version plus its decoded items.
 #[derive(Debug, Clone)]
