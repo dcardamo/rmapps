@@ -10,7 +10,7 @@
     {
       "id": 2,
       "subject": "Task 2: Checkbox<M> impl Component (inkapp-core)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Defaulted-generic `Checkbox<M=()>` carrying on_check, impl `Component` with inline render; zero churn to existing call sites.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/widgets/checkbox.rs\",\"crates/inkapp-core/tests/checkbox_component.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core && nix develop -c cargo test -p inkapp-harness\",\"acceptanceCriteria\":[\"Checkbox<M=()>; new(name) yields Checkbox<()>\",\"with_msg + .label\",\"impl Widget + impl Component\",\"decode emits on_check when marked\",\"existing core+harness tests green\"]}\n```"
     },

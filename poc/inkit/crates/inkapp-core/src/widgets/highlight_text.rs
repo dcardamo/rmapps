@@ -18,7 +18,10 @@ impl HighlightableText {
         }
     }
 
-    /// Like `new`, but `highlighted` tokens render pre-marked.
+    /// Like `new`, but `highlighted` tokens render pre-marked. Matching is by
+    /// token *string*: every token whose text appears in `highlighted` is marked,
+    /// so duplicate token strings are all marked together (acceptable for prose;
+    /// `read` still distinguishes them by per-token region).
     pub fn with_highlights(tokens: &[&str], highlighted: &[String]) -> Self {
         Self {
             tokens: tokens.iter().map(|t| t.to_string()).collect(),
