@@ -2,6 +2,11 @@ use inkapp_core::manifest::recover_regions;
 use inkapp_core::render::compile_to_document;
 
 // A 200x200pt page; a 50x30pt metadata-labelled region at top-left (20,20).
+// NOTE: the author hand-declares coordinates in the `#metadata` value that match
+// the `#place` position, so this proves the Typst->PDF *conversion* is exact. It
+// does NOT verify Typst lays the box out where the metadata claims — that
+// coupling is the job of the widget helpers (Task 6+), which compute the
+// coordinates from the introspector instead of hand-writing them.
 const SRC: &str = r#"#set page(width: 200pt, height: 200pt, margin: 0pt)
 #place(top + left, dx: 20pt, dy: 20pt,
   box(width: 50pt, height: 30pt)[
