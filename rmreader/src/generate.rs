@@ -238,6 +238,23 @@ fn build_one(
     Ok(pdf_path)
 }
 
+/// Build a PDF from explicit documents (no Readwise fetch; images disabled).
+/// Used by the make_test_pdf example to produce a small, controlled document.
+pub fn build_pdf_from_docs(
+    collection: &str,
+    docs: &[crate::readwise::Document],
+    config: &Config,
+    out_dir: &std::path::Path,
+) -> anyhow::Result<std::path::PathBuf> {
+    // fetcher is constructed but never called because images are disabled
+    let fetcher = UreqImageFetcher {
+        timeout_secs: 5,
+        concurrency: 1,
+    };
+    let cache = crate::cache::Cache::from_config(&config.cache);
+    build_one(collection, docs, config, &fetcher, out_dir, &cache)
+}
+
 /// Returns deploy targets: (pdf_path, remarkable_folder).
 pub fn generate(
     config: &Config,
