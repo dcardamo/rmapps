@@ -231,16 +231,18 @@ pub fn render_calibration() -> Result<Vec<u8>> {
         ));
 
         // Horizontal bar of the cross.
+        // -0.3 centers the 0.6pt-thick bar on the known point.
         src.push_str(&format!(
             "#place(top + left, dx: {}pt, dy: {}pt, rect(width: {}pt, height: 0.6pt, fill: black))\n",
             p.x - HALF,
-            PAGE_H - p.y,
+            (PAGE_H - p.y) - 0.3,
             HALF * 2.0
         ));
         // Vertical bar of the cross.
+        // -0.3 centers the 0.6pt-thick bar on the known point.
         src.push_str(&format!(
             "#place(top + left, dx: {}pt, dy: {}pt, rect(width: 0.6pt, height: {}pt, fill: black))\n",
-            p.x,
+            p.x - 0.3,
             (PAGE_H - p.y) - HALF,
             HALF * 2.0
         ));

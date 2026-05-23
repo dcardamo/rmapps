@@ -4,19 +4,19 @@
     {
       "id": 1,
       "subject": "Task 1: Checkbox mark-vs-scribble discrimination",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Add CheckState{Empty,Marked,ScribbledOut} + Checkbox::read_state via path-length-vs-diagonal heuristic; keep read()->bool = state!=Empty.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/widgets/checkbox.rs\",\"crates/inkapp-core/tests/checkbox_state.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core\",\"acceptanceCriteria\":[\"CheckState enum exported\",\"read_state returns Empty/Marked/ScribbledOut\",\"read()->bool == state!=Empty\",\"existing tests green\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: rm-files block-structure inspector + structural-diff",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Add block_structure(bytes)->Vec<BlockSummary>; prove writer output is all line-item blocks and document scaffolding the real fixture carries. Closes deferred #1.\n\n```json:metadata\n{\"files\":[\"crates/rm-files/src/scene/mod.rs\",\"crates/rm-files/src/lib.rs\",\"crates/rm-files/tests/structure.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-files --test structure\",\"acceptanceCriteria\":[\"block_structure returns per-block summary\",\"writer output all 0x05 v2 blocks one per stroke\",\"real file has non-line scaffolding blocks asserted\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Fixture types + transplant math",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** fixtures.rs with Fit/Tool/UnitStroke/Sample/Source/GestureFixture, normalize(), transplant() (aspect-fit/stretch/stretch-x). Add serde/serde_json deps; zip dev-dep.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/fixtures.rs\",\"crates/inkapp-harness/src/lib.rs\",\"crates/inkapp-harness/Cargo.toml\",\"crates/inkapp-harness/tests/transplant.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test transplant\",\"acceptanceCriteria\":[\"types (de)serialize as spec JSON\",\"normalize -> unit box + native_aspect\",\"all three fit modes correct\"]}\n```"
     },
     {

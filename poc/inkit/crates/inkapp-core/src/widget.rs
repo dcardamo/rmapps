@@ -57,7 +57,7 @@ pub fn is_valid_region_name(name: &str) -> bool {
 pub fn region_metadata(name: &str, page: usize, x: f64, y: f64, w: f64, h: f64) -> String {
     assert!(
         is_valid_region_name(name),
-        "region name must be non-empty ASCII alphanumeric/_/-, got: {name:?}"
+        "region name must be non-empty ASCII alphanumeric/_/-/:, got: {name:?}"
     );
     format!(
         "#place(top + left, dx: {x}pt, dy: {y}pt, box(width: {w}pt, height: {h}pt)[#metadata((name: \"{name}\", page: {page}, x: {x}, y: {y}, w: {w}, h: {h})) <region>])\n"

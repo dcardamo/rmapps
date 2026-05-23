@@ -1,5 +1,7 @@
 use inkapp_core::embed::extract_manifest;
-use inkapp_harness::recording::{calibration_points, catalog, render_calibration, render_template};
+use inkapp_harness::recording::{
+    calibration_points, catalog, render_calibration, render_template, BOXES_PER_GESTURE,
+};
 
 #[test]
 fn catalog_has_seven_gestures() {
@@ -15,7 +17,7 @@ fn template_declares_three_boxes() {
     let entry = catalog().iter().find(|e| e.name == "checkmark").unwrap();
     let pdf = render_template(entry).unwrap();
     let manifest = extract_manifest(&pdf).unwrap();
-    for i in 0..3 {
+    for i in 0..BOXES_PER_GESTURE {
         let name = format!("box:checkmark:{i}");
         assert!(
             manifest.regions.iter().any(|r| r.name == name),
