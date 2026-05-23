@@ -2,6 +2,7 @@
 
 use std::io::Read;
 use std::path::Path;
+use std::process::{Command, Stdio};
 
 use inkapp_core::device::Device;
 use inkapp_core::embed::extract_manifest;
@@ -59,6 +60,48 @@ pub fn assert_golden(name: &str, png: &[u8]) {
         }
         Err(e) => panic!("could not read golden {name}: {e}"),
     }
+}
+
+// ── rmapi helpers ──────────────────────────────────────────────────────────────
+
+/// `rmapi mkdir` — creates a single non-recursive directory level.
+/// Errors are silently swallowed because rmapi returns non-zero on an existing
+/// directory. Create each ancestor separately (mechanics doc §10).
+pub fn rmapi_mkdir(folder: &str) {
+    let _ = Command::new("rmapi")
+        .args(["-ni", "mkdir", folder])
+        .stdin(Stdio::null())
+        .status();
+}
+
+/// `rmapi put --content-only <pdf> <folder>` — push a PDF to the device,
+/// preserving any on-device ink annotation bundle.
+pub fn rmapi_put(pdf_path: &Path, folder: &str) {
+    let ok = Command::new("rmapi")
+        .args([
+            "-ni",
+            "put",
+            "--content-only",
+            pdf_path.to_str().unwrap(),
+            folder,
+        ])
+        .stdin(Stdio::null())
+        .status()
+        .expect("spawn rmapi")
+        .success();
+    assert!(ok, "rmapi put failed for {}", pdf_path.display());
+}
+
+/// `rmapi get <remote>` — pull a remote path (file or folder) into `dest_dir`.
+pub fn rmapi_get(remote: &str, dest_dir: &Path) {
+    let ok = Command::new("rmapi")
+        .args(["-ni", "get", remote])
+        .current_dir(dest_dir)
+        .stdin(Stdio::null())
+        .status()
+        .expect("spawn rmapi")
+        .success();
+    assert!(ok, "rmapi get failed for {remote}");
 }
 
 /// Regenerate a gesture fixture from its real recording if present, else from

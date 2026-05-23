@@ -21,3 +21,4 @@ inkapp-remarkable = { path = "../inkapp-remarkable" }
 # from a synthesized .rm capture and measure centroid error directly.
 rm-files = { path = "../rm-files" }
 zip = "2"
+tempfile = "3"
