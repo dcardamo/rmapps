@@ -69,3 +69,31 @@ fn read_returns_highlighted_tokens() {
     got.sort();
     assert_eq!(got, vec!["dog".to_string(), "lazy".to_string()]);
 }
+
+#[test]
+fn non_highlighter_strokes_are_ignored() {
+    let w = HighlightableText::new(TOKENS);
+    let m = rendered_manifest(&w);
+
+    // The same swipe across "lazy"/"dog", but drawn with a pen (not a highlighter):
+    // it must NOT mark any token as highlighted.
+    let lazy = m.regions.iter().find(|r| r.name == "tok-4").unwrap().rect;
+    let dog = m.regions.iter().find(|r| r.name == "tok-5").unwrap().rect;
+    let y = (lazy.y0 + lazy.y1) / 2.0;
+    let pen = Stroke {
+        points: vec![PdfPoint { x: lazy.x0, y }, PdfPoint { x: dog.x1, y }],
+        highlighter: false,
+    };
+    let ink = vec![
+        RegionInk {
+            region: "tok-4".into(),
+            strokes: vec![pen.clone()],
+        },
+        RegionInk {
+            region: "tok-5".into(),
+            strokes: vec![pen],
+        },
+    ];
+
+    assert!(w.read(&ink, &m).is_empty(), "pen strokes do not highlight");
+}
