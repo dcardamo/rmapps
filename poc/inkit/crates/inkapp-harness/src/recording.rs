@@ -396,6 +396,8 @@ pub fn bootstrap_strokes(entry: &CatalogEntry, manifest: &Manifest) -> Vec<Strok
 /// Each tap is 3 identical PDF-space points at the known calibration location.
 /// `write_ink` maps them to device coords (casting to f32), so the recorded
 /// centroid equals `pdf_to_device(p)` up to f32 quantisation noise.
+///
+/// Returns `(pdf_bytes, rm_bytes)`.
 pub fn synth_calibration(device: &dyn Device) -> Result<(Vec<u8>, Vec<u8>)> {
     let pdf = render_calibration()?;
     let strokes: Vec<Stroke> = calibration_points()

@@ -42,7 +42,7 @@
     {
       "id": 7,
       "subject": "Task 7: Gesture::Fixture in simulator + e2e exercisers",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 5, 6],
       "description": "**Goal:** Add Gesture::Fixture(name) loading gestures/<name>.json + transplant; e2e.rs: checkmark->Marked, scribble-out->ScribbledOut, highlight-swipe over tok-4/5 -> {lazy,dog}; committed goldens.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/simulator.rs\",\"crates/inkapp-harness/tests/e2e.rs\",\"crates/inkapp-harness/tests/golden\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test e2e\",\"acceptanceCriteria\":[\"Gesture::Fixture loads+transplants\",\"checkmark Marked, scribble ScribbledOut\",\"highlight -> {lazy,dog}\",\"goldens committed\"]}\n```"
     },
