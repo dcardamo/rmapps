@@ -76,7 +76,11 @@ pub fn catalog() -> &'static [CatalogEntry] {
         CatalogEntry {
             name: "highlight-swipe",
             tool: Tool::Highlighter,
-            fit: Fit::StretchX,
+            // Stretch (not StretchX) so the stroke always lands within the target
+            // region regardless of its aspect ratio. The bootstrap stroke is
+            // horizontal (v=0 after normalization); Stretch maps v=0 to y0 which
+            // stays inside the region for any shape.
+            fit: Fit::Stretch,
             instruction: "swipe a highlight across the words",
             box_shape: BoxShape::Wide,
             sample_text: Some("highlight these words"),

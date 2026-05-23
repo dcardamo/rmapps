@@ -9,15 +9,30 @@ pub struct PdfRect {
     pub y1: f64,
 }
 
+/// Sub-point tolerance used for boundary tests against region rects.
+/// Device write→read paths quantise coordinates to f32, introducing up to
+/// ~1e-5 pt of error; this absorbs that without meaningfully widening the rect.
+/// 1e-4 pt is well below a pixel at any screen resolution and well above the
+/// maximum observed f32 round-trip error (~5e-6 pt).
+const CONTAINS_EPSILON: f64 = 1e-4;
+
 impl PdfRect {
-    /// Whether a point (PDF space) lies within this rect (inclusive).
+    /// Whether a point (PDF space) lies within this rect (inclusive, with a
+    /// small sub-point tolerance to absorb f32 quantisation from device round-trips).
     pub fn contains(&self, x: f64, y: f64) -> bool {
-        x >= self.x0 && x <= self.x1 && y >= self.y0 && y <= self.y1
+        x >= self.x0 - CONTAINS_EPSILON
+            && x <= self.x1 + CONTAINS_EPSILON
+            && y >= self.y0 - CONTAINS_EPSILON
+            && y <= self.y1 + CONTAINS_EPSILON
     }
 
-    /// Whether this rect overlaps `other`.
+    /// Whether this rect overlaps `other` (with a small sub-point tolerance to
+    /// absorb f32 quantisation from device round-trips, matching [`contains`]).
     pub fn overlaps(&self, other: &PdfRect) -> bool {
-        self.x0 <= other.x1 && self.x1 >= other.x0 && self.y0 <= other.y1 && self.y1 >= other.y0
+        self.x0 <= other.x1 + CONTAINS_EPSILON
+            && self.x1 >= other.x0 - CONTAINS_EPSILON
+            && self.y0 <= other.y1 + CONTAINS_EPSILON
+            && self.y1 >= other.y0 - CONTAINS_EPSILON
     }
 }
 
