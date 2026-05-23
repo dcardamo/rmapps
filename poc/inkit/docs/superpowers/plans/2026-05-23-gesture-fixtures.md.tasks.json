@@ -1,0 +1,65 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-23-gesture-fixtures.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Checkbox mark-vs-scribble discrimination",
+      "status": "pending",
+      "description": "**Goal:** Add CheckState{Empty,Marked,ScribbledOut} + Checkbox::read_state via path-length-vs-diagonal heuristic; keep read()->bool = state!=Empty.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/widgets/checkbox.rs\",\"crates/inkapp-core/tests/checkbox_state.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core\",\"acceptanceCriteria\":[\"CheckState enum exported\",\"read_state returns Empty/Marked/ScribbledOut\",\"read()->bool == state!=Empty\",\"existing tests green\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: rm-files block-structure inspector + structural-diff",
+      "status": "pending",
+      "description": "**Goal:** Add block_structure(bytes)->Vec<BlockSummary>; prove writer output is all line-item blocks and document scaffolding the real fixture carries. Closes deferred #1.\n\n```json:metadata\n{\"files\":[\"crates/rm-files/src/scene/mod.rs\",\"crates/rm-files/src/lib.rs\",\"crates/rm-files/tests/structure.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-files --test structure\",\"acceptanceCriteria\":[\"block_structure returns per-block summary\",\"writer output all 0x05 v2 blocks one per stroke\",\"real file has non-line scaffolding blocks asserted\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Fixture types + transplant math",
+      "status": "pending",
+      "description": "**Goal:** fixtures.rs with Fit/Tool/UnitStroke/Sample/Source/GestureFixture, normalize(), transplant() (aspect-fit/stretch/stretch-x). Add serde/serde_json deps; zip dev-dep.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/fixtures.rs\",\"crates/inkapp-harness/src/lib.rs\",\"crates/inkapp-harness/Cargo.toml\",\"crates/inkapp-harness/tests/transplant.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test transplant\",\"acceptanceCriteria\":[\"types (de)serialize as spec JSON\",\"normalize -> unit box + native_aspect\",\"all three fit modes correct\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Gesture catalog + template/calibration generation",
+      "status": "pending",
+      "description": "**Goal:** recording.rs catalog() (7 gestures), render_template (3 boxes, self-instructing, manifest embedded), render_calibration + calibration_points; PAGE_W/PAGE_H constants.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/recording.rs\",\"crates/inkapp-harness/src/lib.rs\",\"crates/inkapp-harness/tests/templates.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test templates\",\"acceptanceCriteria\":[\"catalog() lists 7 gestures\",\"render_template regions box:<name>:0..2 recover\",\"render_calibration cross:<i> regions + known points\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Extraction (strokes->fixtures) + bootstrap synth",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "**Goal:** extract_samples (attribute to box:<name>:i + normalize), extract_fixture, bootstrap_strokes (synth ink per gesture). Routed through real write/read path.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/recording.rs\",\"crates/inkapp-harness/tests/extract.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test extract\",\"acceptanceCriteria\":[\"extract_samples one per box in order\",\"bootstrap_strokes plausible per gesture\",\"extract_fixture builds GestureFixture\",\"bootstrap round-trip yields unit-box samples\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Bootstrap fixtures committed + regen guard",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** tests/common/mod.rs (open_rmdoc, regen_fixture: real recording if present else synth); tests/regen.rs writes-if-missing then asserts committed==regenerated; commit 7 gestures/*.json.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/tests/common/mod.rs\",\"crates/inkapp-harness/tests/regen.rs\",\"crates/inkapp-harness/tests/fixtures/gestures\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test regen\",\"acceptanceCriteria\":[\"regen_fixture real-or-synth\",\"bootstrap write-then-fail then pass\",\"7 gestures/*.json committed\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Gesture::Fixture in simulator + e2e exercisers",
+      "status": "pending",
+      "blockedBy": [1, 5, 6],
+      "description": "**Goal:** Add Gesture::Fixture(name) loading gestures/<name>.json + transplant; e2e.rs: checkmark->Marked, scribble-out->ScribbledOut, highlight-swipe over tok-4/5 -> {lazy,dog}; committed goldens.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/simulator.rs\",\"crates/inkapp-harness/tests/e2e.rs\",\"crates/inkapp-harness/tests/golden\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test e2e\",\"acceptanceCriteria\":[\"Gesture::Fixture loads+transplants\",\"checkmark Marked, scribble ScribbledOut\",\"highlight -> {lazy,dog}\",\"goldens committed\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Transform-fidelity validation (deferred #2)",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** synth_calibration + fit_scale in recording.rs; transform_fidelity.rs pairs taps to cross known points, asserts max err < TOL (passes for bootstrap), prints fitted-scale adoption suggestion on failure (gated adoption). Real calibration.rmdoc used if present.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/recording.rs\",\"crates/inkapp-harness/tests/transform_fidelity.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test transform_fidelity\",\"acceptanceCriteria\":[\"synth_calibration on-model\",\"max err < TOL passes for bootstrap\",\"fitted-scale suggestion on failure\",\"real recording used if present\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Manual bars - recording + device acceptance",
+      "status": "pending",
+      "blockedBy": [2, 6],
+      "description": "**Goal:** rmapi helpers (mkdir/put/get) in common/mod.rs; record.rs (#[ignore]) push templates+calibration to /InkAppDev/fixtures + pull; acceptance.rs (#[ignore]) write .rm + push to /InkAppDev/acceptance. Deferred #3. Final make test + make clippy gate.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/tests/common/mod.rs\",\"crates/inkapp-harness/tests/record.rs\",\"crates/inkapp-harness/tests/acceptance.rs\",\"crates/inkapp-harness/Cargo.toml\"],\"verifyCommand\":\"make test && make clippy\",\"acceptanceCriteria\":[\"rmapi helpers -ni null-stdin\",\"record push/pull to /InkAppDev/fixtures\",\"acceptance writes .rm + push /InkAppDev/acceptance\",\"ignored tests skipped; make test+clippy green\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-23T00:00:00Z"
+}

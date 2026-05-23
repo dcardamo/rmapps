@@ -176,6 +176,16 @@ Only steps 2–4 (push / draw / pull) are manual. Once the `.rmdoc`s are checked
 and everything downstream is automated and regenerable. Re-recording one gesture re-pushes
 and re-pulls a single document; no other gesture is touched.
 
+**Bootstrap vs. recorded.** So `make test` is green *before* the one-time recording, the
+suite ships with **synthetic bootstrap recordings** — `.rmdoc`s fabricated deterministically
+from the catalog (simple shapes drawn into each box, calibration taps placed exactly
+on-model) — and the fixtures extracted from them. Their provenance is stamped
+`"device": "synthetic-bootstrap"` so real vs. bootstrap is auditable. The manual recording
+bar **replaces** the bootstrap `.rmdoc`s with real captures and re-runs extraction (and
+golden regeneration). The pipeline is identical for both; only the input `.rmdoc` changes.
+Because the e2e assertions are behavioural (reads `Marked` / `{lazy, dog}`), they hold for
+bootstrap and real ink alike; only the golden composites differ and regenerate on swap.
+
 ## E. Fixture format + provenance
 
 One JSON per gesture in `tests/fixtures/gestures/`. Multiple drawn samples are banked in a
@@ -240,11 +250,22 @@ sample into the target region's rect (per the fixture's `fit`), and yields
 synthetic gestures use. Nothing else in the loop changes; this is a new ink *source*, not a
 new code path.
 
+**Checkbox gains discrimination (a small `inkapp-core` addition).** The Spec #2 `Checkbox`
+is presence-only (`read -> bool` = any ink point in the region). To make the `scribble-out`
+fixture meaningful — and because a scribble-out is a genuine distinct intent (uncheck /
+cancel) — this spec adds `CheckState { Empty, Marked, ScribbledOut }` and
+`Checkbox::read_state(ink, manifest) -> CheckState`, with `read -> bool` kept as
+`state != Empty` for back-compat. The discriminator is a **path-length-vs-region-diagonal**
+heuristic: total polyline length below a small multiple of the region diagonal reads
+`Marked`; well above (a dense scribble) reads `ScribbledOut`. Building it now means it is
+born tested against the real `scribble-out` fixture rather than a synthetic guess; the
+threshold is tuned against the recorded ink.
+
 **Real-ink e2e exercisers** (`tests/e2e.rs`), each with a committed golden composite:
 
-- `checkmark` → `done` region → `Checkbox::read` is `true`.
-- `scribble-out` → `done` region → exercises the `Checkbox` mark-vs-scribble discrimination
-  with real ink (the negative/disambiguation case).
+- `checkmark` → `done` region → `Checkbox::read_state` is `Marked` (and `read` is `true`).
+- `scribble-out` → `done` region → `Checkbox::read_state` is `ScribbledOut` — the real-ink
+  disambiguation case the discriminator exists for.
 - `highlight-swipe` transplanted over the `tok-4`/`tok-5` rects → `HighlightableText::read`
   returns `{lazy, dog}`.
 
@@ -287,6 +308,9 @@ mirroring the spike's `#[ignore] on_device` pattern.
 - The vocabulary is recorded once; per-gesture `.rmdoc` captures **and** extracted
   `gestures/*.json` fixtures are checked in.
 - Transplant math is unit-tested across `aspect-fit` / `stretch` / `stretch-x`.
+- `Checkbox` gains `CheckState` + `read_state` (mark-vs-scribble discrimination), unit-tested.
+- The suite ships synthetic bootstrap recordings + fixtures so `make test` is green before
+  the one-time recording; provenance distinguishes bootstrap from real.
 - `Gesture::Fixture` is wired into the simulator; the three real-ink exercisers pass
   (`checkmark`, `scribble-out`, `highlight-swipe`) with committed goldens.
 - Writer structural-diff is automated vs. `stamped-labels.rmdoc`; device-acceptance
