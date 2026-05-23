@@ -1,0 +1,89 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-23-mvu-app-loop.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Component trait (inkapp-core)",
+      "status": "pending",
+      "description": "**Goal:** Add the `Component` trait (render Typst + decode ink->Vec<Msg>); keep `Widget` untouched.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/component.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/component.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test component\",\"acceptanceCriteria\":[\"Component trait: type Msg, render, decode\",\"re-exported as inkapp_core::Component\",\"test component renders region + decodes ink\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Checkbox<M> impl Component (inkapp-core)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Defaulted-generic `Checkbox<M=()>` carrying on_check, impl `Component` with inline render; zero churn to existing call sites.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/widgets/checkbox.rs\",\"crates/inkapp-core/tests/checkbox_component.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core && nix develop -c cargo test -p inkapp-harness\",\"acceptanceCriteria\":[\"Checkbox<M=()>; new(name) yields Checkbox<()>\",\"with_msg + .label\",\"impl Widget + impl Component\",\"decode emits on_check when marked\",\"existing core+harness tests green\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Highlight-aware HighlightableText render",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** with_highlights marks pre-highlighted tokens with #highlight; read/new unchanged.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/widgets/highlight_text.rs\",\"crates/inkapp-core/tests/highlight_render.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test highlight_render\",\"acceptanceCriteria\":[\"with_highlights exists; new keeps empty\",\"render wraps highlighted in #highlight; tok-<i> regions\",\"read unchanged; existing green\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Document/DocKey/Documents + flow! macro",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** DocKey, Document<M>{key,flow}, Documents<M>, flow![..] macro.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/document.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/document.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test document\",\"acceptanceCriteria\":[\"DocKey Clone/Eq/Hash + new\",\"Document<M>{key,flow:Vec<Box<dyn Component<Msg=M>>>} + keyed\",\"Documents<M>\",\"flow![a,b] heterogeneous boxed flow\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Render walk render_document + determinism",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** render_document -> RenderedDoc{key,pdf,manifest,page_h,hash}; assemble+compile+recover+embed+hash.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/render_walk.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test render_walk\",\"acceptanceCriteria\":[\"RenderedDoc + render_document + document_source(pub)\",\"doc yields tok-0.. and done regions\",\"two renders identical manifest + equal hash\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Keyed reconcile (Create/Update/Delete)",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** reconcile(prev,next) by key+hash -> DocOp Create/Update/Delete/no-op; deterministic order.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/reconcile.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/reconcile.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test reconcile\",\"acceptanceCriteria\":[\"DocOp Create/Update/Delete\",\"diff by key+hash; next-order creates/updates then prev-order deletes\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Loop driver App/DocSet/step + builder",
+      "status": "pending",
+      "blockedBy": [5, 6, 2],
+      "description": "**Goal:** DocSet + App<M,Msg,Cx> render/step (decode pre-fold, fold, re-render, reconcile, preserve ink) + Cycle + builder.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/loop_driver.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test loop_driver\",\"acceptanceCriteria\":[\"DocSet{manifest,page_h,ink,keys}\",\"App render+step (Msg:Clone); Cycle{decoded,ops,rendered}\",\"decode pre-fold+guard; fold; re-render; reconcile; ink preserved\",\"builder app().connector().update().view().build()\",\"two-cycle archive->Delete + survivor preserved\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: inkapp-readwise cassette connector",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Cassette-backed Readwise connector: committed sample + overlay; queue/archive/add_highlight/archived/highlights; &self via Mutex; fake/from_cassette.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise/Cargo.toml\",\"crates/inkapp-readwise/src/lib.rs\",\"crates/inkapp-readwise/fixtures/cassette/articles.json\",\"Cargo.toml\",\"crates/inkapp-readwise/tests/connector.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-readwise\",\"acceptanceCriteria\":[\"ArticleId, Article{id,title,body,highlights}\",\"from_cassette/fake/queue/archive/add_highlight/archived/highlights\",\"queue excludes archived + merges highlights\",\"&self writes; cassette immutable\",\"committed articles.json >=3 short\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: inkapp facade crate",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Facade re-exporting app surface from inkapp-core + Remarkable.\n\n```json:metadata\n{\"files\":[\"crates/inkapp/Cargo.toml\",\"crates/inkapp/src/lib.rs\",\"Cargo.toml\",\"crates/inkapp/tests/facade.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp\",\"acceptanceCriteria\":[\"re-exports app/App/Cycle/DocSet/Document/Documents/DocKey/Component/RenderedDoc/render_document/flow!/widget(s)/Device\",\"re-exports Remarkable\",\"facade test compiles\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: apps/reading-queue vehicle app",
+      "status": "pending",
+      "blockedBy": [9, 8, 2, 3],
+      "description": "**Goal:** Worked-example app: App/Msg/Connectors/update/view/ArticleBody + main; appdx two snippets pass.\n\n```json:metadata\n{\"files\":[\"apps/reading-queue/Cargo.toml\",\"apps/reading-queue/src/lib.rs\",\"apps/reading-queue/src/main.rs\",\"Cargo.toml\",\"apps/reading-queue/tests/app.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p reading-queue\",\"acceptanceCriteria\":[\"App model; Msg{Highlighted,Archived} Clone/Eq\",\"Connectors{readwise} fake/from_cassette\",\"update archives/highlights\",\"view one keyed Document per article = flow![ArticleBody,Checkbox]\",\"ArticleBody impl Component\",\"appdx snippets pass; main builds\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Multi-cycle real-ink e2e (harness)",
+      "status": "pending",
+      "blockedBy": [10, 7],
+      "description": "**Goal:** Drive reading-queue via App::step with real gesture-fixture ink: highlight+archive->fold->re-render reflects (delete, #highlight, ink preserved); 2nd step stable.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/Cargo.toml\",\"crates/inkapp-harness/tests/app_loop.rs\",\"crates/inkapp-core/src/lib.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test app_loop\",\"acceptanceCriteria\":[\"cycle0 one doc per article\",\"swipe+checkmark fixtures via write/read_ink\",\"decoded Highlighted(a1)+Archived(a2); ops Delete(a2); connector recorded\",\"a1 Update; source #highlight; a1 ink preserved\",\"2nd step empty: stable set\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Manual bars — device round-trip + cassette refresh",
+      "status": "pending",
+      "blockedBy": [10, 8],
+      "description": "**Goal:** #[ignore] on-device round-trip via rmapi (serve.rs) + Readwise cassette refresh (READWISE_TOKEN); make test green; clippy clean.\n\n```json:metadata\n{\"files\":[\"apps/reading-queue/src/serve.rs\",\"apps/reading-queue/src/lib.rs\",\"apps/reading-queue/Cargo.toml\",\"apps/reading-queue/tests/device.rs\",\"crates/inkapp-readwise/tests/refresh.rs\",\"crates/inkapp-readwise/Cargo.toml\"],\"verifyCommand\":\"nix develop -c cargo test -p reading-queue && nix develop -c cargo test -p inkapp-readwise\",\"acceptanceCriteria\":[\"serve push/pull/delete + publish/sync_once\",\"#[ignore] on_device_round_trip rmapi-only\",\"#[ignore] refresh_cassette reads READWISE_TOKEN, rewrites articles.json\",\"rmapi v4/token/mkdir honored\",\"make test green; clippy clean\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-23"
+}
