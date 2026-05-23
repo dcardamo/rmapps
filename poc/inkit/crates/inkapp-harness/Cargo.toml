@@ -22,3 +22,5 @@ inkapp-remarkable = { path = "../inkapp-remarkable" }
 rm-files = { path = "../rm-files" }
 zip = "2"
 tempfile = "3"
+reading-queue = { path = "../../apps/reading-queue" }
+inkapp-readwise = { path = "../inkapp-readwise" }
