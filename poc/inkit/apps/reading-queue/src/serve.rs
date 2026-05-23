@@ -32,6 +32,7 @@ pub fn push_doc(key: &str, pdf: &[u8]) -> std::io::Result<()> {
 /// document has no annotations yet). Uses `rmapi get` into a temp `.rmdoc`, reads
 /// the first `.rm`, and parses it through the device transform.
 pub fn pull_ink(device: &Remarkable, key: &str, page_h: f64) -> std::io::Result<Vec<Stroke>> {
+    // Temp file is intentionally left in place (manual bar; clean by reboot).
     let out = std::env::temp_dir().join(format!("{key}.rmdoc"));
     let status = Command::new("rmapi")
         .args([
@@ -46,10 +47,10 @@ pub fn pull_ink(device: &Remarkable, key: &str, page_h: f64) -> std::io::Result<
     }
     let file = std::fs::File::open(&out)?;
     let mut zip = zip::ZipArchive::new(file).expect("rmdoc zip");
-    let rm_name = (0..zip.len())
+    let names: Vec<String> = (0..zip.len())
         .map(|i| zip.by_index(i).unwrap().name().to_string())
-        .find(|n| n.ends_with(".rm"));
-    let Some(rm_name) = rm_name else {
+        .collect();
+    let Some(rm_name) = names.into_iter().find(|n| n.ends_with(".rm")) else {
         return Ok(Vec::new());
     };
     use std::io::Read;

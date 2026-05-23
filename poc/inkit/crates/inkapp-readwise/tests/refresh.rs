@@ -36,7 +36,11 @@ fn refresh_cassette() {
     let mut articles = Vec::new();
     if let Some(results) = books["results"].as_array() {
         for b in results.iter().take(3) {
-            let id = b["id"].to_string().trim_matches('"').to_string();
+            let id = match &b["id"] {
+                serde_json::Value::Number(n) => n.to_string(),
+                serde_json::Value::String(s) => s.clone(),
+                other => panic!("unexpected Readwise id type: {other}"),
+            };
             let title = b["title"].as_str().unwrap_or("Untitled").to_string();
             // The list endpoint returns metadata, not full text. For the cassette
             // a short representative body suffices (pagination is deferred this spec);
