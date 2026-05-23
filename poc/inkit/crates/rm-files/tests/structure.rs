@@ -1,9 +1,8 @@
 use std::io::Read;
 
-use rm_files::{block_structure, write_scene, Scene, SceneItem, Stroke};
-
-/// reMarkable v6 block type for a scene line item (ink stroke).
-const BLOCK_TYPE_LINE: u8 = 0x05;
+use rm_files::{
+    block_structure, write_scene, Scene, SceneItem, Stroke, BLOCK_TYPE_SCENE_LINE_ITEM,
+};
 
 fn fixture_rm_bytes() -> Vec<u8> {
     let path = concat!(
@@ -14,6 +13,7 @@ fn fixture_rm_bytes() -> Vec<u8> {
     let mut archive = zip::ZipArchive::new(file).expect("read zip");
     let rm_name = (0..archive.len())
         .map(|i| archive.by_index(i).unwrap().name().to_string())
+        // Single-page fixture: exactly one .rm entry.
         .find(|n| n.ends_with(".rm"))
         .expect(".rm entry");
     let mut e = archive.by_name(&rm_name).unwrap();
@@ -40,7 +40,7 @@ fn writer_output_is_all_line_items() {
     assert_eq!(ours.len(), strokes.len(), "one block per stroke");
     assert!(
         ours.iter()
-            .all(|b| b.block_type == BLOCK_TYPE_LINE && b.current_version == 2),
+            .all(|b| b.block_type == BLOCK_TYPE_SCENE_LINE_ITEM && b.current_version == 2),
         "writer emits only v2 line-item blocks"
     );
 }
@@ -52,11 +52,11 @@ fn real_file_carries_scaffolding_we_omit() {
 
     let line_blocks = real_struct
         .iter()
-        .filter(|b| b.block_type == BLOCK_TYPE_LINE)
+        .filter(|b| b.block_type == BLOCK_TYPE_SCENE_LINE_ITEM)
         .count();
     let non_line_blocks = real_struct
         .iter()
-        .filter(|b| b.block_type != BLOCK_TYPE_LINE)
+        .filter(|b| b.block_type != BLOCK_TYPE_SCENE_LINE_ITEM)
         .count();
 
     assert!(line_blocks > 0, "real file has line items");

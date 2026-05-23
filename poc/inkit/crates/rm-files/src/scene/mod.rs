@@ -6,12 +6,11 @@ pub(crate) mod reader;
 pub(crate) mod writer;
 
 pub use items::{Pen, PenColor, SceneItem, Stroke, TextHighlight};
+pub use protocol::BLOCK_TYPE_SCENE_LINE_ITEM;
 pub use writer::write_scene;
 
 use crate::error::Result;
-use protocol::{
-    BLOCK_TYPE_SCENE_GLYPH_ITEM, BLOCK_TYPE_SCENE_LINE_ITEM, ITEM_TYPE_GLYPH, ITEM_TYPE_LINE,
-};
+use protocol::{BLOCK_TYPE_SCENE_GLYPH_ITEM, ITEM_TYPE_GLYPH, ITEM_TYPE_LINE};
 use reader::Reader;
 
 /// A parsed reMarkable scene: its format version plus its decoded items.
@@ -113,17 +112,16 @@ pub struct BlockSummary {
 pub fn block_structure(bytes: &[u8]) -> Result<Vec<BlockSummary>> {
     let mut r = Reader::new(bytes);
     let _version = r.read_header()?;
-    let mut out = Vec::new();
+    let mut summaries = Vec::new();
     while let Some(h) = r.read_block_header()? {
-        out.push(BlockSummary {
+        summaries.push(BlockSummary {
             block_type: h.block_type,
             current_version: h.current_version,
-            // h.size is the declared content length (excludes the 8-byte block header).
             content_len: h.size,
         });
         r.seek(h.end())?;
     }
-    Ok(out)
+    Ok(summaries)
 }
 
 /// Decode a `SceneLineItemBlock`. Mirrors rmscene's `SceneItemBlock`:

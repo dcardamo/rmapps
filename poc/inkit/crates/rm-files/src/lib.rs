@@ -28,5 +28,5 @@ pub use error::{Error, Result};
 pub use geometry::{Point, Rect, SCREEN_DPI, SCREEN_HEIGHT, SCREEN_WIDTH};
 pub use scene::{
     block_structure, write_scene, BlockSummary, Pen, PenColor, Scene, SceneItem, Stroke,
-    TextHighlight,
+    TextHighlight, BLOCK_TYPE_SCENE_LINE_ITEM,
 };
