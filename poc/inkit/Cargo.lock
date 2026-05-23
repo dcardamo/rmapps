@@ -1550,8 +1550,13 @@ dependencies = [
  "image",
  "inkapp-core",
  "inkapp-remarkable",
+ "rm-files",
+ "serde",
+ "serde_json",
+ "tempfile",
  "typst",
  "typst-render",
+ "zip",
 ]
 
 [[package]]

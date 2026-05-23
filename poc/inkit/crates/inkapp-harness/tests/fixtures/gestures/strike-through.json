@@ -1,0 +1,64 @@
+{
+  "name": "strike-through",
+  "tool": "pen",
+  "fit": "stretch-x",
+  "default": 0,
+  "samples": [
+    {
+      "native_aspect": 1.0,
+      "strokes": [
+        {
+          "points": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "native_aspect": 1.0,
+      "strokes": [
+        {
+          "points": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "native_aspect": 1.0,
+      "strokes": [
+        {
+          "points": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "source": {
+    "recording": "synthetic",
+    "device": "synthetic-bootstrap",
+    "recorded": "synthetic"
+  }
+}

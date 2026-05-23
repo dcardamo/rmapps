@@ -10,8 +10,15 @@ inkapp-core = { path = "../inkapp-core" }
 typst = "0.14"
 typst-render = "0.14"
 image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 # The harness src is generic over `&dyn Device`; the concrete reMarkable device
 # is only needed to drive the simulator/exercisers in tests.
 inkapp-remarkable = { path = "../inkapp-remarkable" }
+# rm-files is needed by the transform-fidelity test to read raw device coords
+# from a synthesized .rm capture and measure centroid error directly.
+rm-files = { path = "../rm-files" }
+zip = "2"
+tempfile = "3"

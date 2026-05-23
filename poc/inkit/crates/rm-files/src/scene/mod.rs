@@ -6,12 +6,11 @@ pub(crate) mod reader;
 pub(crate) mod writer;
 
 pub use items::{Pen, PenColor, SceneItem, Stroke, TextHighlight};
+pub use protocol::BLOCK_TYPE_SCENE_LINE_ITEM;
 pub use writer::write_scene;
 
 use crate::error::Result;
-use protocol::{
-    BLOCK_TYPE_SCENE_GLYPH_ITEM, BLOCK_TYPE_SCENE_LINE_ITEM, ITEM_TYPE_GLYPH, ITEM_TYPE_LINE,
-};
+use protocol::{BLOCK_TYPE_SCENE_GLYPH_ITEM, ITEM_TYPE_GLYPH, ITEM_TYPE_LINE};
 use reader::Reader;
 
 /// A parsed reMarkable scene: its format version plus its decoded items.
@@ -94,6 +93,35 @@ impl Scene {
             })
             .collect()
     }
+}
+
+/// A structural summary of one top-level v6 block: its framing only, not its
+/// decoded body. Used to compare writer output against real device files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockSummary {
+    /// Block type byte (e.g. `0x05` for a scene line item).
+    pub block_type: u8,
+    /// The block's `current_version` header byte.
+    pub current_version: u8,
+    /// Content length in bytes (excludes the 8-byte block header).
+    pub content_len: usize,
+}
+
+/// Walk the top-level block stream and summarise each block's framing without
+/// decoding item bodies. A structural inspector for writer-vs-device comparison.
+pub fn block_structure(bytes: &[u8]) -> Result<Vec<BlockSummary>> {
+    let mut r = Reader::new(bytes);
+    let _version = r.read_header()?;
+    let mut summaries = Vec::new();
+    while let Some(h) = r.read_block_header()? {
+        summaries.push(BlockSummary {
+            block_type: h.block_type,
+            current_version: h.current_version,
+            content_len: h.size,
+        });
+        r.seek(h.end())?;
+    }
+    Ok(summaries)
 }
 
 /// Decode a `SceneLineItemBlock`. Mirrors rmscene's `SceneItemBlock`:

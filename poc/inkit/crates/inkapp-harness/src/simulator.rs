@@ -15,6 +15,9 @@ pub enum Gesture {
     Tap,
     /// A horizontal highlighter swipe across the full region width.
     Swipe,
+    /// Real recorded ink: load `gestures/<name>.json` and transplant its default
+    /// sample into the target region (per the fixture's fit policy).
+    Fixture(&'static str),
 }
 
 /// A script of gestures, each bound to a region name.
@@ -72,6 +75,17 @@ fn synthesize(manifest: &Manifest, scenario: &Scenario) -> Vec<Stroke> {
                 points: vec![PdfPoint { x: r.x0, y: cy }, PdfPoint { x: r.x1, y: cy }],
                 highlighter: true,
             }),
+            Gesture::Fixture(name) => {
+                let path = format!(
+                    "{}/tests/fixtures/gestures/{name}.json",
+                    env!("CARGO_MANIFEST_DIR")
+                );
+                let bytes =
+                    std::fs::read(&path).unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
+                let fixture = crate::fixtures::GestureFixture::from_json(&bytes)
+                    .unwrap_or_else(|e| panic!("parse fixture {path}: {e}"));
+                strokes.extend(fixture.transplant_default(*r));
+            }
         }
     }
     strokes
