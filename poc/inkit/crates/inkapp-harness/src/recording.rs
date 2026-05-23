@@ -261,8 +261,13 @@ pub fn render_calibration() -> Result<Vec<u8>> {
 
 // ── Extraction ────────────────────────────────────────────────────────────────
 
-/// Collect strokes attributed to each `box:<name>:i` region (in index order)
-/// and normalize each box's strokes into a [`Sample`].
+/// Collect the strokes attributed to each `box:<name>:i` (i in index order) and
+/// normalize each non-empty box into a [`Sample`].
+///
+/// Boxes with no attributed ink are **omitted**, so the result length may be
+/// fewer than [`BOXES_PER_GESTURE`] and a skipped box shifts the indices of the
+/// boxes after it. Callers that use `default: 0` therefore assume box 0 was
+/// drawn (the recording templates instruct drawing in every box).
 pub fn extract_samples(strokes_pdf: &[Stroke], manifest: &Manifest, name: &str) -> Vec<Sample> {
     let region_ink = attribute(strokes_pdf, manifest);
     let mut samples = Vec::new();
@@ -334,23 +339,23 @@ pub fn bootstrap_strokes(entry: &CatalogEntry, manifest: &Manifest) -> Vec<Strok
             "checkmark" => vec![pt(0.0, 0.45), pt(0.35, 0.0), pt(1.0, 1.0)],
             // Dense vertical zigzag covers most of the box.
             "scribble-out" => {
-                let mut v = Vec::new();
+                let mut pts = Vec::new();
                 for k in 0..14u32 {
                     let u = k as f64 / 13.0;
-                    v.push(pt(u, if k % 2 == 0 { 0.0 } else { 1.0 }));
+                    pts.push(pt(u, if k % 2 == 0 { 0.0 } else { 1.0 }));
                 }
-                v
+                pts
             }
             // Horizontal sweep across the full width, centered vertically.
             "highlight-swipe" | "strike-through" => vec![pt(0.0, 0.5), pt(1.0, 0.5)],
             // 16-segment ellipse approximation.
             "circle" => {
-                let mut v = Vec::new();
+                let mut pts = Vec::new();
                 for k in 0..=16u32 {
                     let t = std::f64::consts::TAU * (k as f64) / 16.0;
-                    v.push(pt(0.5 + 0.5 * t.cos(), 0.5 + 0.5 * t.sin()));
+                    pts.push(pt(0.5 + 0.5 * t.cos(), 0.5 + 0.5 * t.sin()));
                 }
-                v
+                pts
             }
             // Horizontal line + two arrowhead lines.
             "arrow" => vec![
@@ -360,7 +365,8 @@ pub fn bootstrap_strokes(entry: &CatalogEntry, manifest: &Manifest) -> Vec<Strok
                 pt(1.0, 0.5),
                 pt(0.7, 0.8),
             ],
-            // Generic wave — recognisable as a gesture without matching any specific one.
+            // handwritten-word and any future gesture: a generic wave. Synthetic only —
+            // not meaningful as handwriting; the recording bar replaces it with real ink.
             _ => vec![
                 pt(0.0, 0.5),
                 pt(0.25, 0.2),
