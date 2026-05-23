@@ -9,7 +9,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use rmfiles::{Bundle, PenColor};
+use rm_files::{Bundle, PenColor};
 
 fn fixture() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rmtest-glyph.rmdoc")

@@ -6,7 +6,7 @@
 
 use std::io::Read;
 
-use rmfiles::{Pen, PenColor, Scene};
+use rm_files::{Pen, PenColor, Scene};
 
 /// Read the single `.rm` page file out of the bundled `.rmdoc` zip.
 fn load_rm_bytes() -> Vec<u8> {
@@ -55,7 +55,7 @@ fn parses_highlighter_strokes_from_real_fixture() {
 
     // The fixture has a top-band label (ARCHIVE, y<200) and a body sentence
     // (y>250). Confirm we recover strokes in both regions.
-    let min_y = |s: &&rmfiles::Stroke| s.points.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+    let min_y = |s: &&rm_files::Stroke| s.points.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
     assert!(
         strokes.iter().any(|s| min_y(s) < 200.0),
         "expected at least one stroke in the top band (y<200)"
@@ -110,7 +110,7 @@ fn rejects_non_v6() {
     header.extend_from_slice(&[0u8; 8]);
 
     match Scene::parse(&header) {
-        Err(rmfiles::Error::UnsupportedVersion(5)) => {}
+        Err(rm_files::Error::UnsupportedVersion(5)) => {}
         other => panic!("expected UnsupportedVersion(5), got {other:?}"),
     }
 }

@@ -1,4 +1,4 @@
-//! `rmfiles` — a pure-Rust reader for reMarkable `.rm` (v6) scene files.
+//! `rm-files` — a pure-Rust reader for reMarkable `.rm` (v6) scene files.
 //!
 //! The initial focus is extracting ink-stroke geometry (notably highlighter
 //! strokes), which is how the reMarkable Paper Pro stores PDF highlights. The
@@ -7,7 +7,7 @@
 //!
 //! ```no_run
 //! let bytes = std::fs::read("page.rm").unwrap();
-//! let scene = rmfiles::Scene::parse(&bytes).unwrap();
+//! let scene = rm_files::Scene::parse(&bytes).unwrap();
 //! assert_eq!(scene.version(), 6);
 //! for stroke in scene.strokes() {
 //!     if stroke.is_highlighter() {
