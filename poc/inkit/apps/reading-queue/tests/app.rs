@@ -3,7 +3,7 @@ use inkapp_core::geometry::{PdfPoint, PdfRect};
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::{Manifest, Region};
 use inkapp_readwise::ArticleId;
-use reading_queue::{update, view, App, Checkbox, Connectors, Msg};
+use reading_queue::{update, view, App, ArticleBody, Checkbox, Connectors, Msg};
 
 #[test]
 fn archiving_pushes_to_readwise() {
@@ -63,5 +63,48 @@ fn view_is_one_document_per_article() {
     assert!(
         docs.0.iter().all(|d| d.flow.len() == 2),
         "body + archive checkbox"
+    );
+}
+
+#[test]
+fn article_body_decodes_highlight_to_msg() {
+    use inkapp_readwise::Article;
+
+    let article = Article {
+        id: ArticleId::new("a1"),
+        title: "T".into(),
+        body: "lazy dog".into(),
+        highlights: vec![],
+    };
+    let body = ArticleBody::new(&article);
+
+    // tok-0 == "lazy" (first whitespace token of the body).
+    let manifest = Manifest {
+        version: 1,
+        regions: vec![Region {
+            name: "tok-0".into(),
+            page: 0,
+            rect: PdfRect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 30.0,
+                y1: 12.0,
+            },
+        }],
+    };
+    let ink = vec![RegionInk {
+        region: "tok-0".into(),
+        strokes: vec![Stroke {
+            points: vec![PdfPoint { x: 2.0, y: 4.0 }, PdfPoint { x: 28.0, y: 8.0 }],
+            highlighter: true,
+        }],
+    }];
+
+    assert_eq!(
+        body.decode(&ink, &manifest),
+        vec![Msg::Highlighted {
+            article: ArticleId::new("a1"),
+            text: "lazy".to_string()
+        }]
     );
 }

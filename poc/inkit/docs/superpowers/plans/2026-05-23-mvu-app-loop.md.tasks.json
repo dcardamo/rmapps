@@ -59,7 +59,7 @@
     {
       "id": 9,
       "subject": "Task 9: inkapp facade crate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Goal:** Facade re-exporting app surface from inkapp-core + Remarkable.\n\n```json:metadata\n{\"files\":[\"crates/inkapp/Cargo.toml\",\"crates/inkapp/src/lib.rs\",\"Cargo.toml\",\"crates/inkapp/tests/facade.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp\",\"acceptanceCriteria\":[\"re-exports app/App/Cycle/DocSet/Document/Documents/DocKey/Component/RenderedDoc/render_document/flow!/widget(s)/Device\",\"re-exports Remarkable\",\"facade test compiles\"]}\n```"
     },

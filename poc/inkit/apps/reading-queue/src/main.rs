@@ -3,11 +3,10 @@
 //! device bar (added in a later task). For now `main` renders the initial set
 //! and reports.
 
-use inkapp::{app, DocSet, Remarkable};
+use inkapp::{app, DocSet};
 use reading_queue::{update, view, App, Connectors};
 
 fn main() {
-    let _device = Remarkable::new();
     let mut application = app(App)
         .connector(Connectors::from_cassette())
         .update(update)
