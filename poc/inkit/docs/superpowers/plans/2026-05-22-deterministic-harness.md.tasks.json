@@ -24,14 +24,14 @@
     {
       "id": 3,
       "subject": "Task 3: inkapp-core scaffold + deterministic World + compile_to_document",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "New inkapp-core crate. InkWorld with typst-assets embedded fonts (deterministic), non-panicking font(). compile_to_document + document_to_pdf. Determinism test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/Cargo.toml\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/src/world.rs\", \"crates/inkapp-core/src/render.rs\", \"crates/inkapp-core/src/error.rs\", \"crates/inkapp-core/tests/render.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test render\", \"acceptanceCriteria\": [\"embedded fonts, deterministic output\", \"World::font non-panicking\", \"identical PDF bytes twice\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Manifest + per-page region recovery",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "geometry (PdfRect contains/overlaps, PdfPoint, DevicePoint, typst_to_pdf_rect) + manifest (Region, Manifest, recover_regions via introspector+MetadataElem+serde, per-page height, with_version). 0-delta test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/manifest.rs\", \"crates/inkapp-core/src/geometry.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/regions.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test regions\", \"acceptanceCriteria\": [\"PdfRect/Region/Manifest defined\", \"recover_regions 0-delta\", \"per-page height conversion\"]}\n```"
     },
