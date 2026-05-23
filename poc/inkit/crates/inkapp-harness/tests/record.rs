@@ -4,7 +4,7 @@ use std::path::Path;
 
 use inkapp_harness::recording::{catalog, render_calibration, render_template};
 
-use common::{rmapi_get, rmapi_mkdir, rmapi_put};
+use common::{rmapi_mget, rmapi_mkdir, rmapi_put};
 
 const FIXTURES_FOLDER: &str = "/InkAppDev/fixtures";
 
@@ -40,6 +40,38 @@ fn push_templates() {
 fn pull_recordings() {
     let dest = format!("{}/tests/fixtures/recordings", env!("CARGO_MANIFEST_DIR"));
     std::fs::create_dir_all(&dest).unwrap();
-    rmapi_get(FIXTURES_FOLDER, Path::new(&dest));
-    eprintln!("pulled {FIXTURES_FOLDER} into {dest}; re-run the regen test to extract fixtures");
+
+    // mget into a temp dir, then flatten: regen expects recordings/<name>.rmdoc,
+    // but mget nests the pull under a subdir named after the remote basename.
+    let tmp = tempfile::tempdir().unwrap();
+    rmapi_mget(FIXTURES_FOLDER, tmp.path());
+
+    let mut pulled = 0;
+    for entry in walkdir_rmdoc(tmp.path()) {
+        let to = Path::new(&dest).join(entry.file_name().unwrap());
+        std::fs::copy(&entry, &to).unwrap();
+        pulled += 1;
+    }
+    eprintln!("pulled {pulled} .rmdoc into {dest}; re-run the regen test to extract fixtures");
+}
+
+/// Collect every `*.rmdoc` file under `root` (recursive), so the pull is robust to
+/// however rmapi nests the download.
+fn walkdir_rmdoc(root: &Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().and_then(|x| x.to_str()) == Some("rmdoc") {
+                out.push(p);
+            }
+        }
+    }
+    out
 }

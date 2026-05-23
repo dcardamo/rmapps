@@ -92,16 +92,20 @@ pub fn rmapi_put(pdf_path: &Path, folder: &str) {
     assert!(ok, "rmapi put failed for {}", pdf_path.display());
 }
 
-/// `rmapi get <remote>` — pull a remote path (file or folder) into `dest_dir`.
-pub fn rmapi_get(remote: &str, dest_dir: &Path) {
+/// `rmapi mget <remote>` — recursively pull a remote *folder* into `dest_dir`.
+/// rmapi nests the download under a subdir named after the remote's basename
+/// (e.g. `mget /InkAppDev/fixtures` writes `<dest_dir>/fixtures/*.rmdoc`); callers
+/// that need a flat layout must move the files up. (Plain `get` is single-file
+/// only and errors on a folder, so folder pulls must use `mget`.)
+pub fn rmapi_mget(remote: &str, dest_dir: &Path) {
     let ok = Command::new("rmapi")
-        .args(["-ni", "get", remote])
+        .args(["-ni", "mget", remote])
         .current_dir(dest_dir)
         .stdin(Stdio::null())
         .status()
         .expect("spawn rmapi")
         .success();
-    assert!(ok, "rmapi get failed for {remote}");
+    assert!(ok, "rmapi mget failed for {remote}");
 }
 
 /// Regenerate a gesture fixture from its real recording if present, else from

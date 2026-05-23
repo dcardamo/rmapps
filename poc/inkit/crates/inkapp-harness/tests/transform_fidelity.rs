@@ -11,7 +11,13 @@ use rm_files::Scene;
 use common::open_rmdoc;
 
 /// Max acceptable per-point error (device px) before adoption is required.
-const TOL: f64 = 2.0;
+///
+/// Sized for *real* on-device calibration captures, whose floor is human tap
+/// jitter (~3-4px on a cross). 8px sits ~2x above that jitter yet ~12x below the
+/// systematic-error class this test exists to catch (e.g. a 6% transform-scale
+/// drift is ~100px at the page corners). A synthetic capture (no recording
+/// present) lands at ~0px and clears this trivially.
+const TOL: f64 = 8.0;
 
 fn tap_centroids(rm: &[u8]) -> Vec<DevicePoint> {
     Scene::parse(rm)

@@ -11,9 +11,17 @@ use inkapp_core::geometry::{DevicePoint, PdfPoint};
 use inkapp_core::ink::Stroke;
 use rm_files::{Pen, PenColor, Point, Scene, SceneItem};
 
-/// Default reMarkable Paper Pro canvas width/height in pixels.
-const CANVAS_W: f64 = 1404.0;
-const CANVAS_H: f64 = 1872.0;
+/// reMarkable Paper Pro Move `.rm` stroke coordinate space (width/height).
+///
+/// This is NOT the physical screen (1696×954, 16:9) nor the document canvas the
+/// device declares in its `.content` (1404×1872 — the rM2 virtual canvas, which
+/// the Move reuses). The Move actually writes ink into a 3:4 virtual space at
+/// 0.9426× that declared canvas. Derived from an on-device calibration capture
+/// (`tests/fixtures/recordings/calibration.rmdoc`, reMarkable Paper Pro Move,
+/// 2026-05-23): a 5-cross tap sheet fit a uniform scale of 0.9426 with per-point
+/// residuals ≤4px. Re-derive any time via the `transform_fidelity` test.
+const CANVAS_W: f64 = 1323.4; // 1404 × 0.9426
+const CANVAS_H: f64 = 1764.6; // 1872 × 0.9426
 
 /// A reMarkable device with a fit-to-width coordinate model.
 pub struct Remarkable {
