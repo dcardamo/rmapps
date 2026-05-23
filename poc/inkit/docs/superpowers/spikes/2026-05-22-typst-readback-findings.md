@@ -129,3 +129,10 @@ pub fn typst_to_pdf_rect(x: f64, y: f64, w: f64, h: f64, page_h: f64) -> (f64, f
 - **Centralise the Typst top-left → PDF bottom-left coordinate conversion** in one function (see above). Every other component (manifest builder, annotation writer, region hit-testing) must call it rather than inline the formula.
 - **Treat HTML → Typst as a constrained converter for known content sources.** It is not a general web renderer. Enumerate the supported element set; add proper escaping of link `href` and label text before production.
 - **Schedule the on-device manual checks** (Bars 4, 5-device, 6) when hardware is available. These are the remaining unknowns before committing to the full implementation.
+
+### Notes from the final code review (carry into the framework extraction)
+
+- **Centralise the compile path.** The spike's `compile_pdf` and `compile_with_regions` duplicate the `typst::compile` + `typst_pdf::pdf` + diagnostic-mapping logic. The framework should expose one `compile_to_document(world) -> Result<PagedDocument>` that both PDF export and region recovery consume.
+- **Per-page height, not page-0 height.** `compile_with_regions` converts every region with the first page's height, and the recovered `TypstRegion.page` field is currently unused. This is correct only because the spike's pages are uniform. The framework's `typst_to_pdf_rect` must look up the height of `region.page` so multi-page documents convert correctly.
+- **Font determinism.** The spike loads system fonts (`include_system_fonts(true)`), reproducible only because the flake pins dejavu/noto. Since content-only pushes lean on deterministic output (mechanics doc §11), the framework should embed/pin its fonts rather than search the host.
+- **`World::font` should not panic.** The spike indexes `self.fonts[index]`; the framework's `World` should return `self.fonts.get(index).and_then(FontSlot::get)`.
