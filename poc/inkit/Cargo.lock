@@ -1557,7 +1557,9 @@ version = "0.1.0"
 dependencies = [
  "image",
  "inkapp-core",
+ "inkapp-readwise",
  "inkapp-remarkable",
+ "reading-queue",
  "rm-files",
  "serde",
  "serde_json",

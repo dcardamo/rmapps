@@ -66,7 +66,7 @@
     {
       "id": 10,
       "subject": "Task 10: apps/reading-queue vehicle app",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9, 8, 2, 3],
       "description": "**Goal:** Worked-example app: App/Msg/Connectors/update/view/ArticleBody + main; appdx two snippets pass.\n\n```json:metadata\n{\"files\":[\"apps/reading-queue/Cargo.toml\",\"apps/reading-queue/src/lib.rs\",\"apps/reading-queue/src/main.rs\",\"Cargo.toml\",\"apps/reading-queue/tests/app.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p reading-queue\",\"acceptanceCriteria\":[\"App model; Msg{Highlighted,Archived} Clone/Eq\",\"Connectors{readwise} fake/from_cassette\",\"update archives/highlights\",\"view one keyed Document per article = flow![ArticleBody,Checkbox]\",\"ArticleBody impl Component\",\"appdx snippets pass; main builds\"]}\n```"
     },
