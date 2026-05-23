@@ -170,7 +170,6 @@ impl Writer {
     }
 
     /// Point-telemetry writer used by the line-item writer (next task).
-    #[allow(dead_code)]
     pub(crate) fn write_point_v2(
         &mut self,
         x: f32,
