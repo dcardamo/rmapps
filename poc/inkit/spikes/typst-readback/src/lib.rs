@@ -1,3 +1,4 @@
+pub mod html;
 pub mod regions;
 pub mod world;
 
