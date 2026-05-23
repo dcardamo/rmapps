@@ -2122,6 +2122,8 @@ git -c core.hooksPath=.githooks commit -m "inkapp-harness: multi-cycle real-ink 
 
 **Goal:** Two documented manual bars: (a) push the reading queue to a real reMarkable, ink by hand, pull, fold, re-render, push (the operator's real use); (b) refresh the committed cassette from real Readwise using the operator's token.
 
+> **As-built note:** the refresh bar shells out to the `curl` CLI (via `std::process::Command`) instead of adding a `ureq` dev-dependency — a heavy TLS dep is not worth it for a manual bar, and `curl` is always available. So `inkapp-readwise/Cargo.toml` gains **no** new dependency (the `ureq` step below is superseded). `serve.rs` still uses the `zip` crate (already in the lockfile) to read pulled `.rmdoc` archives.
+
 **Files:**
 - Create: `apps/reading-queue/src/serve.rs` (rmapi transport + the step loop)
 - Modify: `apps/reading-queue/src/lib.rs` (`pub mod serve;`)

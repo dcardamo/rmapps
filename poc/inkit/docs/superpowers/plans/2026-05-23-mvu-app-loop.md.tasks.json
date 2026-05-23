@@ -73,17 +73,17 @@
     {
       "id": 11,
       "subject": "Task 11: Multi-cycle real-ink e2e (harness)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10, 7],
       "description": "**Goal:** Drive reading-queue via App::step with real gesture-fixture ink: highlight+archive->fold->re-render reflects (delete, #highlight, ink preserved); 2nd step stable.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/Cargo.toml\",\"crates/inkapp-harness/tests/app_loop.rs\",\"crates/inkapp-core/src/lib.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test app_loop\",\"acceptanceCriteria\":[\"cycle0 one doc per article\",\"swipe+checkmark fixtures via write/read_ink\",\"decoded Highlighted(a1)+Archived(a2); ops Delete(a2); connector recorded\",\"a1 Update; source #highlight; a1 ink preserved\",\"2nd step empty: stable set\"]}\n```"
     },
     {
       "id": 12,
       "subject": "Task 12: Manual bars — device round-trip + cassette refresh",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10, 8],
       "description": "**Goal:** #[ignore] on-device round-trip via rmapi (serve.rs) + Readwise cassette refresh (READWISE_TOKEN); make test green; clippy clean.\n\n```json:metadata\n{\"files\":[\"apps/reading-queue/src/serve.rs\",\"apps/reading-queue/src/lib.rs\",\"apps/reading-queue/Cargo.toml\",\"apps/reading-queue/tests/device.rs\",\"crates/inkapp-readwise/tests/refresh.rs\",\"crates/inkapp-readwise/Cargo.toml\"],\"verifyCommand\":\"nix develop -c cargo test -p reading-queue && nix develop -c cargo test -p inkapp-readwise\",\"acceptanceCriteria\":[\"serve push/pull/delete + publish/sync_once\",\"#[ignore] on_device_round_trip rmapi-only\",\"#[ignore] refresh_cassette reads READWISE_TOKEN, rewrites articles.json\",\"rmapi v4/token/mkdir honored\",\"make test green; clippy clean\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-23T01"
+  "lastUpdated": "2026-05-23T02"
 }
