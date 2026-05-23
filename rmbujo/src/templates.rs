@@ -65,11 +65,9 @@ pub struct DailyPage<'a> {
 
 #[derive(Clone, Debug)]
 pub struct AgendaEvent {
-    /// Stable per-event index within the month -> `#evt-{idx}`.
-    pub idx: usize,
     /// "All Day" or "HH:MM" (start).
     pub label: String,
-    /// End time "HH:MM" for timed events with a DTEND; shown on the details page.
+    /// End time "HH:MM" for timed events with a DTEND; rendered as a start–end range.
     pub end_label: Option<String>,
     pub title: String,
     pub location: Option<String>,
@@ -87,9 +85,9 @@ pub struct AgendaDay {
     pub events: Vec<AgendaEvent>,
 }
 
-/// One page of a single day's events: a compact agenda list followed by expanded
-/// details. `agenda`/`details` hold only the events on THIS page; the heading and
-/// continuation flags come from `notebooks::month::agenda::DayPagePlan`.
+/// One page of a single day's events: each event shown in full (time, title,
+/// Where/Notes/Who). `events` holds only the events on THIS page; the
+/// continuation/first-page flags come from `notebooks::month::agenda::DayPagePlan`.
 #[derive(Template)]
 #[template(path = "day_events.html")]
 pub struct DayEvents<'a> {
@@ -97,10 +95,7 @@ pub struct DayEvents<'a> {
     pub day: u32,
     pub day_pad: String,
     pub weekday: &'a str,
-    pub agenda: &'a [AgendaEvent],
-    pub details: &'a [AgendaEvent],
-    pub show_agenda_heading: bool,
-    pub show_details_heading: bool,
+    pub events: &'a [AgendaEvent],
     pub continued: bool,
     pub first_page: bool,
 }

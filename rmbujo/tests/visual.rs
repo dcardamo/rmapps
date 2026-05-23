@@ -79,10 +79,9 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
     .render()
     .unwrap();
 
-    // day_events — one combined page: Agenda list + Details for a single day.
+    // day_events — one day's events, each shown in full (merged agenda+details).
     let day_evts = vec![
         AgendaEvent {
-            idx: 0,
             label: "All Day".into(),
             end_label: None,
             title: "Victoria Day".into(),
@@ -93,7 +92,6 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
             is_all_day: true,
         },
         AgendaEvent {
-            idx: 1,
             label: "14:00".into(),
             end_label: Some("15:00".into()),
             title: "Dentist".into(),
@@ -109,10 +107,7 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
         day: 19,
         day_pad: "19".into(),
         weekday: "Tue",
-        agenda: &day_evts,
-        details: &day_evts,
-        show_agenda_heading: true,
-        show_details_heading: true,
+        events: &day_evts,
         continued: false,
         first_page: true,
     }

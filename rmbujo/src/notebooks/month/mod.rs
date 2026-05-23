@@ -81,35 +81,27 @@ pub fn build_month_pdf(
 
     // Per-day event pages are appended ONLY when the month has events, so a static
     // month keeps its exact page count. Each day with events gets its own page
-    // block (Agenda then Details, combined flow): a light day is one page, a busy
-    // day spills onto more pages, and a day never shares a page with another day.
-    // The `#agenda-{day}` pill from the monthly/daily pages lands on the day's
-    // first page. Usable height = page minus the toolbar reserve, bottom margin,
-    // and title block; content width accounts for side margins (and the details
-    // indent) so wrapping is estimated.
+    // block listing every event in full (time, title, Where/Notes/Who): a light
+    // day is one page, a busy day spills onto more pages, and a day never shares a
+    // page with another day. The `#agenda-{day}` pill from the monthly/daily pages
+    // lands on the day's first page. Usable height = page minus the toolbar
+    // reserve, bottom margin, and title block; content width accounts for side
+    // margins (and the event indent) so wrapping is estimated.
     let days = agenda::agenda_days(&m, events, config.year, month);
     if !days.is_empty() {
         let usable = dev.height_pt() - crate::geometry::TOOLBAR_SAFE_PT - grid.margin_pt - 30.0;
         let content_w = dev.width_pt() - 2.0 * grid.margin_pt - 8.0;
         for day in &days {
-            for plan in agenda::paginate_day(
-                day,
-                usable,
-                agenda::HEADER_PT,
-                agenda::SUBHEAD_PT,
-                |e| agenda::agenda_event_pt(content_w, e),
-                |e| agenda::detail_event_pt(content_w, e),
-            ) {
+            for plan in agenda::paginate_day(day, usable, agenda::HEADER_PT, |e| {
+                agenda::event_pt(content_w, e)
+            }) {
                 fragments.push(
                     DayEvents {
                         month_num: month,
                         day: day.day,
                         day_pad: format!("{:02}", day.day),
                         weekday: day.weekday,
-                        agenda: &plan.agenda,
-                        details: &plan.details,
-                        show_agenda_heading: plan.show_agenda_heading,
-                        show_details_heading: plan.show_details_heading,
+                        events: &plan.events,
                         continued: plan.continued,
                         first_page: plan.first_page,
                     }

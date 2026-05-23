@@ -59,14 +59,13 @@ pub fn build_css(device: &Device, grid: &GridSpec, theme: &Palette) -> String {
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}\n\
 html, body {{ margin: 0; padding: 0; }}\n\
 body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; color: var(--ink); }}\n\
-.h-month, .h-section, .h-evt, .dayhead-date, .cover .title {{ font-family: \"Fraunces 72pt\", serif; }}\n\
+.h-month, .h-section, .dayhead-date, .cover .title {{ font-family: \"Fraunces 72pt\", serif; }}\n\
 .day, .day .wd, .cbadge, .pill, .detail-meta {{ font-family: \"Hanken Grotesk\", sans-serif; }}\n\
 .page {{ position: relative; width: {w}pt; height: {h}pt; padding: {top}pt {m}pt {m}pt {m}pt; overflow: hidden; background: var(--paper); break-after: page; }}\n\
 .page:last-child {{ break-after: auto; }}\n\
 .dotgrid {{ position: absolute; inset: 0; background-image: url(dot.svg); background-repeat: repeat; background-size: {sp}pt {sp}pt; background-position: {dot_bx}pt {dot_by}pt; }}\n\
 .h-month {{ color: var(--primary); font-size: 16pt; font-weight: bold; margin-bottom: 6pt; }}\n\
 .h-section {{ color: var(--primary); font-size: 14pt; font-weight: bold; }}\n\
-.h-evt {{ color: var(--primary); font-size: 11pt; font-weight: bold; margin: 6pt 0 3pt; }}\n\
 /* Dot grid painted as the page background so headings/labels sit on top. Used by
    the month index and Tasks pages. Unlike an absolutely-positioned .dotgrid child,
    a page background resolves correctly even when rendered as a single page. */\n\
@@ -92,11 +91,9 @@ body {{ font-family: \"{family}\", serif; font-size: 9.5pt; line-height: 1.4; co
 .pill {{ display: inline-block; padding: 0 6pt; border-radius: 8pt; color: var(--paper); background: var(--accent); font-size: 7pt; }}\n\
 .dayhead {{ display: flex; justify-content: space-between; align-items: center; }}\n\
 .dayhead-date {{ display: inline-block; font-size: 13pt; line-height: 1; text-decoration: none; color: var(--primary); background: var(--paper); border-bottom: 0.75pt solid var(--rule); padding: 1pt 3pt 2pt 3pt; }}\n\
-/* Agenda + Details: ink body text, color swatch per event. */\n\
+/* Day event entries: ink body text, color swatch per event. */\n\
 .h-month a {{ color: var(--primary); text-decoration: none; }}\n\
 .swatch {{ display: inline-block; width: 7pt; height: 7pt; border-radius: 2pt; margin-right: 4pt; vertical-align: -0.5pt; }}\n\
-.agenda-line {{ font-size: 9pt; margin: 2pt 0; color: var(--ink); }}\n\
-.agenda-line a {{ color: var(--ink); text-decoration: none; }}\n\
 .detail-evt {{ margin: 3pt 0 6pt 8pt; }}\n\
 .detail-title {{ font-size: 10pt; color: var(--ink); }}\n\
 .detail-meta {{ font-size: 9pt; color: var(--muted); }}\n",

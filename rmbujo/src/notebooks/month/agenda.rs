@@ -8,8 +8,7 @@ use crate::ics::EventOccurrence;
 use crate::templates::{AgendaDay, AgendaEvent};
 
 /// Build the agenda rows for `month`, one `AgendaDay` per calendar day that has
-/// events. Event `idx` is assigned sequentially in date order across the whole
-/// month so `#evt-K` anchors are stable and unique.
+/// events.
 pub fn agenda_days(
     m: &crate::calendar::Month,
     events: &BTreeMap<NaiveDate, Vec<EventOccurrence>>,
@@ -17,7 +16,6 @@ pub fn agenda_days(
     month: u32,
 ) -> Vec<AgendaDay> {
     let mut out = Vec::new();
-    let mut idx = 0usize;
     for d in &m.days {
         let date = NaiveDate::from_ymd_opt(year, month, d.day).unwrap();
         let Some(occs) = events.get(&date) else {
@@ -28,20 +26,15 @@ pub fn agenda_days(
         }
         let day_events = occs
             .iter()
-            .map(|o| {
-                let e = AgendaEvent {
-                    idx,
-                    label: label_for(o.time),
-                    end_label: o.end_time.map(|t| t.format("%H:%M").to_string()),
-                    title: cap(&o.title, 100),
-                    location: o.location.as_deref().map(|l| cap(l, 90)),
-                    description: o.description.as_deref().map(|d| cap(d, 140)),
-                    attendees: o.attendees.clone(),
-                    color: o.color.clone(),
-                    is_all_day: o.time.is_none(),
-                };
-                idx += 1;
-                e
+            .map(|o| AgendaEvent {
+                label: label_for(o.time),
+                end_label: o.end_time.map(|t| t.format("%H:%M").to_string()),
+                title: cap(&o.title, 100),
+                location: o.location.as_deref().map(|l| cap(l, 90)),
+                description: o.description.as_deref().map(|d| cap(d, 140)),
+                attendees: o.attendees.clone(),
+                color: o.color.clone(),
+                is_all_day: o.time.is_none(),
             })
             .collect();
         out.push(AgendaDay {
@@ -86,27 +79,12 @@ fn lines_for(chars: usize, font_pt: f32, width_pt: f32) -> f32 {
     (chars as f32 / cpl).ceil().max(1.0)
 }
 
-/// Vertical cost (pt) of a date header on an agenda/detail page.
+/// Vertical cost (pt) of a date header on a day's event page.
 pub const HEADER_PT: f32 = 20.0;
 
-/// Vertical cost (pt) of an "Agenda"/"Details" sub-heading on a day page.
-pub const SUBHEAD_PT: f32 = 16.0;
-
-/// Estimated height (pt) of one agenda line (label + title + location, wrapping).
-pub fn agenda_event_pt(width_pt: f32, e: &AgendaEvent) -> f32 {
-    let mut chars = e.label.chars().count() + 2 + e.title.chars().count();
-    if let Some(end) = &e.end_label {
-        chars += end.chars().count() + 1;
-    }
-    if let Some(l) = &e.location {
-        chars += l.chars().count() + 3;
-    }
-    lines_for(chars, 9.0, width_pt) * 13.0 + 3.0
-}
-
-/// Estimated height (pt) of one details block: a title line plus a wrapping line
+/// Estimated height (pt) of one event entry: a title line plus a wrapping line
 /// for each present Where/Notes/Who field.
-pub fn detail_event_pt(width_pt: f32, e: &AgendaEvent) -> f32 {
+pub fn event_pt(width_pt: f32, e: &AgendaEvent) -> f32 {
     let title_chars = e.label.chars().count()
         + e.end_label
             .as_ref()
@@ -128,68 +106,40 @@ pub fn detail_event_pt(width_pt: f32, e: &AgendaEvent) -> f32 {
     h + 8.0
 }
 
-/// One rendered page of a single day's events. A page is always laid out as
-/// `[agenda lines] [detail blocks]` (agenda always precedes details within a
-/// day), so two slices plus the heading/continuation flags fully describe it:
-/// an agenda-only page, a details-only continuation page, or a shared page that
-/// carries the tail of the agenda and the head of the details.
+/// One rendered page of a single day's events: the events that fit on this page
+/// plus continuation/first-page flags. Agenda and details are merged into one
+/// list, so a page is fully described by its event slice.
 #[derive(Clone, Debug, Default)]
 pub struct DayPagePlan {
-    pub agenda: Vec<AgendaEvent>,
-    pub details: Vec<AgendaEvent>,
-    pub show_agenda_heading: bool,
-    pub show_details_heading: bool,
+    pub events: Vec<AgendaEvent>,
     /// True on every page after the day's first (drives the "· cont." marker).
     pub continued: bool,
     /// True on the day's first page (the `#agenda-{day}` pill target).
     pub first_page: bool,
 }
 
-/// Paginate ONE day's events into per-page plans for the combined agenda+details
-/// layout. Agenda lines come first (`agenda_pt`), then detail blocks (`detail_pt`),
-/// both in event order. Each page costs `header_pt` (the running date header);
-/// each section's sub-heading (`subhead_pt`) is charged once, on the first page
-/// that section's content appears. A sub-heading and its section's first item are
-/// placed together, so a heading never orphans at the foot of a page. An item
-/// taller than a fresh page is placed as-is (field capping bounds item height).
+/// Paginate ONE day's events into per-page plans. Each event is rendered as a full
+/// entry (time, title, Where/Notes/Who) sized by `event_pt`, and events fill pages
+/// in order. Each page costs `header_pt` (the running date header). An event taller
+/// than a fresh page is placed as-is (field capping bounds entry height).
 pub fn paginate_day(
     day: &AgendaDay,
     usable_pt: f32,
     header_pt: f32,
-    subhead_pt: f32,
-    agenda_pt: impl Fn(&AgendaEvent) -> f32,
-    detail_pt: impl Fn(&AgendaEvent) -> f32,
+    event_pt: impl Fn(&AgendaEvent) -> f32,
 ) -> Vec<DayPagePlan> {
-    enum Kind {
-        Agenda,
-        Detail,
-    }
-    // Agenda items first, then detail items — each tagged with its height.
-    let mut items: Vec<(Kind, &AgendaEvent, f32)> = Vec::new();
-    for e in &day.events {
-        items.push((Kind::Agenda, e, agenda_pt(e)));
-    }
-    for e in &day.events {
-        items.push((Kind::Detail, e, detail_pt(e)));
-    }
-
     let mut pages: Vec<DayPagePlan> = Vec::new();
     let mut cur = DayPagePlan {
         first_page: true,
         ..Default::default()
     };
     let mut h = header_pt;
-    let mut agenda_heading_done = false;
-    let mut details_heading_done = false;
 
-    for (kind, e, eh) in items {
-        let triggers_heading = match kind {
-            Kind::Agenda => !agenda_heading_done,
-            Kind::Detail => !details_heading_done,
-        };
-        let need = eh + if triggers_heading { subhead_pt } else { 0.0 };
-        let has_content = !cur.agenda.is_empty() || !cur.details.is_empty();
-        if h + need > usable_pt && has_content {
+    for e in &day.events {
+        let eh = event_pt(e);
+        // Flush when the next event won't fit and the page already has content.
+        // A lone oversized event is placed as-is (height is bounded by field caps).
+        if h + eh > usable_pt && !cur.events.is_empty() {
             pages.push(std::mem::take(&mut cur));
             cur = DayPagePlan {
                 continued: true,
@@ -197,26 +147,10 @@ pub fn paginate_day(
             };
             h = header_pt;
         }
-        if triggers_heading {
-            match kind {
-                Kind::Agenda => {
-                    cur.show_agenda_heading = true;
-                    agenda_heading_done = true;
-                }
-                Kind::Detail => {
-                    cur.show_details_heading = true;
-                    details_heading_done = true;
-                }
-            }
-            h += subhead_pt;
-        }
-        match kind {
-            Kind::Agenda => cur.agenda.push(e.clone()),
-            Kind::Detail => cur.details.push(e.clone()),
-        }
+        cur.events.push(e.clone());
         h += eh;
     }
-    if !cur.agenda.is_empty() || !cur.details.is_empty() {
+    if !cur.events.is_empty() {
         pages.push(cur);
     }
     pages

@@ -107,7 +107,6 @@ fn reference_legend() {
 fn sample_day_events() -> Vec<AgendaEvent> {
     vec![
         AgendaEvent {
-            idx: 0,
             label: "09:00".into(),
             end_label: Some("10:00".into()),
             title: "Standup".into(),
@@ -118,7 +117,6 @@ fn sample_day_events() -> Vec<AgendaEvent> {
             is_all_day: false,
         },
         AgendaEvent {
-            idx: 1,
             label: "12:00".into(),
             end_label: None,
             title: "Lunch".into(),
@@ -132,17 +130,14 @@ fn sample_day_events() -> Vec<AgendaEvent> {
 }
 
 #[test]
-fn day_events_first_page_anchor_and_links() {
+fn day_events_first_page_shows_anchor_and_full_details() {
     let evs = sample_day_events();
     let html = DayEvents {
         month_num: 5,
         day: 5,
         day_pad: "05".into(),
         weekday: "Wed",
-        agenda: &evs,
-        details: &evs,
-        show_agenda_heading: true,
-        show_details_heading: true,
+        events: &evs,
         continued: false,
         first_page: true,
     }
@@ -156,41 +151,31 @@ fn day_events_first_page_anchor_and_links() {
         html.contains("href=\"#day-5\""),
         "header links to daily page"
     );
-    assert_eq!(
-        html.matches("href=\"#evt-").count(),
-        2,
-        "agenda lines link to details"
-    );
-    assert!(html.contains("id=\"evt-0\"") && html.contains("id=\"evt-1\""));
-    assert!(html.contains(">Agenda<") && html.contains(">Details<"));
-    assert_eq!(
-        html.matches("class=\"swatch\"").count(),
-        4,
-        "2 agenda + 2 detail swatches"
-    );
-    assert!(html.contains("var(--accent)"));
+    // Merged view: no compact agenda lines, detail anchors, or sub-headings.
+    assert_eq!(html.matches("href=\"#evt-").count(), 0);
+    assert!(!html.contains(">Agenda<") && !html.contains(">Details<"));
+    // One swatch per event (a single full entry each).
+    assert_eq!(html.matches("class=\"swatch\"").count(), 2);
+    assert!(html.contains("var(--accent)") && html.contains("var(--rust)"));
     assert!(
         html.contains("09:00&#8211;10:00"),
-        "details show start-end range"
+        "timed event shows start-end range"
     );
-    // Empty fields omitted; only the populated meta lines render.
+    // Full details inline; empty fields omitted.
     assert!(html.contains("Where: Zoom"));
     assert!(html.contains("Who: Sam"));
     assert_eq!(html.matches("Notes:").count(), 0);
 }
 
 #[test]
-fn day_events_continuation_omits_anchor_and_headings() {
+fn day_events_continuation_omits_anchor() {
     let evs = sample_day_events();
     let html = DayEvents {
         month_num: 5,
         day: 5,
         day_pad: "05".into(),
         weekday: "Wed",
-        agenda: &[],
-        details: &evs,
-        show_agenda_heading: false,
-        show_details_heading: false,
+        events: &evs,
         continued: true,
         first_page: false,
     }
@@ -201,7 +186,6 @@ fn day_events_continuation_omits_anchor_and_headings() {
         "anchor only on first page"
     );
     assert!(html.contains("cont."), "continuation marker");
-    assert!(!html.contains(">Agenda<") && !html.contains(">Details<"));
     assert!(
         html.contains("href=\"#day-5\""),
         "running header still links to daily page"
