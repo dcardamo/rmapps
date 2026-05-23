@@ -1,5 +1,10 @@
 [package]
 name = "inkapp-remarkable"
 version = "0.1.0"
-edition.workspace = true
-license.workspace = true
+edition = "2021"
+license = "MIT"
+description = "reMarkable Device implementation for inkapp (PDF<->scene transform, .rm read/write)"
+
+[dependencies]
+inkapp-core = { path = "../inkapp-core" }
+rm-files = { path = "../rm-files" }
