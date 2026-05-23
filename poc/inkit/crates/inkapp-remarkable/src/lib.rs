@@ -98,6 +98,34 @@ impl Device for Remarkable {
                 highlighter: s.is_highlighter(),
             });
         }
+        // Snap-to-text highlights (`GlyphRange`) carry no polyline — only the
+        // bounding rect(s) of the covered text. Synthesize a horizontal swipe
+        // through each rect's vertical centre so they attribute through the same
+        // path as freehand highlighter strokes. Sampled across the width (not
+        // just endpoints) because `attribute` matches a region if ANY point lands
+        // inside it, so a multi-token rect needs interior points to catch them all.
+        for hl in scene.text_highlights() {
+            for r in &hl.rectangles {
+                let y_mid = r.y + r.h / 2.0;
+                const SAMPLES: usize = 16;
+                let points = (0..=SAMPLES)
+                    .map(|k| {
+                        let t = k as f64 / SAMPLES as f64;
+                        self.device_to_pdf(
+                            DevicePoint {
+                                x: r.x + t * r.w,
+                                y: y_mid,
+                            },
+                            page_h_pt,
+                        )
+                    })
+                    .collect();
+                out.push(Stroke {
+                    points,
+                    highlighter: true,
+                });
+            }
+        }
         Ok(out)
     }
 
