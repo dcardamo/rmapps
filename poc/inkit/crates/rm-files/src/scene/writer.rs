@@ -5,10 +5,7 @@
 //! length-prefixed; the writer back-patches those lengths once the body is
 //! known.
 
-use crate::scene::reader::TagType;
-
-/// 43-byte ASCII header that prefixes every v6 `.rm` file.
-const HEADER_V6: &[u8] = b"reMarkable .lines file, version=6          ";
+use crate::scene::reader::{TagType, HEADER_V6};
 
 /// A growable byte buffer that emits the v6 format.
 pub struct Writer {
@@ -228,6 +225,13 @@ mod tests {
         let mut r = Reader::new(w.as_bytes());
         let id = r.read_id(1).unwrap();
         assert_eq!((id.part1, id.part2), (0, 0));
+
+        // Multi-byte varuint part2 (300 encodes as two LEB128 bytes).
+        let mut w2 = Writer::new();
+        w2.write_id(2, 7, 300);
+        let mut r2 = Reader::new(w2.as_bytes());
+        let id2 = r2.read_id(2).unwrap();
+        assert_eq!((id2.part1, id2.part2), (7, 300));
     }
 
     #[test]
