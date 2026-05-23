@@ -105,13 +105,13 @@ impl Readwise {
         }
     }
 
-    /// Record a highlight.
+    /// Record a highlight (idempotent: a repeated (id, text) is recorded once,
+    /// so `highlights()` and `queue()` agree).
     pub fn add_highlight(&self, id: &ArticleId, text: &str) {
-        self.overlay
-            .lock()
-            .unwrap()
-            .added
-            .push((id.clone(), text.to_string()));
+        let mut ov = self.overlay.lock().unwrap();
+        if !ov.added.iter().any(|(i, t)| i == id && t == text) {
+            ov.added.push((id.clone(), text.to_string()));
+        }
     }
 
     /// The archived ids (for assertions / surfacing).

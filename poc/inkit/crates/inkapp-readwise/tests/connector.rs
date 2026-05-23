@@ -32,3 +32,16 @@ fn highlight_is_recorded_and_merged() {
         "queue merges overlay highlights"
     );
 }
+
+#[test]
+fn duplicate_highlight_recorded_once() {
+    let rw = Readwise::fake();
+    let id = rw.queue()[0].id.clone();
+    rw.add_highlight(&id, "patience");
+    rw.add_highlight(&id, "patience");
+    assert_eq!(
+        rw.highlights(&id),
+        vec!["patience".to_string()],
+        "duplicate highlight deduped"
+    );
+}
