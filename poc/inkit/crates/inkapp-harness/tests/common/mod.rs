@@ -30,6 +30,37 @@ pub fn open_rmdoc(path: &Path) -> (Vec<u8>, Vec<u8>) {
     (read(".pdf"), read(".rm"))
 }
 
+/// Compare `png` to the committed golden at `tests/golden/<name>.png`.
+/// On first run (golden absent), write it and fail with a clear message so the
+/// developer reviews and commits it.
+///
+/// Byte equality is only meaningful when the rendering stack (typst-render,
+/// tiny-skia, image/zlib) is pinned to the same versions — which the Nix devshell
+/// enforces. Running outside `nix develop` on a different platform may produce a
+/// false mismatch; regenerate the golden inside the devshell.
+pub fn assert_golden(name: &str, png: &[u8]) {
+    let path = format!("{}/tests/golden/{name}.png", env!("CARGO_MANIFEST_DIR"));
+    match std::fs::read(&path) {
+        Ok(expected) => assert_eq!(
+            png,
+            expected.as_slice(),
+            "inspector image differs from golden {name}"
+        ),
+        // Only "file not found" triggers bootstrap; any other I/O error (e.g.
+        // unreadable file) is a real failure and must not silently rewrite the
+        // golden — that would compare against freshly-written bytes and pass.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            std::fs::create_dir_all(format!("{}/tests/golden", env!("CARGO_MANIFEST_DIR")))
+                .unwrap();
+            std::fs::write(&path, png).unwrap();
+            // Must panic: if we returned, the (now-equal) file written above would
+            // make a same-run comparison pass with no human review.
+            panic!("golden {name} did not exist; wrote it — review and re-run");
+        }
+        Err(e) => panic!("could not read golden {name}: {e}"),
+    }
+}
+
 /// Regenerate a gesture fixture from its real recording if present, else from
 /// synthetic bootstrap strokes (both via the real write/read path).
 pub fn regen_fixture(

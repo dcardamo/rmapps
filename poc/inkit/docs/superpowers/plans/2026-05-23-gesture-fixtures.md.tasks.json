@@ -35,7 +35,7 @@
     {
       "id": 6,
       "subject": "Task 6: Bootstrap fixtures committed + regen guard",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** tests/common/mod.rs (open_rmdoc, regen_fixture: real recording if present else synth); tests/regen.rs writes-if-missing then asserts committed==regenerated; commit 7 gestures/*.json.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/tests/common/mod.rs\",\"crates/inkapp-harness/tests/regen.rs\",\"crates/inkapp-harness/tests/fixtures/gestures\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test regen\",\"acceptanceCriteria\":[\"regen_fixture real-or-synth\",\"bootstrap write-then-fail then pass\",\"7 gestures/*.json committed\"]}\n```"
     },

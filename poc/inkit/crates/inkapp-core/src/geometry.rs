@@ -28,6 +28,11 @@ impl PdfRect {
 
     /// Whether this rect overlaps `other` (with a small sub-point tolerance to
     /// absorb f32 quantisation from device round-trips, matching [`contains`]).
+    ///
+    /// Note: the tolerance effectively widens each rect by `CONTAINS_EPSILON` on
+    /// every side, so two rects within `2·CONTAINS_EPSILON` of each other are
+    /// treated as overlapping. This is correct for adjacent/edge-sharing regions,
+    /// but do not rely on `overlaps` to resolve sub-`2ε` gaps.
     pub fn overlaps(&self, other: &PdfRect) -> bool {
         self.x0 <= other.x1 + CONTAINS_EPSILON
             && self.x1 >= other.x0 - CONTAINS_EPSILON
