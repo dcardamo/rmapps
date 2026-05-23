@@ -148,6 +148,13 @@ primitives wrap it:
 - **Stale-version guard:** reject ink whose manifest version predates the current document,
   so ink written against an old layout is never misattributed to a new one.
 
+> **As-built note:** both are implemented as standalone, unit-tested primitives
+> (`readback::diff_new`, `readback::guard_version`). The harness's `simulate` runs a
+> *single* cycle per call, so it does not yet call them in the loop (there is no prior cycle
+> to diff against, and synthesized ink is not yet version-tagged). Wiring diffing + the guard
+> into a **multi-cycle** `simulate` is deferred to whichever later spec first needs a
+> multi-cycle loop — `StepTrace`'s doc comment anticipates the `Vec<StepTrace>` shape.
+
 ## C. The `.rm` v6 writer + validation (`rm-files`)
 
 The writer is the trust anchor: if synthetic ink is provably faithful, software tests can
@@ -158,13 +165,22 @@ stand in for the tablet. It emits the v6 tagged-block stream from framework `Str
 
 1. **Round-trip (automated):** `write(strokes) → Scene::parse → assert == strokes` within
    float tolerance. Proves writer and reader agree.
-2. **Structural diff vs. real fixtures (automated):** write a known gesture and compare the
-   block/tag structure against the recorded `rmtest-glyph.rmdoc` / `stamped-labels.rmdoc`
-   fixtures. Proves we emit what the device actually emits, not merely what we can re-read.
+2. **Real-fixture round-trip (automated):** parse a real device capture
+   (`stamped-labels.rmdoc`) to `Stroke`s, re-write them with the writer, re-parse, and
+   assert the strokes (tool, color, geometry, and per-point telemetry) are byte-faithfully
+   preserved. Proves the writer losslessly encodes *real device stroke data*, not just
+   synthetic data.
 3. **Device acceptance (Spec #3, manual bar):** push a written `.rm` to a tablet and
    confirm it renders. Deferred, like the spike's `on_device` test.
 
-Levels 1–2 are the gate for "we can stop hand-testing the writer."
+> **As-built note (corrects this section's original wording):** level 2 is a *round-trip of
+> real fixture data*, not a byte/block-structure diff of the writer's output against the
+> device's raw bytes. Our minimal writer deliberately omits the surrounding CRDT ids and
+> scaffolding blocks a real file carries, so its bytes are not block-identical to a device
+> file — only the *decoded stroke content* is. True byte-structural / block-framing fidelity
+> against a device is therefore part of the **Spec #3 on-device acceptance bar**, not proven
+> here. Levels 1–2 are the gate for "we can stop hand-testing that the writer round-trips
+> the data the harness relies on."
 
 ## D. Loop simulator + layers inspector (`inkapp-harness`)
 

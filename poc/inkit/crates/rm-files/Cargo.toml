@@ -1,5 +1,5 @@
 [package]
-name = "rmfiles"
+name = "rm-files"
 version = "0.1.0"
 edition = "2021"
 description = "Pure-Rust reader for reMarkable .rm (v6) scene files; extracts ink strokes"

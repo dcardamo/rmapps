@@ -12,8 +12,10 @@
           nativeBuildInputs = [
             pkgs.rustc pkgs.cargo pkgs.clippy pkgs.rustfmt pkgs.pkg-config
           ];
-          # fontconfig + fonts: Typst (via typst-kit) loads system fonts at render time.
-          # poppler-utils: pdftoppm/pdftotext render spike PDFs for verification.
+          # fontconfig + fonts: inkapp-core embeds fonts via typst-assets (deterministic, no
+          # system fonts needed for rendering). The dejavu/noto packages and poppler-utils
+          # below are kept for the legacy spike only (typst-readback), which still uses
+          # system-font rendering and pdftoppm for verification.
           # rmapi: reMarkable cloud client (v4-patched), for the spike's on-device steps.
           buildInputs = [
             pkgs.libiconv pkgs.fontconfig pkgs.dejavu_fonts pkgs.noto-fonts

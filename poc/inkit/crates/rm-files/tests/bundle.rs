@@ -1,9 +1,9 @@
-//! Integration tests for [`rmfiles::Bundle`].
+//! Integration tests for [`rm_files::Bundle`].
 
 use std::path::Path;
 
 fn strokes_count(p: &Path) -> usize {
-    let b = rmfiles::Bundle::open(p).unwrap();
+    let b = rm_files::Bundle::open(p).unwrap();
     b.pages()
         .iter()
         .filter_map(|pg| pg.scene().unwrap())
@@ -32,7 +32,7 @@ fn opens_zip_and_dir_identically() {
 #[test]
 fn exposes_source_pdf_metadata_and_canvas() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let b = rmfiles::Bundle::open(&dir.join("stamped-labels.rmdoc")).unwrap();
+    let b = rm_files::Bundle::open(&dir.join("stamped-labels.rmdoc")).unwrap();
 
     assert!(
         b.source_pdf().is_some(),
