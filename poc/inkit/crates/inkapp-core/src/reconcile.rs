@@ -22,6 +22,9 @@ pub enum DocOp {
 ///
 /// Order is deterministic: creates/updates in `next` order, then deletes in
 /// `prev` order.
+///
+/// Keys within `prev` or `next` must be unique; a `view` emitting the same key
+/// twice is a caller bug (duplicates collapse last-wins here).
 pub fn reconcile(prev: &[(DocKey, u64)], next: &[(DocKey, u64)]) -> Vec<DocOp> {
     let prev_map: HashMap<&str, u64> = prev.iter().map(|(k, h)| (k.0.as_str(), *h)).collect();
     let next_keys: HashSet<&str> = next.iter().map(|(k, _)| k.0.as_str()).collect();

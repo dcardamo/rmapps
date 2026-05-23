@@ -26,3 +26,9 @@ fn all_new_is_all_create() {
     let ops = reconcile(&[], &[(k("a"), 1), (k("b"), 1)]);
     assert_eq!(ops, vec![DocOp::Create(k("a")), DocOp::Create(k("b"))]);
 }
+
+#[test]
+fn all_gone_is_all_delete() {
+    let ops = reconcile(&[(k("a"), 1), (k("b"), 1)], &[]);
+    assert_eq!(ops, vec![DocOp::Delete(k("a")), DocOp::Delete(k("b"))]);
+}

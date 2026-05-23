@@ -17,21 +17,21 @@
     {
       "id": 3,
       "subject": "Task 3: Highlight-aware HighlightableText render",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** with_highlights marks pre-highlighted tokens with #highlight; read/new unchanged.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/widgets/highlight_text.rs\",\"crates/inkapp-core/tests/highlight_render.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test highlight_render\",\"acceptanceCriteria\":[\"with_highlights exists; new keeps empty\",\"render wraps highlighted in #highlight; tok-<i> regions\",\"read unchanged; existing green\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Document/DocKey/Documents + flow! macro",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** DocKey, Document<M>{key,flow}, Documents<M>, flow![..] macro.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/document.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/document.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test document\",\"acceptanceCriteria\":[\"DocKey Clone/Eq/Hash + new\",\"Document<M>{key,flow:Vec<Box<dyn Component<Msg=M>>>} + keyed\",\"Documents<M>\",\"flow![a,b] heterogeneous boxed flow\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Render walk render_document + determinism",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** render_document -> RenderedDoc{key,pdf,manifest,page_h,hash}; assemble+compile+recover+embed+hash.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/render_walk.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core --test render_walk\",\"acceptanceCriteria\":[\"RenderedDoc + render_document + document_source(pub)\",\"doc yields tok-0.. and done regions\",\"two renders identical manifest + equal hash\"]}\n```"
     },
