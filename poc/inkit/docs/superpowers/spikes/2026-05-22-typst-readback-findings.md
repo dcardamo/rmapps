@@ -11,6 +11,8 @@
 
 All automated must-bars passed. The make-or-break bar (region rects, Bar 1) matched exactly — zero delta on all four edges. No blocker was found. The only unverified item is on-device visual quality (Bar 4), which requires hardware and is marked pending. Typst is adopted as the render engine for inkapp.
 
+**Superseded by `inkapp-core` (Spec #2):** the render + region recovery here are reimplemented in `crates/inkapp-core` with per-page height conversion and embedded (pinned) fonts; span-level region recovery was proven in Task 9.
+
 ---
 
 ## Per-Bar Results
