@@ -50,6 +50,7 @@ pub struct Sample {
 pub struct Source {
     pub recording: String,
     pub device: String,
+    /// ISO 8601 date the gesture was recorded.
     pub recorded: String,
 }
 
@@ -70,14 +71,21 @@ impl GestureFixture {
         serde_json::from_slice(bytes)
     }
 
-    /// Serialize to pretty JSON (deterministic field order via the struct).
+    /// Serialize to pretty JSON (field order follows struct declaration order, the serde_json default).
     pub fn to_json(&self) -> serde_json::Result<String> {
         serde_json::to_string_pretty(self)
     }
 
     /// Transplant the default sample into `target` using this fixture's fit/tool.
     pub fn transplant_default(&self, target: PdfRect) -> Vec<Stroke> {
-        let sample = &self.samples[self.default];
+        let sample = self.samples.get(self.default).unwrap_or_else(|| {
+            panic!(
+                "fixture '{}': default index {} out of range ({} samples)",
+                self.name,
+                self.default,
+                self.samples.len()
+            )
+        });
         transplant(sample, target, self.fit, self.tool.is_highlighter())
     }
 }

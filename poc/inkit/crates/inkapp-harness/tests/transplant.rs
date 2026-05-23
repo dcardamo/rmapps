@@ -74,6 +74,12 @@ fn stretch_x_fills_width_keeps_proportion() {
     assert!((p[1].x - 80.0).abs() < 1e-9 && (p[1].y - 30.0).abs() < 1e-9);
 }
 
+#[test]
+fn normalize_degenerate_tap_gives_aspect_one() {
+    let sample = normalize(&[s(&[(5.0, 5.0)])]);
+    assert_eq!(sample.native_aspect, 1.0);
+}
+
 fn us(points: &[[f64; 2]]) -> inkapp_harness::fixtures::UnitStroke {
     inkapp_harness::fixtures::UnitStroke {
         points: points.to_vec(),
