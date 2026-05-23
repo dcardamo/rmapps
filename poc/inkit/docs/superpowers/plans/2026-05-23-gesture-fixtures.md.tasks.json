@@ -49,17 +49,17 @@
     {
       "id": 8,
       "subject": "Task 8: Transform-fidelity validation (deferred #2)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** synth_calibration + fit_scale in recording.rs; transform_fidelity.rs pairs taps to cross known points, asserts max err < TOL (passes for bootstrap), prints fitted-scale adoption suggestion on failure (gated adoption). Real calibration.rmdoc used if present.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/src/recording.rs\",\"crates/inkapp-harness/tests/transform_fidelity.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-harness --test transform_fidelity\",\"acceptanceCriteria\":[\"synth_calibration on-model\",\"max err < TOL passes for bootstrap\",\"fitted-scale suggestion on failure\",\"real recording used if present\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 9: Manual bars - recording + device acceptance",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2, 6],
       "description": "**Goal:** rmapi helpers (mkdir/put/get) in common/mod.rs; record.rs (#[ignore]) push templates+calibration to /InkAppDev/fixtures + pull; acceptance.rs (#[ignore]) write .rm + push to /InkAppDev/acceptance. Deferred #3. Final make test + make clippy gate.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/tests/common/mod.rs\",\"crates/inkapp-harness/tests/record.rs\",\"crates/inkapp-harness/tests/acceptance.rs\",\"crates/inkapp-harness/Cargo.toml\"],\"verifyCommand\":\"make test && make clippy\",\"acceptanceCriteria\":[\"rmapi helpers -ni null-stdin\",\"record push/pull to /InkAppDev/fixtures\",\"acceptance writes .rm + push /InkAppDev/acceptance\",\"ignored tests skipped; make test+clippy green\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-23T00:00:00Z"
+  "lastUpdated": "2026-05-23T16:00:00Z"
 }
