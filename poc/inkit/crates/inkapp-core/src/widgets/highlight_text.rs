@@ -3,15 +3,26 @@ use crate::manifest::Manifest;
 use crate::widget::{RenderCx, Widget};
 
 /// A run of words, each individually highlightable. Each token is wrapped so its
-/// laid-out rect is recovered as a region named `tok-<i>`.
+/// laid-out rect is recovered as a region named `tok-<i>`. Tokens listed in
+/// `highlights` render pre-marked (so a prior highlight shows on re-render).
 pub struct HighlightableText {
     tokens: Vec<String>,
+    highlights: Vec<String>,
 }
 
 impl HighlightableText {
     pub fn new(tokens: &[&str]) -> Self {
         Self {
             tokens: tokens.iter().map(|t| t.to_string()).collect(),
+            highlights: Vec::new(),
+        }
+    }
+
+    /// Like `new`, but `highlighted` tokens render pre-marked.
+    pub fn with_highlights(tokens: &[&str], highlighted: &[String]) -> Self {
+        Self {
+            tokens: tokens.iter().map(|t| t.to_string()).collect(),
+            highlights: highlighted.to_vec(),
         }
     }
 }
@@ -22,9 +33,9 @@ impl Widget for HighlightableText {
 
     fn render(&self, _cx: &mut RenderCx) -> String {
         // Each token is laid inline inside a #box. A #context block captures the
-        // token's own laid-out position via here().position() and its measured size
-        // via measure(), then emits <region>-labelled metadata so recover_regions
-        // can read back the per-token rect.
+        // token's own laid-out position via here().position() and its measured
+        // size via measure(), then emits <region>-labelled metadata so
+        // recover_regions can read back the per-token rect.
         //
         // Key constraints:
         // - The <region> label must attach to the metadata element itself
@@ -35,6 +46,9 @@ impl Widget for HighlightableText {
         // - Tokens are wrapped in #box[...] so they flow inline left-to-right.
         // - The page index comes from Typst introspection (here().position().page),
         //   not from the RenderCx page hint, which is why _cx is unused here.
+        //
+        // `t` is used for both measuring (measure(t)) and inline display (#t or
+        // #highlight[#t]), so the #let binding is kept regardless of highlight state.
         let mut s = String::new();
         for (i, tok) in self.tokens.iter().enumerate() {
             // Escape backslash and double-quote for a Typst string literal.
@@ -42,11 +56,20 @@ impl Widget for HighlightableText {
             // and don't need escaping. The string is bound to `t` and used for
             // both measuring and inline display, so arbitrary token text is safe.
             let esc = tok.replace('\\', "\\\\").replace('"', "\\\"");
+            // Tokens already in `highlights` render wrapped in #highlight so they
+            // show as pre-marked on re-render. The `new` path (empty highlights)
+            // always uses the plain `#t` branch, keeping output byte-identical
+            // to the previous implementation so harness goldens are unaffected.
+            let disp = if self.highlights.iter().any(|h| h == tok) {
+                "#highlight[#t]"
+            } else {
+                "#t"
+            };
             s.push_str(&format!(
                 "#box[#let t = \"{esc}\"; #context [#metadata((name: \"tok-{i}\", \
                    page: here().position().page - 1, x: here().position().x / 1pt, \
                    y: here().position().y / 1pt, w: measure(t).width / 1pt, \
-                   h: measure(t).height / 1pt)) <region>]#t] "
+                   h: measure(t).height / 1pt)) <region>]{disp}] "
             ));
         }
         s.push('\n');

@@ -1,0 +1,19 @@
+use inkapp_core::widget::{RenderCx, Widget};
+use inkapp_core::widgets::highlight_text::HighlightableText;
+
+#[test]
+fn highlighted_token_is_marked_in_render() {
+    let w = HighlightableText::with_highlights(&["alpha", "beta", "gamma"], &["beta".to_string()]);
+    let mut cx = RenderCx::new(0);
+    let src = w.render(&mut cx);
+    assert!(
+        src.contains("#highlight"),
+        "a highlighted token renders with #highlight"
+    );
+    // Plain render (no highlights) must NOT contain #highlight.
+    let plain = HighlightableText::new(&["alpha", "beta"]).render(&mut RenderCx::new(0));
+    assert!(
+        !plain.contains("#highlight"),
+        "plain text has no highlight markup"
+    );
+}
