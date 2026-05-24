@@ -1,4 +1,5 @@
-use inkapp_core::crypto::Key;
+mod common;
+
 use inkapp_core::embed::extract_manifest;
 use inkapp_harness::recording::{
     calibration_points, catalog, render_calibration, render_template, BOXES_PER_GESTURE,
@@ -15,7 +16,7 @@ fn catalog_has_seven_gestures() {
 
 #[test]
 fn template_declares_three_boxes() {
-    let key = Key::from_bytes([42u8; 32]);
+    let key = common::test_key();
     let entry = catalog().iter().find(|e| e.name == "checkmark").unwrap();
     let pdf = render_template(entry, &key).unwrap();
     let manifest = extract_manifest(&pdf, &key).unwrap();
@@ -30,7 +31,7 @@ fn template_declares_three_boxes() {
 
 #[test]
 fn calibration_declares_crosses_with_known_points() {
-    let key = Key::from_bytes([42u8; 32]);
+    let key = common::test_key();
     let pdf = render_calibration(&key).unwrap();
     let manifest = extract_manifest(&pdf, &key).unwrap();
     let pts = calibration_points();
