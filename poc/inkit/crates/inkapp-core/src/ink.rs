@@ -4,7 +4,7 @@ use crate::geometry::{PdfPoint, PdfRect};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stroke {
     pub points: Vec<PdfPoint>,
-    /// True if drawn with a highlighter tool (the only distinction widgets need).
+    /// True if drawn with a highlighter tool (the only distinction components need).
     pub highlighter: bool,
 }
 

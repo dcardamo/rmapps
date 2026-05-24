@@ -4,7 +4,7 @@ use inkapp_core::manifest::recover_regions;
 use inkapp_core::readback::attribute;
 use inkapp_core::render::compile_to_document;
 use inkapp_core::widget::{RenderCx, Widget};
-use inkapp_core::widgets::highlight_text::HighlightableText;
+use inkapp_core::components::highlight_text::HighlightableText;
 
 const TOKENS: &[&str] = &["the", "quick", "brown", "fox", "lazy", "dog"];
 

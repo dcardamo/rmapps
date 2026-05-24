@@ -3,7 +3,7 @@ name = "inkapp-core"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Device-agnostic framework core for inkapp: Typst render, manifest, widgets, readback"
+description = "Device-agnostic framework core for inkapp: Typst render, manifest, components, readback"
 
 [dependencies]
 typst = "0.14"

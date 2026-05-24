@@ -1,4 +1,4 @@
-use inkapp::widgets::checkbox::Checkbox;
+use inkapp::components::checkbox::Checkbox;
 use inkapp::Remarkable;
 
 #[derive(Clone)]

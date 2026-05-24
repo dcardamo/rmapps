@@ -1,7 +1,7 @@
 use inkapp_core::geometry::{PdfPoint, PdfRect};
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::{Manifest, Region};
-use inkapp_core::widgets::checkbox::{CheckState, Checkbox};
+use inkapp_core::components::checkbox::{CheckState, Checkbox};
 
 fn manifest_with(rect: PdfRect) -> Manifest {
     Manifest {

@@ -7,8 +7,8 @@ use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::runtime::render_document;
 use inkapp_core::widget::{RenderCx, Widget};
-use inkapp_core::widgets::checkbox::Checkbox;
-use inkapp_core::widgets::highlight_text::HighlightableText;
+use inkapp_core::components::checkbox::Checkbox;
+use inkapp_core::components::highlight_text::HighlightableText;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum Msg {

@@ -8,15 +8,15 @@ use inkapp_core::component::Component;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::widget::{RenderCx, Widget};
-use inkapp_core::widgets::highlight_text::HighlightableText;
-use inkapp_core::widgets::notice::Notice;
+use inkapp_core::components::highlight_text::HighlightableText;
+use inkapp_core::components::notice::Notice;
 use inkapp_readwise::{Article, ArticleId, Readwise};
 use std::sync::Arc;
 
 use inkapp_core::connector::{Connector, ConnectorSet};
 
 /// Re-export so the app's tests/wiring use one `Checkbox` path.
-pub use inkapp_core::widgets::checkbox::Checkbox;
+pub use inkapp_core::components::checkbox::Checkbox;
 
 /// The Model: no own state — the queue and highlights live in Readwise.
 pub struct App;

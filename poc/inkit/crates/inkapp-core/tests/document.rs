@@ -1,6 +1,6 @@
 use inkapp_core::document::{DocKey, Document, Documents};
 use inkapp_core::flow;
-use inkapp_core::widgets::checkbox::Checkbox;
+use inkapp_core::components::checkbox::Checkbox;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum Msg {

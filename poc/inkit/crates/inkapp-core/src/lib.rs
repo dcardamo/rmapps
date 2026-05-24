@@ -1,4 +1,4 @@
-//! inkapp-core — the device-agnostic framework: render, manifest, widgets,
+//! inkapp-core — the device-agnostic framework: render, manifest, components,
 //! readback, and the minimal `Device` seam.
 
 pub mod component;
@@ -18,7 +18,7 @@ pub mod runtime;
 pub mod secrets;
 pub mod single_flight;
 pub mod widget;
-pub mod widgets;
+pub mod components;
 pub mod world;
 
 pub use component::Component;

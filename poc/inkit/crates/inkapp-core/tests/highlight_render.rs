@@ -1,5 +1,5 @@
 use inkapp_core::widget::{RenderCx, Widget};
-use inkapp_core::widgets::highlight_text::HighlightableText;
+use inkapp_core::components::highlight_text::HighlightableText;
 
 #[test]
 fn highlighted_token_is_marked_in_render() {

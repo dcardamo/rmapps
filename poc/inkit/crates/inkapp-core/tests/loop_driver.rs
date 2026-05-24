@@ -10,7 +10,7 @@ use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::Stroke;
 use inkapp_core::reconcile::DocOp;
 use inkapp_core::runtime::{app, DocSet};
-use inkapp_core::widgets::checkbox::Checkbox;
+use inkapp_core::components::checkbox::Checkbox;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum Msg {
