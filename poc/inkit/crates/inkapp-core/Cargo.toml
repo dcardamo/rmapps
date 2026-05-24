@@ -20,3 +20,7 @@ getrandom = "0.2"
 zeroize = "1"
 base64 = "0.22"
 tempfile = "3"
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
