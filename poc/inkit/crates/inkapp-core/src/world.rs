@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use typst::diag::{FileError, FileResult};
 use typst::foundations::{Bytes, Datetime};
 use typst::syntax::{FileId, Source, VirtualPath};
@@ -12,10 +14,19 @@ pub struct InkWorld {
     book: LazyHash<FontBook>,
     fonts: Vec<Font>,
     main: Source,
+    sources: HashMap<FileId, Source>,
 }
 
 impl InkWorld {
     pub fn new(src: &str) -> Self {
+        Self::with_sources(src, &[])
+    }
+
+    /// Like `new`, but registers additional named Typst sources (e.g. component
+    /// `.typ` files) so the main source can `#import` them. `sources` is a list of
+    /// `(virtual_path, source_text)`; paths are root-absolute (leading `/`) to
+    /// match `#import "/path.typ"`.
+    pub fn with_sources(src: &str, sources: &[(String, String)]) -> Self {
         let mut fonts = Vec::new();
         for data in typst_assets::fonts() {
             let bytes = Bytes::new(data.to_vec());
@@ -27,11 +38,19 @@ impl InkWorld {
         let book = FontBook::from_fonts(&fonts);
         let main_id = FileId::new(None, VirtualPath::new("main.typ"));
         let main = Source::new(main_id, src.into());
+        let sources = sources
+            .iter()
+            .map(|(path, text)| {
+                let id = FileId::new(None, VirtualPath::new(path));
+                (id, Source::new(id, text.clone()))
+            })
+            .collect();
         Self {
             library: LazyHash::new(Library::default()),
             book: LazyHash::new(book),
             fonts,
             main,
+            sources,
         }
     }
 }
@@ -49,6 +68,8 @@ impl World for InkWorld {
     fn source(&self, id: FileId) -> FileResult<Source> {
         if id == self.main.id() {
             Ok(self.main.clone())
+        } else if let Some(s) = self.sources.get(&id) {
+            Ok(s.clone())
         } else {
             Err(FileError::NotFound(
                 id.vpath().as_rootless_path().to_owned(),

@@ -1,0 +1,33 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-24-typst-component-authoring.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Multi-file InkWorld + sources-aware compile path",
+      "status": "pending",
+      "description": "**Goal:** `InkWorld` serves additional named Typst sources so an assembled document can `#import` them; a new compile entry point threads sources in without changing `compile_to_document`'s signature.\n\n**Files:**\n- Modify: crates/inkapp-core/src/world.rs\n- Modify: crates/inkapp-core/src/render.rs\n- Test: crates/inkapp-core/tests/multifile_world.rs (create)\n\n**Verify:** cargo test -p inkapp-core --test multifile_world\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/world.rs\", \"crates/inkapp-core/src/render.rs\", \"crates/inkapp-core/tests/multifile_world.rs\"], \"verifyCommand\": \"cargo test -p inkapp-core --test multifile_world\", \"acceptanceCriteria\": [\"with_sources registers resolvable sources\", \"compile_to_document_with_sources compiles imports\", \"compile_to_document unchanged\", \"missing import fails\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: #region prelude + Component::typst_sources hook + driver assembly",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Provide the `#region(name, body)` Typst prelude, a `Component::typst_sources()` default-empty hook, and a render driver that collects sources, prepends `#import`s, and compiles via the sources-aware path.\n\n**Files:**\n- Create: crates/inkapp-core/typst/region.typ\n- Modify: crates/inkapp-core/src/component.rs\n- Modify: crates/inkapp-core/src/runtime.rs\n- Modify: crates/inkapp-core/src/lib.rs, crates/inkapp/src/lib.rs\n- Test: crates/inkapp-core/tests/region_prelude.rs (create)\n\n**Verify:** cargo test -p inkapp-core --test region_prelude\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/region.typ\", \"crates/inkapp-core/src/component.rs\", \"crates/inkapp-core/src/runtime.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp/src/lib.rs\", \"crates/inkapp-core/tests/region_prelude.rs\"], \"verifyCommand\": \"cargo test -p inkapp-core --test region_prelude\", \"acceptanceCriteria\": [\"region.typ defines region(name,body)\", \"typst_sources default empty\", \"document_source prepends imports deduped\", \"compile_document compiles sources-aware\", \"region rect matches inline within 0.01pt\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Convert Checkbox render half to authored Typst",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Move Checkbox presentation into baked checkbox.typ, make `Component::render` emit `#checkbox(name, label)` wrapped via `#region` (affordance only, 14x14), declare it via `typst_sources`, and prove render->recover->decode round-trips through the driver.\n\n**Files:**\n- Create: crates/inkapp-core/typst/checkbox.typ\n- Modify: crates/inkapp-core/src/components/checkbox.rs\n- Modify: crates/inkapp-core/tests/checkbox_component.rs\n\n**Verify:** cargo test -p inkapp-core --test checkbox_component\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/checkbox.typ\", \"crates/inkapp-core/src/components/checkbox.rs\", \"crates/inkapp-core/tests/checkbox_component.rs\"], \"verifyCommand\": \"cargo test -p inkapp-core --test checkbox_component\", \"acceptanceCriteria\": [\"checkbox.typ defines checkbox(name,label) via #region\", \"Component::render emits #checkbox call only\", \"typst_sources returns checkbox.typ\", \"region recovers 14x14 and decode round-trips\", \"Widget render_at untouched\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: App regression — reading-queue renders & decodes its checkbox",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Confirm the authored-Checkbox seam works in the worked-example app; fix any test asserting on the changed render source string (convert brittle markup assertions to behavioral ones).\n\n**Files:**\n- Modify (if needed): apps/reading-queue/tests/app.rs, apps/reading-queue/src/lib.rs, apps/reading-queue/src/serve.rs\n\n**Verify:** cargo test --workspace; cargo fmt --all --check\n\n```json:metadata\n{\"files\": [\"apps/reading-queue/tests/app.rs\", \"apps/reading-queue/src/lib.rs\", \"apps/reading-queue/src/serve.rs\"], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"reading-queue tests pass\", \"markup assertions converted to behavioral\", \"workspace green and fmt clean\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-24T00:00:00Z"
+}
