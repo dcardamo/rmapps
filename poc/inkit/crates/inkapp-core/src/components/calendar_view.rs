@@ -64,6 +64,9 @@ impl<M> Component for CalendarView<M> {
                     // A per-event region `evt-<i>` recovered from layout (the
                     // in-flow `here().position()` pattern shared with Checkbox /
                     // HighlightableText), a cancel-box affordance, and the label.
+                    // The affordance is shown for every event, including an
+                    // already-`cancelled` one: re-marking just re-emits the same
+                    // cancel, which the connector handles idempotently.
                     s.push_str(&format!(
                         "#box[#context [#metadata((name: \"evt-{i}\", \
                            page: here().position().page - 1, x: here().position().x / 1pt, \

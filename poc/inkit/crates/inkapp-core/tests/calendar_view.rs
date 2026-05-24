@@ -78,3 +78,27 @@ fn read_only_decodes_nothing_editable_decodes_cancel() {
     let ed = CalendarView::editable(vec![ev("e1", "Standup")], |uid| Msg::Cancel(uid.to_string()));
     assert_eq!(ed.decode(&ink, &manifest), vec![Msg::Cancel("e1".to_string())]);
 }
+
+#[test]
+fn editable_decode_maps_region_index_to_event_uid() {
+    // Two events with non-sequential uids; a mark on the *second* region (evt-1)
+    // must yield the *second* event's uid, proving evt-<i> aligns with events[i]
+    // (the region name is the index, not the uid).
+    let manifest = Manifest {
+        version: 1,
+        regions: vec![
+            Region { name: "evt-0".into(), page: 0, rect: PdfRect { x0: 0.0, y0: 0.0, x1: 14.0, y1: 14.0 } },
+            Region { name: "evt-1".into(), page: 0, rect: PdfRect { x0: 0.0, y0: 20.0, x1: 14.0, y1: 34.0 } },
+        ],
+    };
+    // Ink only in evt-1's rect.
+    let ink = vec![RegionInk {
+        region: "evt-1".into(),
+        strokes: vec![Stroke { points: vec![PdfPoint { x: 7.0, y: 27.0 }], highlighter: false }],
+    }];
+    let ed = CalendarView::editable(
+        vec![ev("z9", "First"), ev("a1", "Second")],
+        |uid| Msg::Cancel(uid.to_string()),
+    );
+    assert_eq!(ed.decode(&ink, &manifest), vec![Msg::Cancel("a1".to_string())]);
+}
