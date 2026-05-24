@@ -1,0 +1,53 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-24-connector-plugin-trait.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: SingleFlight async helper",
+      "status": "pending",
+      "description": "**Goal:** Reusable `SingleFlight<T>` in inkapp-core that collapses concurrent async calls into one execution.\n\n**Files:** crates/inkapp-core/src/single_flight.rs (create), crates/inkapp-core/src/lib.rs, crates/inkapp-core/Cargo.toml (futures dep, tokio dev-dep)\n\n**Verify:** nix develop -c cargo test -p inkapp-core single_flight\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/single_flight.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/Cargo.toml\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core single_flight\", \"acceptanceCriteria\": [\"two concurrent run() calls invoke closure once\", \"fresh flight after completion\", \"cargo test passes\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Connector + ConnectorSet traits, ConnectorError",
+      "status": "pending",
+      "description": "**Goal:** Define the framework-facing Connector trait, ConnectorSet enumeration seam, and ConnectorError. No connector implements it yet.\n\n**Files:** crates/inkapp-core/src/connector.rs (create), crates/inkapp-core/src/lib.rs, crates/inkapp/src/lib.rs (facade re-exports), crates/inkapp-core/Cargo.toml (async-trait)\n\n**Verify:** nix develop -c cargo test -p inkapp-core connector\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/connector.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp/src/lib.rs\", \"crates/inkapp-core/Cargo.toml\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core connector\", \"acceptanceCriteria\": [\"Connector object-safe\", \"ConnectorSet returns Vec<Arc<dyn Connector>>\", \"fake-connector unit test passes\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Readwise implements Connector (transport, retry, single-flight, cache)",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** Migrate Readwise to the Connector trait: RwLock cache via single-flighted refresh, pluggable WriteTransport, deferred-write queue flushed with retry, failed_writes(). App-facing reads stay sync; existing readwise tests stay green.\n\n**Files:** crates/inkapp-readwise/src/lib.rs (rewrite), crates/inkapp-readwise/tests/delivery.rs (create), crates/inkapp-readwise/Cargo.toml (async-trait, inkapp-core; tokio dev-dep)\n\n**Verify:** nix develop -c cargo test -p inkapp-readwise\n\n```json:metadata\n{\"files\": [\"crates/inkapp-readwise/src/lib.rs\", \"crates/inkapp-readwise/tests/delivery.rs\", \"crates/inkapp-readwise/Cargo.toml\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-readwise\", \"acceptanceCriteria\": [\"Readwise impls Connector\", \"deferred writes flushed via transport\", \"retry-then-deliver and permanent-fail->failed_writes\", \"existing readwise tests green\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Async loop — render/step async, all call sites migrate",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** App::render/step become async (refresh before sync core, flush after), bound Cx: ConnectorSet; migrate all call sites in one green commit: reading-queue Connectors (Arc<Readwise> + ConnectorSet + from_arc), serve/main/device, harness keystone.\n\n**Files:** crates/inkapp-core/src/runtime.rs, apps/reading-queue/src/{lib,serve,main}.rs, apps/reading-queue/tests/device.rs, apps/reading-queue/Cargo.toml (tokio), crates/inkapp-harness/tests/app_loop.rs, crates/inkapp-harness/Cargo.toml (tokio dev-dep)\n\n**Verify:** nix develop -c cargo test --workspace\n\nATOMIC migration — must stay green in one commit.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/runtime.rs\", \"apps/reading-queue/src/lib.rs\", \"apps/reading-queue/src/serve.rs\", \"apps/reading-queue/src/main.rs\", \"apps/reading-queue/tests/device.rs\", \"apps/reading-queue/Cargo.toml\", \"crates/inkapp-harness/tests/app_loop.rs\", \"crates/inkapp-harness/Cargo.toml\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"render/step async + ConnectorSet bound\", \"Connectors as Arc + ConnectorSet impl\", \"workspace builds, async keystone green\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: App-driven failure banner",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** reading-queue view reads failed_writes() and prepends a _banner document when a write permanently failed. Framework stays out of presentation.\n\n**Files:** apps/reading-queue/src/lib.rs (Banner component + banner-aware view), apps/reading-queue/tests/banner.rs (create)\n\n**Verify:** nix develop -c cargo test -p reading-queue\n\n```json:metadata\n{\"files\": [\"apps/reading-queue/src/lib.rs\", \"apps/reading-queue/tests/banner.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p reading-queue\", \"acceptanceCriteria\": [\"banner doc on failure with 'couldn't sync'\", \"no banner when no failures\", \"reading-queue tests green\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Cross-app shared-cache test",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Prove cross-app connector sharing — two Connectors over one Arc<Readwise>, a write through one visible to the other.\n\n**Files:** apps/reading-queue/tests/shared.rs (create)\n\n**Verify:** nix develop -c cargo test -p reading-queue --test shared\n\n```json:metadata\n{\"files\": [\"apps/reading-queue/tests/shared.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p reading-queue --test shared\", \"acceptanceCriteria\": [\"write through A visible via B\", \"test passes\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: appdx.md reconciliation",
+      "status": "pending",
+      "blockedBy": [5, 6],
+      "description": "**Goal:** Make docs/appdx.md describe built reality: C done; real Connector/ConnectorSet/Arc<dyn> shape; async/tokio decided; assembling section reconciled; document-dependency refresh logged as next evolution.\n\n**Files:** docs/appdx.md\n\n**Verify:** nix develop -c cargo test --workspace\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"C marked built\", \"Connectors section reflects real shape\", \"I/O line flipped to async/tokio\", \"assembling reconciled\", \"open-questions updated\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-24T00:00:00Z"
+}
