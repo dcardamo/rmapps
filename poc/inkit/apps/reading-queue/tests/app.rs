@@ -39,6 +39,7 @@ fn ink_on_the_box_decodes_to_archive() {
                 y1: 20.0,
             },
         }],
+        ..Default::default()
     };
     let ink = vec![RegionInk {
         region: "done".into(),
@@ -91,6 +92,7 @@ fn article_body_decodes_highlight_to_msg() {
                 y1: 12.0,
             },
         }],
+        ..Default::default()
     };
     let ink = vec![RegionInk {
         region: "tok-0".into(),
