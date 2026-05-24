@@ -66,3 +66,46 @@ fn extract_with_wrong_key_fails() {
         "wrong key must fail to open"
     );
 }
+
+#[test]
+fn state_round_trips_and_stays_sealed() {
+    use inkapp_core::manifest::DocState;
+    use serde_json::json;
+
+    let doc = compile_to_document("#set page(width: 100pt, height: 100pt)\nhi").unwrap();
+    let pdf = document_to_pdf(&doc).unwrap();
+
+    let mut state = DocState::default();
+    // A distinctive marker we can search for in cleartext.
+    state.doc = Some(json!({"marker": "SEKRIT_CURSOR_7"}));
+    state
+        .components
+        .insert("stepper:c".into(), json!(424242u64));
+
+    let manifest = Manifest {
+        version: 3,
+        regions: vec![],
+        state,
+    };
+
+    let key = Key::from_bytes([5u8; 32]);
+    let embedded = embed_manifest(&pdf, &manifest, &key).unwrap();
+
+    // No-cleartext tier: neither the doc marker nor the component value leaks.
+    assert!(
+        !embedded.windows(15).any(|w| w == b"SEKRIT_CURSOR_7"),
+        "doc-level state leaked into the PDF in cleartext"
+    );
+    assert!(
+        !embedded.windows(6).any(|w| w == b"424242"),
+        "component state value leaked into the PDF in cleartext"
+    );
+
+    let got = extract_manifest(&embedded, &key).unwrap();
+    assert_eq!(got, manifest);
+    assert_eq!(got.state.doc, manifest.state.doc);
+    assert_eq!(
+        got.state.components.get("stepper:c"),
+        Some(&json!(424242u64))
+    );
+}
