@@ -48,20 +48,52 @@ fn decode_empty_when_no_ink() {
 }
 
 #[test]
-fn component_render_region_recovers() {
+fn authored_checkbox_round_trips_through_driver() {
+    use inkapp_core::document::Document;
+    use inkapp_core::flow;
+    use inkapp_core::geometry::PdfPoint;
+    use inkapp_core::ink::{RegionInk, Stroke};
     use inkapp_core::manifest::recover_regions;
-    use inkapp_core::render::compile_to_document;
-    use inkapp_core::widget::RenderCx;
-    let cb = Checkbox::with_msg("done", Msg::Archived(1)).label("Archive");
-    let mut cx = RenderCx::new(0);
-    let body = cb.render(&mut cx);
-    let src = format!("#set page(width: 200pt, height: 80pt, margin: 10pt)\n{body}");
-    let doc = compile_to_document(&src).unwrap();
-    let m = recover_regions(&doc).unwrap();
-    assert!(
-        m.regions.iter().any(|r| r.name == "done"),
-        "inline checkbox region recovers"
+    use inkapp_core::runtime::compile_document;
+
+    let doc: Document<Msg> = Document::keyed(
+        "k",
+        flow![Checkbox::with_msg("done", Msg::Archived(7)).label("Archive")],
     );
+    let compiled = compile_document(&doc).unwrap();
+    let m = recover_regions(&compiled).unwrap();
+    let region = m
+        .regions
+        .iter()
+        .find(|r| r.name == "done")
+        .expect("authored region recovers");
+
+    // The region wraps the 14x14 affordance only.
+    assert!(
+        (region.rect.x1 - region.rect.x0 - 14.0).abs() < 0.01,
+        "width ~14pt"
+    );
+    assert!(
+        (region.rect.y1 - region.rect.y0 - 14.0).abs() < 0.01,
+        "height ~14pt"
+    );
+
+    // Ink at the region centre decodes to the carried message.
+    let cx_mid = (region.rect.x0 + region.rect.x1) / 2.0;
+    let cy_mid = (region.rect.y0 + region.rect.y1) / 2.0;
+    let ink = vec![RegionInk {
+        region: "done".into(),
+        strokes: vec![Stroke {
+            points: vec![PdfPoint {
+                x: cx_mid,
+                y: cy_mid,
+            }],
+            highlighter: false,
+        }],
+    }];
+    let cb = Checkbox::with_msg("done", Msg::Archived(7)).label("Archive");
+    assert_eq!(cb.decode(&ink, &m), vec![Msg::Archived(7)]);
+    assert!(cb.decode(&[], &m).is_empty());
 }
 
 #[test]

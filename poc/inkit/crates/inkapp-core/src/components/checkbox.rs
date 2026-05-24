@@ -3,7 +3,7 @@ use crate::components::esc_typst_str;
 use crate::geometry::PdfPoint;
 use crate::ink::{RegionInk, Stroke};
 use crate::manifest::Manifest;
-use crate::widget::{region_metadata, RenderCx, Widget};
+use crate::widget::{is_valid_region_name, region_metadata, RenderCx, Widget};
 
 /// How a checkbox region was marked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,18 +122,26 @@ impl<M> Widget for Checkbox<M> {
 impl<M: Clone> Component for Checkbox<M> {
     type Msg = M;
 
-    /// Inline render: an in-flow box whose region rect is recovered from layout
-    /// (via `here().position()`), so it composes after flowing content in a
-    /// document. The page index comes from Typst introspection.
+    /// Render half authored in Typst (`checkbox.typ`). Emits a call to the
+    /// `checkbox` function; the driver registers `checkbox.typ` (which imports the
+    /// `#region` prelude) and prepends the import. Region recovery and `decode`
+    /// are unchanged.
     fn render(&self, _cx: &mut RenderCx) -> String {
+        assert!(
+            is_valid_region_name(&self.name),
+            "checkbox region name must be a valid region name, got: {:?}",
+            self.name
+        );
         let name = &self.name;
         let label = esc_typst_str(&self.label);
-        format!(
-            "#box[#context [#metadata((name: \"{name}\", \
-               page: here().position().page - 1, x: here().position().x / 1pt, \
-               y: here().position().y / 1pt, w: 14, h: 14)) <region>]\
-             #rect(width: 14pt, height: 14pt, stroke: 0.5pt)] #text[{label}]\n"
-        )
+        format!("#checkbox(\"{name}\", \"{label}\")\n")
+    }
+
+    fn typst_sources(&self) -> Vec<(String, String)> {
+        vec![(
+            "/components/checkbox.typ".to_string(),
+            include_str!("../../typst/checkbox.typ").to_string(),
+        )]
     }
 
     fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<M> {
