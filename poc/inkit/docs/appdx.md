@@ -1,13 +1,14 @@
 # Building apps on inkapp (developer experience)
 
 > **Status: partially built.** The bottom half (render, manifest, ink attribution,
-> the MVU loop, the reading-queue worked example) and now the **secrets store +
-> embedded-manifest encryption** are implemented and tested. Still ahead: the `mode`
-> axis, the connector *plugin* trait, and Typst component *authoring* — these remain
-> aspirational below. Open questions are marked **(open)** inline.
+> the MVU loop, the reading-queue worked example), the **secrets store +
+> embedded-manifest encryption**, and now the **connector plugin trait + async
+> loop** are implemented and tested. Still ahead: the `mode` axis and Typst
+> component *authoring* — these remain aspirational below. Open questions are marked
+> **(open)** inline.
 >
-> **Build order** (making this doc true): **S** secrets store → **E** encryption
-> *(both done)* → **C** connector plugin trait → **M** mode axis → **T** Typst
+> **Build order** (making this doc true): **S** secrets store → **E** encryption →
+> **C** connector plugin trait *(all three done)* → **M** mode axis → **T** Typst
 > authoring. Event sourcing/CRDT and multi-user/cloud stay future (see
 > [FUTURE.md](FUTURE.md)).
 
@@ -286,47 +287,66 @@ you genuinely need a *reusable content* component do you reach for a stored
 ## Connectors
 
 A connector wraps an external system: it fetches and caches its data, and accepts
-writes. `update` calls it directly. Connectors are **plugins**, and **more than one
-app can share one** (your calendar might back several apps), with a shared cache.
+writes. Connectors are **plugins** — the framework knows them only as
+`Arc<dyn Connector>` — and **more than one app can share one** (your calendar might
+back several apps), with a shared cache, write queue, and refresh guard.
 
-Two kinds, and the second is the hard one:
+The seam splits cleanly by who calls what:
+
+- **App-facing methods are sync.** `cx.readwise.queue()` reads a warm in-memory
+  cache under a brief read lock; `cx.readwise.archive(id)` only *enqueues* a write.
+  Neither awaits anything, so `update`/`view` stay synchronous and pure.
+- **Framework-facing methods are async.** The `Connector` trait is just three:
+  `name()`, `async refresh()` (pull fresh data into the cache — all network reads
+  live here), and `async flush()` (drain the durable write queue). The framework
+  drives these *around* the sync core (see [the async loop](#assembling--running)).
+
+Two kinds of connector, and the second is the hard one:
 
 - **Read-only feed** — pull, cache, done. (ICS.)
-- **Bidirectional** — `update` calls its write methods. (Readwise: mark read,
-  archive, create highlight. CalDAV someday.)
+- **Bidirectional** — `update` calls its sync write methods, `flush` pushes them
+  out. (Readwise: mark read, archive, create highlight. CalDAV someday.)
 
-**Delivery & failures.** A connector's write methods *record* the write durably and
-return — they do **not** block `update` on the network. The connector flushes queued
-writes with retry; a write that keeps failing surfaces on the next render (e.g. a
-"couldn't sync to Readwise" note) rather than throwing inside `update`. So `update`
-expresses intent and the framework owns eventual delivery — which is also why
-`update` returns nothing.
+**Delivery & failures.** A write method *records* the write durably and returns — it
+does **not** block on the network — and makes the change locally visible this render
+via an optimistic overlay. The framework's `flush` (once per loop cycle) pushes
+queued writes through a pluggable transport with retry; after `MAX_ATTEMPTS` (3) a
+write moves to a permanently-failed list the connector exposes as `failed_writes()`.
+The app's `view` reads that list and renders its own banner (e.g. "couldn't sync to
+Readwise") — the framework owns no presentation. So `update` expresses intent, the
+framework owns eventual delivery, and that's why `update` returns nothing.
 
-**Each connector owns its own cache.** Storage is the connector's choice — sqlite,
-plain files, whatever fits the system — hidden behind the connector interface; the
-framework imposes no storage engine. This settles most of the cache questions:
+**Each connector owns its own cache.** Storage is the connector's choice — in-memory,
+sqlite, plain files, whatever fits the system — hidden behind the connector
+interface; the framework imposes no storage engine. This settles most of the cache
+questions:
 
-- **TTL / invalidation** — connector-internal policy. A read call can pass a hint
+- **TTL / invalidation** — connector-internal policy. A read can pass a hint
   ("force fresh" vs "recent is fine"), but the connector decides.
-- **Who triggers refresh** — `update` or `view`, by reading the connector; the
-  connector chooses cache-vs-network behind that call.
+- **Who triggers refresh** — the framework, on behalf of the upcoming reads: it
+  `refresh`es every registered connector *before* `view`/`update` run, so they read
+  only warm caches. (A connector that can't refresh just serves its stale cache; a
+  failed *read* is swallowed, a failed *write* is the surfaced case.)
 
-**Concurrency** — two apps hitting one shared connector at once. The framework
-shares each connector as `Arc<dyn Connector>`; methods take `&self` and the
-connector uses **interior mutability** for its cache (`Mutex`/`RwLock`/atomics
-*inside* the connector). The lock lives inside the connector — consistent with "the
-connector owns its cache" — and `update` never sees it. Two rules keep this from
+**Concurrency** — two apps hitting one shared connector at once. The framework shares
+each connector as `Arc<dyn Connector>`; methods take `&self` and the connector uses
+**interior mutability** for its cache (`RwLock`) and write queue/overlay (`Mutex`),
+*inside* the connector. `update` never sees the lock. Two rules keep this from
 biting:
 
-- **Never hold the lock across network I/O.** Fetch outside the lock, then briefly
-  lock only to write the result. `RwLock` lets apps read cache concurrently while
-  only a refresh takes the write lock. (`Arc<Mutex<WholeConnector>>` around
-  everything is the easy-wrong version: one app's refresh stalls all others.)
-- **Single-flight.** Collapse simultaneous refreshes into one network call via an
-  in-flight guard — the real value-add beyond mere safety.
+- **Never hold a lock across `await`.** `refresh` awaits the network *outside* any
+  lock, then takes the write lock only briefly to store the already-fetched result.
+  `RwLock` lets apps read the cache concurrently while only a refresh takes the write
+  lock. (`Arc<Mutex<WholeConnector>>` around everything is the easy-wrong version:
+  one app's refresh stalls all others.)
+- **Single-flight.** Simultaneous refreshes collapse into one execution via a shared
+  `SingleFlight` guard — it lives once in `inkapp-core`, not per connector, because
+  it's the real value-add beyond mere safety.
 
-(Lock primitive follows the I/O model: std `Mutex`/`RwLock` for blocking
-connectors, tokio's for async. Not decided yet.)
+**I/O model: async/tokio** *(decided)*. App-facing methods are sync; the
+framework-facing `refresh`/`flush` are async and awaited by the loop. The cache lock
+is `std::sync::RwLock` (held only briefly, never across an `await`); network is
+awaited outside it.
 
 ---
 
@@ -500,15 +520,25 @@ folds the `Msg`s through `update` (handing it the connectors), and re-renders `v
 
 ### Assembling & running
 
-`Model`, `update`, `view`, and connectors become a runnable app by wiring them once:
+`Model`, `update`, `view`, and connectors become a runnable app by wiring them once.
+You define your typed `Connectors` struct (holding each connector as an
+`Arc<…>` so it can be shared across apps) and give it a one-line `impl ConnectorSet`
+so the framework can enumerate them to drive `refresh`/`flush`:
 
 ```rust
-fn main() {
+struct Connectors { readwise: Arc<Readwise> }
+
+impl ConnectorSet for Connectors {
+    fn connectors(&self) -> Vec<Arc<dyn Connector>> { vec![self.readwise.clone()] }
+}
+
+#[tokio::main]
+async fn main() {
     // The framework seals everything it embeds with this per-user key, loaded
     // from the secrets store (created on first run).
     let key = SecretStore::open_default().unwrap().user_key().unwrap();
     inkapp::app(App)
-        .connector(Readwise::new(token))   // this is what makes `cx.readwise` exist
+        .connector(Connectors { readwise: Arc::new(Readwise::new(token)) })
         .update(update)
         .view(view)
         .key(key)                          // per-user encryption key (required)
@@ -516,11 +546,18 @@ fn main() {
 }
 ```
 
-You never call `update` or `view` yourself — `run()` drives them on each sync. The
-`&Connectors` (`cx`) handed to them is the typed set of connectors you registered
+You never call `update` or `view` yourself — `run()` drives them on each sync,
+`refresh`ing all connectors *before* the core and `flush`ing them *after*. The
+`&Connectors` (`cx`) handed to `update`/`view` is the typed struct you registered
 here, which is why `cx.readwise` resolves. The `key` comes from the framework's
-secrets store (`SecretStore`), and seals the manifest the framework embeds in each
+secrets store (`SecretStore`) and seals the manifest the framework embeds in each
 document.
+
+(`main` is `async` because `run()` awaits the connector loop; the `update`/`view`
+you write stay sync.) The single-call `.connector(Readwise::new(token))` form
+sketched elsewhere in this doc is possible future ergonomics — a sugar that mints
+the whole-struct registration for you — over the current explicit `Connectors` +
+`impl ConnectorSet`.
 
 ### Testing
 
@@ -633,3 +670,10 @@ management and tenant-isolation mechanics are undesigned.
 - Connector write semantics: write *ordering* and the exact surfacing UX for
   persistently-failed writes (delivery is recorded-and-retried by the connector —
   see "Delivery & failures" — but ordering and the failure banner are undesigned).
+- **Demand-driven (document-dependency) refresh.** Today the framework refreshes the
+  *whole* registered connector set before each render. The end state: documents
+  declare the connectors they depend on, and the framework refreshes only the union a
+  render actually uses. It's a pure optimization that pays off only with multiple
+  connectors and renders touching a subset — neither true yet — so it's a later
+  refinement, not a rewrite: the set is already `Arc<dyn Connector>` and the loop
+  already brackets `view` with refresh/flush, so adding a `depends_on` is additive.
