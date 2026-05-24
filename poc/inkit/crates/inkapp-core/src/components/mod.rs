@@ -2,6 +2,7 @@ pub mod calendar_view;
 pub mod checkbox;
 pub mod highlight_text;
 pub mod notice;
+pub mod stepper;
 
 /// Escape a string for a Typst string literal (`#"..."`): only `\` and `"` need
 /// escaping — other markup chars (`[`, `]`, `#`) are literal inside a string
