@@ -27,4 +27,18 @@ pub trait Component {
     fn typst_sources(&self) -> Vec<(String, String)> {
         Vec::new()
     }
+
+    /// Stable, props-derived key under which this component's state is carried in
+    /// the sealed manifest. `None` (default) = stateless. Derive from identity
+    /// props (e.g. a name/id), never from volatile content, so the key is
+    /// identical at render time and at the next cycle's pre-fold decode.
+    fn state_key(&self) -> Option<String> {
+        None
+    }
+
+    /// The state to seal at render time — the base the document is rendered with.
+    /// `None` (default) = nothing carried.
+    fn render_state(&self) -> Option<serde_json::Value> {
+        None
+    }
 }
