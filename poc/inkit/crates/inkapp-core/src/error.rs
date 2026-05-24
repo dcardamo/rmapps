@@ -13,6 +13,8 @@ pub enum Error {
     Readback(String),
     #[error("render/raster failed: {0}")]
     Render(String),
+    #[error("encryption/decryption failed: {0}")]
+    Crypto(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
