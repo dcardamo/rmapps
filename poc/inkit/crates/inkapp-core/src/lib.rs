@@ -1,6 +1,7 @@
 //! inkapp-core — the device-agnostic framework: render, manifest, components,
 //! readback, and the minimal `Device` seam.
 
+pub mod calendar;
 pub mod component;
 pub mod connector;
 pub mod crypto;
@@ -11,6 +12,7 @@ pub mod error;
 pub mod geometry;
 pub mod ink;
 pub mod manifest;
+pub mod mode;
 pub mod readback;
 pub mod reconcile;
 pub mod render;
@@ -21,6 +23,7 @@ pub mod widget;
 pub mod components;
 pub mod world;
 
+pub use calendar::EventRow;
 pub use component::Component;
 pub use connector::{Connector, ConnectorError, ConnectorSet};
 pub use crypto::{open, seal, Key};
@@ -29,6 +32,7 @@ pub use document::{DocKey, Document, Documents};
 pub use error::{Error, Result};
 pub use geometry::{DevicePoint, PdfPoint, PdfRect};
 pub use manifest::{Manifest, Region};
+pub use mode::Mode;
 pub use reconcile::{reconcile, DocOp};
 pub use runtime::{app, document_source, render_document, App, Cycle, DocSet, RenderedDoc};
 pub use secrets::{Scope, SecretStore};
