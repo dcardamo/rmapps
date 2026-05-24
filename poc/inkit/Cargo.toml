@@ -11,6 +11,7 @@ members = [
     "crates/inkapp",
     "spikes/typst-readback",
     "apps/reading-queue",
+    "apps/agenda",
 ]
 
 [workspace.package]
