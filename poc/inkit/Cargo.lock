@@ -1695,8 +1695,11 @@ dependencies = [
 name = "inkapp-harness"
 version = "0.1.0"
 dependencies = [
+ "agenda",
  "image",
  "inkapp-core",
+ "inkapp-ics",
+ "inkapp-localcal",
  "inkapp-readwise",
  "inkapp-remarkable",
  "reading-queue",

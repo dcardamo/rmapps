@@ -2,28 +2,20 @@ use std::collections::HashMap;
 
 mod common;
 
-use inkapp_core::device::Device;
+use common::{device_ink, fixture, region_rect};
+
 use inkapp_core::document::DocKey;
 use inkapp_core::geometry::PdfRect;
 use inkapp_core::ink::Stroke;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::reconcile::DocOp;
 use inkapp_core::runtime::{app, document_source, DocSet};
-use inkapp_harness::fixtures::GestureFixture;
 use inkapp_remarkable::Remarkable;
 use reading_queue::{update, view, App, Connectors, Msg};
 
-/// Load a committed gesture fixture by name from the harness fixtures dir.
-fn fixture(name: &str) -> GestureFixture {
-    let path = format!(
-        "{}/tests/fixtures/gestures/{name}.json",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
-    GestureFixture::from_json(&bytes).unwrap()
-}
-
 /// Union rect of the named regions (for placing a swipe across several tokens).
+/// App-loop-specific (multi-token swipe); the single-region/fixture/device-ink
+/// helpers it shares with the agenda e2e live in `common`.
 fn union_rect(m: &Manifest, names: &[&str]) -> PdfRect {
     let mut it = m
         .regions
@@ -41,27 +33,6 @@ fn union_rect(m: &Manifest, names: &[&str]) -> PdfRect {
         u.y1 = u.y1.max(r.rect.y1);
     }
     u
-}
-
-fn region_rect(m: &Manifest, name: &str) -> PdfRect {
-    m.regions
-        .iter()
-        .find(|r| r.name == name)
-        .unwrap_or_else(|| panic!("region {name:?} not found in manifest"))
-        .rect
-}
-
-/// Transplant `fix` into `rect`, then route through the device write/read path
-/// so the test exercises the real .rm byte path.
-fn device_ink(
-    device: &Remarkable,
-    fix: &GestureFixture,
-    rect: PdfRect,
-    page_h: f64,
-) -> Vec<Stroke> {
-    let pdf = fix.transplant_default(rect);
-    let bytes = device.write_ink(&pdf, page_h).unwrap();
-    device.read_ink(&bytes, page_h).unwrap()
 }
 
 #[tokio::test]

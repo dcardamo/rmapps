@@ -7,10 +7,47 @@ use std::process::{Command, Stdio};
 use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
 use inkapp_core::embed::extract_manifest;
-use inkapp_harness::fixtures::Source;
+use inkapp_core::geometry::PdfRect;
+use inkapp_core::ink::Stroke;
+use inkapp_core::manifest::Manifest;
+use inkapp_harness::fixtures::{GestureFixture, Source};
 use inkapp_harness::recording::{
     bootstrap_strokes, extract_fixture, render_template, CatalogEntry, PAGE_H,
 };
+use inkapp_remarkable::Remarkable;
+
+/// Load a committed gesture fixture by name from the harness fixtures dir.
+pub fn fixture(name: &str) -> GestureFixture {
+    let path = format!(
+        "{}/tests/fixtures/gestures/{name}.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+    GestureFixture::from_json(&bytes).unwrap()
+}
+
+/// The rect of the named region in `m` (panics if absent — region names are
+/// developer-chosen, so a miss is a test bug, not input data).
+pub fn region_rect(m: &Manifest, name: &str) -> PdfRect {
+    m.regions
+        .iter()
+        .find(|r| r.name == name)
+        .unwrap_or_else(|| panic!("region {name:?} not found in manifest"))
+        .rect
+}
+
+/// Transplant `fix` into `rect`, then route through the device write/read path
+/// so the test exercises the real .rm byte path.
+pub fn device_ink(
+    device: &Remarkable,
+    fix: &GestureFixture,
+    rect: PdfRect,
+    page_h: f64,
+) -> Vec<Stroke> {
+    let pdf = fix.transplant_default(rect);
+    let bytes = device.write_ink(&pdf, page_h).unwrap();
+    device.read_ink(&bytes, page_h).unwrap()
+}
 
 /// Fixed key used across harness tests so embed and extract agree.
 pub fn test_key() -> Key {

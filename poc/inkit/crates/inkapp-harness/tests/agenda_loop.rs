@@ -2,40 +2,13 @@ use std::collections::HashMap;
 
 mod common;
 
+use common::{device_ink, fixture, region_rect};
+
 use agenda::{update, view, App, Connectors, Msg};
-use inkapp_core::device::Device;
 use inkapp_core::document::DocKey;
-use inkapp_core::geometry::PdfRect;
 use inkapp_core::ink::Stroke;
-use inkapp_core::manifest::Manifest;
 use inkapp_core::runtime::{app, DocSet};
-use inkapp_harness::fixtures::GestureFixture;
 use inkapp_remarkable::Remarkable;
-
-fn fixture(name: &str) -> GestureFixture {
-    let path = format!(
-        "{}/tests/fixtures/gestures/{name}.json",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
-    GestureFixture::from_json(&bytes).unwrap()
-}
-
-fn region_rect(m: &Manifest, name: &str) -> PdfRect {
-    m.regions
-        .iter()
-        .find(|r| r.name == name)
-        .unwrap_or_else(|| panic!("region {name:?} not found in manifest"))
-        .rect
-}
-
-/// Transplant `fix` into `rect`, then route through the device write/read path
-/// so the test exercises the real .rm byte path.
-fn device_ink(device: &Remarkable, fix: &GestureFixture, rect: PdfRect, page_h: f64) -> Vec<Stroke> {
-    let pdf = fix.transplant_default(rect);
-    let bytes = device.write_ink(&pdf, page_h).unwrap();
-    device.read_ink(&bytes, page_h).unwrap()
-}
 
 #[tokio::test]
 async fn agenda_cancel_marks_editable_event_only() {
@@ -78,7 +51,9 @@ async fn agenda_cancel_marks_editable_event_only() {
     let cycle = application.step(&mut set, &ink).await.unwrap();
 
     assert!(
-        cycle.decoded.contains(&Msg::EventCancelled { uid: "mine-1".to_string() }),
+        cycle.decoded.contains(&Msg::EventCancelled {
+            uid: "mine-1".to_string()
+        }),
         "decoded a cancel for the editable event: {:?}",
         cycle.decoded
     );
