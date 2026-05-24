@@ -1,17 +1,19 @@
 # Building apps on inkapp (developer experience)
 
-> **Status: partially built.** The bottom half (render, manifest, ink attribution,
-> the MVU loop, the reading-queue worked example), the **secrets store +
-> embedded-manifest encryption**, the **connector plugin trait + async loop**, and
-> now the **mode axis** (a `Mode { ReadOnly, Editable }` field carried by
+> **Status: the build-order spine is complete.** The bottom half (render, manifest,
+> ink attribution, the MVU loop, the reading-queue worked example), the **secrets
+> store + embedded-manifest encryption**, the **connector plugin trait + async
+> loop**, the **mode axis** (a `Mode { ReadOnly, Editable }` field carried by
 > components, with a `CalendarView` spanning Display↔Control and the read-only ICS
-> feed + writable local-calendar connectors behind it) are implemented and tested.
-> Still ahead: Typst component *authoring* — the one remaining aspirational piece.
-> Open questions are marked **(open)** inline.
+> feed + writable local-calendar connectors behind it), and now **Typst component
+> authoring** (a multi-file Typst world + a framework `#region` prelude, with
+> `Checkbox`'s render half authored in `checkbox.typ`) are all implemented and
+> tested. What remains is the explicitly-future material — event sourcing/CRDT,
+> multi-user/cloud — not the spine. Open questions are marked **(open)** inline.
 >
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
-> **C** connector plugin trait → **M** mode axis *(all four done)* → **T** Typst
-> authoring. Event sourcing/CRDT and multi-user/cloud stay future (see
+> **C** connector plugin trait → **M** mode axis → **T** Typst authoring *(all five
+> done)*. Event sourcing/CRDT and multi-user/cloud stay future (see
 > [FUTURE.md](FUTURE.md)).
 
 The touchstone example throughout is a reading-queue app in the spirit of
@@ -213,6 +215,20 @@ render half is authored in **Typst's own scripting language** — functions, `#l
 conditionals, loops, `context` — not by string-building Typst markup from Rust.
 Region declaration, per-device conditional layout, and composition all live in
 Typst, where they belong.
+
+*(Built — the seam is real.)* A component declares its `.typ` source (baked into the
+binary) via `typst_sources`, and its `render` emits a *call* to that function; the
+framework registers the source, `#import`s it, and the component wraps its affordance
+in a **`#region(name, body)`** primitive the framework ships as a prelude — so region
+metadata lives in one place, not re-typed per component. `Checkbox` is authored this
+way today (`checkbox.typ` is a `#let checkbox(name, label)` whose box is wrapped in
+`#region`, proved end-to-end render→recover→decode). One wrinkle a component author
+must know: a Typst `.typ` *module* does **not** inherit the document's imports, so
+each authored component imports the prelude itself
+(`#import "/inkapp/region.typ": region`). The parts of this section *not* yet built
+are **per-device conditional layout** and **Typst-side composition** — render-as-Typst
+and framework-applied regions are. (The reading-queue worked example below still
+shows an illustrative inline sketch; the shipped `checkbox.typ` is the real form.)
 
 The boundary to keep in mind: **Typst owns the render half only.**
 
