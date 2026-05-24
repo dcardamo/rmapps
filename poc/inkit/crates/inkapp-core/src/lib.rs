@@ -2,6 +2,7 @@
 //! readback, and the minimal `Device` seam.
 
 pub mod component;
+pub mod connector;
 pub mod crypto;
 pub mod device;
 pub mod document;
@@ -21,6 +22,7 @@ pub mod widgets;
 pub mod world;
 
 pub use component::Component;
+pub use connector::{Connector, ConnectorError, ConnectorSet};
 pub use crypto::{open, seal, Key};
 pub use device::Device;
 pub use document::{DocKey, Document, Documents};
