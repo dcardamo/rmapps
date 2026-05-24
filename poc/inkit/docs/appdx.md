@@ -2,13 +2,15 @@
 
 > **Status: partially built.** The bottom half (render, manifest, ink attribution,
 > the MVU loop, the reading-queue worked example), the **secrets store +
-> embedded-manifest encryption**, and now the **connector plugin trait + async
-> loop** are implemented and tested. Still ahead: the `mode` axis and Typst
-> component *authoring* — these remain aspirational below. Open questions are marked
-> **(open)** inline.
+> embedded-manifest encryption**, the **connector plugin trait + async loop**, and
+> now the **mode axis** (a `Mode { ReadOnly, Editable }` field carried by
+> components, with a `CalendarView` spanning Display↔Control and the read-only ICS
+> feed + writable local-calendar connectors behind it) are implemented and tested.
+> Still ahead: Typst component *authoring* — the one remaining aspirational piece.
+> Open questions are marked **(open)** inline.
 >
-> **Build order** (making this doc true): **S** secrets store → **E** encryption →
-> **C** connector plugin trait *(all three done)* → **M** mode axis → **T** Typst
+> **Build order** (making this doc true): **S** secrets → **E** encryption →
+> **C** connector plugin trait → **M** mode axis *(all four done)* → **T** Typst
 > authoring. Event sourcing/CRDT and multi-user/cloud stay future (see
 > [FUTURE.md](FUTURE.md)).
 
@@ -237,6 +239,15 @@ it. That gives three modes:
 `rmreader`'s article body is **Capture**: it looks read-only, but the highlights
 on it are the whole point.
 
+These three behaviors are now a real **axis**: a component carries a
+`Mode { ReadOnly, Editable }` field, and its `render` and `decode` both branch on
+that *one* value — so a ReadOnly render that drew no affordance cannot have a
+decode that reads one. The framework ships `CalendarView`, which spans the range:
+in `ReadOnly` it renders inert rows and decodes nothing (Display behavior); in
+`Editable` it renders a per-event cancel affordance in its own region and decodes a
+mark into one app message per event (Control behavior). `Notice` (Display) and
+`Checkbox` (Control) remain fixed-affordance components that carry no mode.
+
 The framework ships a `Notice` **Display** component — it renders lines of text and
 decodes nothing — so surfacing a message (a header, a connector sync failure) is a
 matter of *composing* it, not authoring Typst. It's generic over the app's `Msg`
@@ -251,11 +262,16 @@ a Control component can front a read-only connector.
 Components stay pure: no I/O, no connector awareness. Everything a component needs
 is in its render input, including its affordances —
 
-```
-CalendarView { events, mode: ReadOnly | Editable }
+```rust
+    CalendarView::read_only(events)              // Display behavior
+    CalendarView::editable(events, on_cancel)    // Control behavior; on_cancel: uid -> Msg
 ```
 
-— and **`update`/`view` decides `mode`**, because that side knows the connector.
+— and **`view` sets `mode`** from each backing connector's capability (ReadOnly
+over the ICS feed, Editable over the writable local calendar); the component never
+sees a connector. The agenda app is the live example: two `CalendarView` instances,
+two connectors, modes decided entirely in `view`.
+
 Two reasons this beats letting a component reach into a connector:
 
 1. **It's policy, not just capability.** A connector *reports* "I can write"; your
@@ -311,6 +327,11 @@ Two kinds of connector, and the second is the hard one:
 - **Read-only feed** — pull, cache, done. (ICS.)
 - **Bidirectional** — `update` calls its sync write methods, `flush` pushes them
   out. (Readwise: mark read, archive, create highlight. CalDAV someday.)
+
+Both archetypes are now built: the **read-only feed** is `inkapp-ics` (parses an
+ICS calendar, caches `EventRow`s, no write queue, no-op `flush`), and a
+**writable** local calendar `inkapp-localcal` stands in for CalDAV (optimistic
+`cancel` + deferred `flush` to a local store; real CalDAV transport stays future).
 
 **Delivery & failures.** A write method *records* the write durably and returns — it
 does **not** block on the network — and makes the change locally visible this render
@@ -619,9 +640,10 @@ Left (accepted, not rough):
   (the common case) avoid it entirely.
 - **Connector-as-source-of-truth is a style, not a rule.** It makes this app tiny,
   but an app is free to hold real state in `Model` instead.
-- **`mode` wasn't needed here.** Every component has fixed affordances;
-  `mode: ReadOnly | Editable` earns its keep only when a component fronts connectors
-  of differing capability (a calendar on ICS vs CalDAV).
+- **`mode` earns its keep in the agenda app.** Reading-queue's components have
+  fixed affordances, so they carry no mode. The agenda app shows the axis working:
+  one `CalendarView` type, two instances, modes chosen by `view` from each
+  connector's capability (read-only ICS feed vs writable local calendar).
 
 ---
 
@@ -683,3 +705,7 @@ management and tenant-isolation mechanics are undesigned.
   connectors and renders touching a subset — neither true yet — so it's a later
   refinement, not a rewrite: the set is already `Arc<dyn Connector>` and the loop
   already brackets `view` with refresh/flush, so adding a `depends_on` is additive.
+- **`Widget`/`Component` two-layer consolidation.** `Widget` (`render` + typed
+  `read`) is a lower-level primitive distinct from `Component` (`render` +
+  `decode` → `Msg`); the module is now named `components`, but whether the typed-
+  `read` layer should fold into `Component` is an open tidy.
