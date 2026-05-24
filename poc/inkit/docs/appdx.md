@@ -237,6 +237,11 @@ it. That gives three modes:
 `rmreader`'s article body is **Capture**: it looks read-only, but the highlights
 on it are the whole point.
 
+The framework ships a `Notice` **Display** component — it renders lines of text and
+decodes nothing — so surfacing a message (a header, a connector sync failure) is a
+matter of *composing* it, not authoring Typst. It's generic over the app's `Msg`
+(which it never emits), so it drops into any `view` flow.
+
 ### Components never talk to connectors
 
 A component's mode and a connector's read/write capability are **separate axes**. A
@@ -312,8 +317,9 @@ does **not** block on the network — and makes the change locally visible this 
 via an optimistic overlay. The framework's `flush` (once per loop cycle) pushes
 queued writes through a pluggable transport with retry; after `MAX_ATTEMPTS` (3) a
 write moves to a permanently-failed list the connector exposes as `failed_writes()`.
-The app's `view` reads that list and renders its own banner (e.g. "couldn't sync to
-Readwise") — the framework owns no presentation. So `update` expresses intent, the
+The app's `view` reads that list and renders a notice (composing the framework's
+reusable `Notice` Display component — e.g. "couldn't sync to Readwise"); the app
+decides *what* to surface and *when*, so the framework owns no presentation. So `update` expresses intent, the
 framework owns eventual delivery, and that's why `update` returns nothing.
 
 **Each connector owns its own cache.** Storage is the connector's choice — in-memory,

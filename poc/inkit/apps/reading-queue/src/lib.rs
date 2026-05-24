@@ -9,6 +9,7 @@ use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::widget::{RenderCx, Widget};
 use inkapp_core::widgets::highlight_text::HighlightableText;
+use inkapp_core::widgets::notice::Notice;
 use inkapp_readwise::{Article, ArticleId, Readwise};
 use std::sync::Arc;
 
@@ -72,8 +73,10 @@ pub fn update(msg: Msg, _m: &mut App, cx: &Connectors) {
     }
 }
 
-/// The complete document set: a sync-failure banner (only when writes failed)
-/// followed by one document per queued article.
+/// The complete document set: a sync-failure notice (only when writes failed)
+/// followed by one document per queued article. The notice is the framework's
+/// reusable `Notice` display component — the app supplies the text from
+/// `failed_writes()`; the component never touches connectors.
 pub fn view(_m: &App, cx: &Connectors) -> Documents<Msg> {
     let mut docs: Vec<Document<Msg>> = Vec::new();
 
@@ -81,7 +84,7 @@ pub fn view(_m: &App, cx: &Connectors) -> Documents<Msg> {
     if !failed.is_empty() {
         docs.push(Document::keyed(
             "_banner",
-            flow![Banner::new(&format!(
+            flow![Notice::line(&format!(
                 "couldn't sync {} change(s) to Readwise",
                 failed.len()
             ))],
@@ -136,35 +139,5 @@ impl Component for ArticleBody {
                 text,
             })
             .collect()
-    }
-}
-
-/// A Display-mode banner: renders a line of text, decodes nothing. Used to
-/// surface connector write failures (the framework owns no presentation).
-pub struct Banner {
-    text: String,
-}
-
-impl Banner {
-    pub fn new(text: &str) -> Self {
-        Self {
-            text: text.to_string(),
-        }
-    }
-}
-
-impl Component for Banner {
-    type Msg = Msg;
-
-    fn render(&self, _cx: &mut RenderCx) -> String {
-        // Inject as a Typst string expression so `[`, `]`, `#` in arbitrary
-        // banner text stay literal (only `\` and `"` need escaping for the
-        // string literal). Keeps the content block from breaking on user text.
-        let t = self.text.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("#text(fill: red)[#\"{t}\"]\n")
-    }
-
-    fn decode(&self, _ink: &[RegionInk], _manifest: &Manifest) -> Vec<Msg> {
-        vec![]
     }
 }
