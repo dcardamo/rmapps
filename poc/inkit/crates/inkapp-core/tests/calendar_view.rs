@@ -89,6 +89,7 @@ fn read_only_decodes_nothing_editable_decodes_cancel() {
                 y1: 14.0,
             },
         }],
+        ..Default::default()
     };
     let ink = vec![RegionInk {
         region: "evt-0".into(),
@@ -142,6 +143,7 @@ fn editable_decode_maps_region_index_to_event_uid() {
                 },
             },
         ],
+        ..Default::default()
     };
     // Ink only in evt-1's rect.
     let ink = vec![RegionInk {

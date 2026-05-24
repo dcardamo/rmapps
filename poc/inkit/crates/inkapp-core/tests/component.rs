@@ -38,6 +38,7 @@ fn decode_emits_on_ink() {
                 y1: 10.0,
             },
         }],
+        ..Default::default()
     };
     let ink = vec![RegionInk {
         region: "x".into(),

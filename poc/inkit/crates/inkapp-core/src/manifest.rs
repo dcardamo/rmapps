@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use typst::foundations::{Label, Selector};
 use typst::introspection::MetadataElem;
@@ -27,11 +29,25 @@ pub struct Region {
     pub rect: PdfRect,
 }
 
+/// App-defined state carried inside the (sealed) manifest. The framework only
+/// encrypts and carries it; the app/component owns the contents.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct DocState {
+    /// Document-level, app-owned. Set by the app in `view`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc: Option<serde_json::Value>,
+    /// Component-level, keyed by each component's `state_key()`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub components: BTreeMap<String, serde_json::Value>,
+}
+
 /// The document's self-describing layout: regions plus a version marker.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Manifest {
     pub version: u64,
     pub regions: Vec<Region>,
+    #[serde(default)]
+    pub state: DocState,
 }
 
 /// Recover all `<region>`-labelled metadata from a compiled document and convert
@@ -68,6 +84,7 @@ pub fn recover_regions(doc: &PagedDocument) -> Result<Manifest> {
     Ok(Manifest {
         version: 0,
         regions,
+        state: DocState::default(),
     })
 }
 

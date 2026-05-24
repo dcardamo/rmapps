@@ -20,6 +20,7 @@ fn produces_a_png_of_the_page() {
                 y1: 40.0,
             },
         }],
+        ..Default::default()
     };
     let ink = vec![Stroke {
         points: vec![PdfPoint { x: 15.0, y: 15.0 }, PdfPoint { x: 35.0, y: 35.0 }],
@@ -49,6 +50,7 @@ fn overlays_paint_non_background_pixels() {
                 y1: 40.0,
             },
         }],
+        ..Default::default()
     };
     let png = inspect(&doc, &manifest, &[]).unwrap();
     let img = image::load_from_memory(&png).unwrap();
@@ -69,6 +71,7 @@ fn ink_strokes_paint_non_background_pixels() {
     let manifest = Manifest {
         version: 1,
         regions: vec![],
+        ..Default::default()
     };
     // A horizontal pen stroke at PDF y=50 from x=20 to x=80.
     let ink = vec![Stroke {

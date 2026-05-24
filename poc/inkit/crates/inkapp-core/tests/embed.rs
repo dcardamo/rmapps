@@ -22,6 +22,7 @@ fn manifest_round_trips_through_pdf() {
                 y1: 4.0,
             },
         }],
+        ..Default::default()
     };
 
     let key = Key::from_bytes([3u8; 32]);
@@ -56,6 +57,7 @@ fn extract_with_wrong_key_fails() {
     let manifest = Manifest {
         version: 1,
         regions: vec![],
+        ..Default::default()
     };
     let embedded = embed_manifest(&pdf, &manifest, &Key::from_bytes([1u8; 32])).unwrap();
     let got = extract_manifest(&embedded, &Key::from_bytes([2u8; 32]));

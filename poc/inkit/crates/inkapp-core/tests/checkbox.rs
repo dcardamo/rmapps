@@ -12,6 +12,7 @@ fn manifest_with(name: &str, rect: PdfRect) -> Manifest {
             page: 0,
             rect,
         }],
+        ..Default::default()
     }
 }
 

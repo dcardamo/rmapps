@@ -94,6 +94,7 @@ mod tests {
         let manifest = Manifest {
             version: 1,
             regions: vec![],
+            ..Default::default()
         };
         assert!(n.decode(&[], &manifest).is_empty());
     }

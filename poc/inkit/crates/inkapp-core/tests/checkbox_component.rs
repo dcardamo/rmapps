@@ -22,6 +22,7 @@ fn manifest() -> Manifest {
                 y1: 20.0,
             },
         }],
+        ..Default::default()
     }
 }
 

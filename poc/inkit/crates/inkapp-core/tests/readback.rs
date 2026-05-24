@@ -35,6 +35,7 @@ fn manifest() -> Manifest {
                 },
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -79,6 +80,7 @@ fn stroke_in_overlap_is_attributed_to_both_regions() {
                 },
             },
         ],
+        ..Default::default()
     };
     let ink = attribute(&[stroke(10.0, 10.0)], &m);
     assert!(ink.iter().any(|ri| ri.region == "a"), "attributed to a");
