@@ -339,9 +339,10 @@ biting:
   `RwLock` lets apps read the cache concurrently while only a refresh takes the write
   lock. (`Arc<Mutex<WholeConnector>>` around everything is the easy-wrong version:
   one app's refresh stalls all others.)
-- **Single-flight.** Simultaneous refreshes collapse into one execution via a shared
-  `SingleFlight` guard — it lives once in `inkapp-core`, not per connector, because
-  it's the real value-add beyond mere safety.
+- **Single-flight.** Simultaneous refreshes collapse into one execution via the
+  connector's own `SingleFlight` guard — a reusable primitive `inkapp-core` provides
+  once so each connector reuses it rather than reinventing single-flight, the real
+  value-add beyond mere safety.
 
 **I/O model: async/tokio** *(decided)*. App-facing methods are sync; the
 framework-facing `refresh`/`flush` are async and awaited by the loop. The cache lock
