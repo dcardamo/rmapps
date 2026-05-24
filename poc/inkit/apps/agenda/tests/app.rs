@@ -10,6 +10,13 @@ fn view_renders_one_document_with_an_editable_region() {
     // The editable (local) calendar mints per-event regions; the read-only feed
     // mints none — so the only regions present come from the editable calendar.
     assert!(src.contains("name: \"evt-0\""), "editable calendar has regions: {src}");
+    // Prove the contrast, not just the positive: total regions == editable events,
+    // i.e. the read-only feed contributed zero. This is the mode axis at work.
+    assert_eq!(
+        src.matches("<region>").count(),
+        cx.cal.events().len(),
+        "only the editable calendar mints regions; the read-only feed mints none: {src}"
+    );
 }
 
 #[test]

@@ -37,6 +37,8 @@ impl Connectors {
         }
     }
 
+    /// `cal` loads/saves cancels from `path`; `feed` uses the committed fixture
+    /// (a live build would fetch over HTTP inside `IcsConnector::refresh`).
     pub fn persisted(path: impl Into<std::path::PathBuf>) -> Self {
         Self {
             feed: Arc::new(IcsConnector::from_fixture()),
