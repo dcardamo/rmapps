@@ -33,7 +33,10 @@ impl Key {
         Key(bytes)
     }
 
-    pub fn as_bytes(&self) -> &[u8; 32] {
+    /// The raw key bytes. Crate-internal (used by the secrets store and tests);
+    /// deliberately not part of the public API so release builds expose no
+    /// key-exfiltration method.
+    pub(crate) fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 }
