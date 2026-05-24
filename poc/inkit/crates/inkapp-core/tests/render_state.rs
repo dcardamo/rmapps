@@ -1,4 +1,5 @@
 use inkapp_core::component::Component;
+use inkapp_core::components::notice::Notice;
 use inkapp_core::crypto::Key;
 use inkapp_core::document::Document;
 use inkapp_core::flow;
@@ -34,10 +35,13 @@ impl Component for Carrier {
 fn render_collects_doc_and_component_state() {
     let doc: Document<()> = Document::keyed_with_state(
         "d",
-        flow![Carrier {
-            key: "carrier:1".into(),
-            value: 5
-        }],
+        flow![
+            Carrier {
+                key: "carrier:1".into(),
+                value: 5
+            },
+            Notice::line("note")
+        ],
         json!({"cursor": 3}),
     );
     let rd = render_document(&doc, 1, &Key::from_bytes([7u8; 32])).unwrap();
@@ -45,5 +49,10 @@ fn render_collects_doc_and_component_state() {
     assert_eq!(
         rd.manifest.state.components.get("carrier:1"),
         Some(&json!(5u64))
+    );
+    assert_eq!(
+        rd.manifest.state.components.len(),
+        1,
+        "stateless components contribute nothing"
     );
 }
