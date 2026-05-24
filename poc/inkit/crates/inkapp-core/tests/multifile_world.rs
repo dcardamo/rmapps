@@ -1,4 +1,4 @@
-use inkapp_core::render::{compile_to_document, compile_to_document_with_sources};
+use inkapp_core::render::compile_to_document_with_sources;
 
 #[test]
 fn imported_source_resolves_and_compiles() {
