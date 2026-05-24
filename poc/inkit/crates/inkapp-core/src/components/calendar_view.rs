@@ -11,6 +11,7 @@
 
 use crate::calendar::EventRow;
 use crate::component::Component;
+use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
 use crate::mode::Mode;
@@ -36,18 +37,19 @@ impl<M> CalendarView<M> {
 
     /// An editable calendar: each event gets a cancel affordance; a mark decodes
     /// to `on_cancel(uid)` (Control behavior).
+    ///
+    /// Editable regions are named by position (`evt-0`, `evt-1`, …) within this
+    /// instance, mirroring `HighlightableText`'s `tok-<i>`. Two *editable*
+    /// `CalendarView`s in one document would therefore mint colliding region names;
+    /// today nothing does that (the agenda app pairs one read-only with one
+    /// editable). A second editable instance per document would need an
+    /// instance-level name prefix (as `Checkbox` takes a caller-supplied name).
     pub fn editable(events: Vec<EventRow>, on_cancel: fn(&str) -> M) -> Self {
         Self {
             events,
             mode: Mode::Editable,
             on_cancel: Some(on_cancel),
         }
-    }
-
-    /// Escape for a Typst string literal (`\` and `"` only — other markup chars
-    /// are literal inside a `#"..."` string expression). Mirrors `Notice`.
-    fn esc(s: &str) -> String {
-        s.replace('\\', "\\\\").replace('"', "\\\"")
     }
 }
 
@@ -57,7 +59,7 @@ impl<M> Component for CalendarView<M> {
     fn render(&self, _cx: &mut RenderCx) -> String {
         let mut s = String::new();
         for (i, ev) in self.events.iter().enumerate() {
-            let label = Self::esc(&format!("{} — {}", ev.summary, ev.start));
+            let label = esc_typst_str(&format!("{} — {}", ev.summary, ev.start));
             match self.mode {
                 Mode::ReadOnly => {
                     // Inert row; a cancelled event is struck through. No region:

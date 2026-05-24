@@ -1,3 +1,4 @@
+use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
 use crate::widget::{RenderCx, Widget};
@@ -54,11 +55,11 @@ impl Widget for HighlightableText {
         // #highlight[#t]), so the #let binding is kept regardless of highlight state.
         let mut s = String::new();
         for (i, tok) in self.tokens.iter().enumerate() {
-            // Escape backslash and double-quote for a Typst string literal.
-            // Other markup characters (], [, #) are literal inside a Typst string
-            // and don't need escaping. The string is bound to `t` and used for
-            // both measuring and inline display, so arbitrary token text is safe.
-            let esc = tok.replace('\\', "\\\\").replace('"', "\\\"");
+            // Escape for a Typst string literal (shared helper): only `\` and `"`
+            // need escaping; other markup chars (], [, #) are literal inside a
+            // string. The string is bound to `t` and used for both measuring and
+            // inline display, so arbitrary token text is safe.
+            let esc = esc_typst_str(tok);
             // Tokens already in `highlights` render wrapped in #highlight so they
             // show as pre-marked on re-render. The `new` path (empty highlights)
             // always uses the plain `#t` branch, keeping output byte-identical

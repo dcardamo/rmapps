@@ -9,6 +9,7 @@
 use std::marker::PhantomData;
 
 use crate::component::Component;
+use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
 use crate::widget::RenderCx;
@@ -45,7 +46,7 @@ impl<M> Component for Notice<M> {
         // literal. This keeps arbitrary notice text from breaking the document.
         let mut s = String::new();
         for line in &self.lines {
-            let t = line.replace('\\', "\\\\").replace('"', "\\\"");
+            let t = esc_typst_str(line);
             s.push_str(&format!("#text(fill: red)[#\"{t}\"]\n\n"));
         }
         s

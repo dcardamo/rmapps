@@ -1,4 +1,5 @@
 use crate::component::Component;
+use crate::components::esc_typst_str;
 use crate::geometry::PdfPoint;
 use crate::ink::{RegionInk, Stroke};
 use crate::manifest::Manifest;
@@ -126,7 +127,7 @@ impl<M: Clone> Component for Checkbox<M> {
     /// document. The page index comes from Typst introspection.
     fn render(&self, _cx: &mut RenderCx) -> String {
         let name = &self.name;
-        let label = self.label.replace('\\', "\\\\").replace('"', "\\\"");
+        let label = esc_typst_str(&self.label);
         format!(
             "#box[#context [#metadata((name: \"{name}\", \
                page: here().position().page - 1, x: here().position().x / 1pt, \
