@@ -6,16 +6,27 @@
 
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
+use zeroize::Zeroize;
 
 use crate::error::{Error, Result};
 
 /// XChaCha20-Poly1305 uses a 24-byte nonce; we prepend it to each ciphertext.
 const NONCE_LEN: usize = 24;
+/// Poly1305 authentication tag length, always appended by the AEAD.
+const TAG_LEN: usize = 16;
 
 /// A 32-byte symmetric key. Construct from raw bytes (tests / advanced callers)
 /// or obtain the per-user key from [`crate::secrets::SecretStore`].
+///
+/// `Debug` is intentionally not derived so key material can't be logged.
 #[derive(Clone)]
 pub struct Key([u8; 32]);
+
+impl Drop for Key {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
 
 impl Key {
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
@@ -45,8 +56,10 @@ pub fn seal(key: &Key, plaintext: &[u8]) -> Result<Vec<u8>> {
 /// Open a blob produced by [`seal`]. Verifies the auth tag; a wrong key or any
 /// tampering yields `Error::Crypto`.
 pub fn open(key: &Key, sealed: &[u8]) -> Result<Vec<u8>> {
-    if sealed.len() < NONCE_LEN {
-        return Err(Error::Crypto("sealed blob shorter than nonce".into()));
+    if sealed.len() < NONCE_LEN + TAG_LEN {
+        return Err(Error::Crypto(
+            "sealed blob too short to contain nonce + tag".into(),
+        ));
     }
     let (nonce, ct) = sealed.split_at(NONCE_LEN);
     let cipher = XChaCha20Poly1305::new((&key.0).into());
