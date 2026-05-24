@@ -58,7 +58,9 @@ fn parse_ics(source: &str) -> Vec<EventRow> {
             for prop in event.properties {
                 let val = prop.value.unwrap_or_default();
                 match prop.name.as_str() {
-                    "UID" => uid = Some(val),
+                    // A blank UID is no identity at all — treat it as absent so
+                    // the event is skipped below (a malformed feed can emit `UID:`).
+                    "UID" => uid = (!val.is_empty()).then_some(val),
                     "SUMMARY" => summary = val,
                     "DTSTART" => start = val,
                     "DTEND" => end = val,

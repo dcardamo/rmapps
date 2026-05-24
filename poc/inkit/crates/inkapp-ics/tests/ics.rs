@@ -36,3 +36,12 @@ fn fixture_feed_parses() {
     let c = IcsConnector::from_fixture();
     assert!(c.events().len() >= 2, "fixture feed has at least two events");
 }
+
+#[test]
+fn event_with_blank_uid_is_skipped() {
+    // A VEVENT whose UID is present but empty has no stable identity, so it must
+    // not become an event with an empty uid.
+    const BLANK_UID: &str = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:\r\nSUMMARY:Ghost\r\nDTSTART:20260525T090000Z\r\nDTEND:20260525T091500Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let c = IcsConnector::from_ics(BLANK_UID);
+    assert!(c.events().is_empty(), "blank-UID event is skipped");
+}
