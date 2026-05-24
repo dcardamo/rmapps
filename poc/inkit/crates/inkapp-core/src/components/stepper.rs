@@ -1,7 +1,7 @@
 use crate::component::Component;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
-use crate::widget::{is_valid_region_name, region_metadata, RenderCx, Widget};
+use crate::widget::{region_metadata, RenderCx, Widget};
 
 /// A counter whose state lives ONLY in the document (no connector). It renders
 /// its current count and an increment region; on readback it adds the number of
@@ -54,10 +54,6 @@ impl Widget for Stepper {
 
     fn render(&self, cx: &mut RenderCx) -> String {
         let name = self.region_name();
-        assert!(
-            is_valid_region_name(&name),
-            "stepper region name must be valid, got: {name:?}"
-        );
         let (x, y, w, h) = (20.0_f64, 40.0_f64, 16.0_f64, 16.0_f64);
         let mut s = region_metadata(&name, cx.page, x, y, w, h);
         s.push_str(&format!(

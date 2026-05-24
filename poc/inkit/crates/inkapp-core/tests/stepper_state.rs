@@ -70,3 +70,9 @@ fn read_missing_state_treats_base_as_zero() {
     };
     assert_eq!(s.read(&one_tick(), &m), 1); // 0 + 1
 }
+
+#[test]
+fn read_returns_carried_base_when_no_ink() {
+    let s = Stepper::new("c", 9);
+    assert_eq!(s.read(&[], &manifest_with_base(5)), 5); // idle: 5 + 0
+}
