@@ -157,8 +157,11 @@ impl Component for Banner {
     type Msg = Msg;
 
     fn render(&self, _cx: &mut RenderCx) -> String {
+        // Inject as a Typst string expression so `[`, `]`, `#` in arbitrary
+        // banner text stay literal (only `\` and `"` need escaping for the
+        // string literal). Keeps the content block from breaking on user text.
         let t = self.text.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("#text(fill: red)[{t}]\n")
+        format!("#text(fill: red)[#\"{t}\"]\n")
     }
 
     fn decode(&self, _ink: &[RegionInk], _manifest: &Manifest) -> Vec<Msg> {
