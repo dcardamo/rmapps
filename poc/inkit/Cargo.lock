@@ -1576,12 +1576,14 @@ dependencies = [
 name = "inkapp-core"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chacha20poly1305",
  "comemo",
  "getrandom 0.2.17",
  "lopdf",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "typst",
  "typst-assets",

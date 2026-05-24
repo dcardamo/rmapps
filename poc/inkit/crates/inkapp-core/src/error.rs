@@ -15,6 +15,8 @@ pub enum Error {
     Render(String),
     #[error("encryption/decryption failed: {0}")]
     Crypto(String),
+    #[error("secret store failed: {0}")]
+    Secrets(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
