@@ -72,24 +72,34 @@ pub fn update(msg: Msg, _m: &mut App, cx: &Connectors) {
     }
 }
 
-/// The complete document set: one per queued article.
+/// The complete document set: a sync-failure banner (only when writes failed)
+/// followed by one document per queued article.
 pub fn view(_m: &App, cx: &Connectors) -> Documents<Msg> {
-    Documents(
-        cx.readwise
-            .queue()
-            .into_iter()
-            .map(|a| -> Document<Msg> {
-                let id = a.id.clone();
-                Document::keyed(
-                    id.0.clone(),
-                    flow![
-                        ArticleBody::new(&a),
-                        Checkbox::with_msg("done", Msg::Archived { article: id }).label("Archive"),
-                    ],
-                )
-            })
-            .collect::<Vec<_>>(),
-    )
+    let mut docs: Vec<Document<Msg>> = Vec::new();
+
+    let failed = cx.readwise.failed_writes();
+    if !failed.is_empty() {
+        docs.push(Document::keyed(
+            "_banner",
+            flow![Banner::new(&format!(
+                "couldn't sync {} change(s) to Readwise",
+                failed.len()
+            ))],
+        ));
+    }
+
+    for a in cx.readwise.queue() {
+        let id = a.id.clone();
+        docs.push(Document::keyed(
+            id.0.clone(),
+            flow![
+                ArticleBody::new(&a),
+                Checkbox::with_msg("done", Msg::Archived { article: id }).label("Archive"),
+            ],
+        ));
+    }
+
+    Documents(docs)
 }
 
 /// A bespoke, app-specific content component: renders the article body with its
@@ -126,5 +136,32 @@ impl Component for ArticleBody {
                 text,
             })
             .collect()
+    }
+}
+
+/// A Display-mode banner: renders a line of text, decodes nothing. Used to
+/// surface connector write failures (the framework owns no presentation).
+pub struct Banner {
+    text: String,
+}
+
+impl Banner {
+    pub fn new(text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+        }
+    }
+}
+
+impl Component for Banner {
+    type Msg = Msg;
+
+    fn render(&self, _cx: &mut RenderCx) -> String {
+        let t = self.text.replace('\\', "\\\\").replace('"', "\\\"");
+        format!("#text(fill: red)[{t}]\n")
+    }
+
+    fn decode(&self, _ink: &[RegionInk], _manifest: &Manifest) -> Vec<Msg> {
+        vec![]
     }
 }
