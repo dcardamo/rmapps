@@ -8,12 +8,13 @@
 > feed + writable local-calendar connectors behind it), and now **Typst component
 > authoring** (a multi-file Typst world + a framework `#region` prelude, with
 > `Checkbox`'s render half authored in `checkbox.typ`) are all implemented and
-> tested. What remains is the explicitly-future material — event sourcing/CRDT,
+> tested, and the **document- & component-level state field** now rides the sealed
+> manifest. What remains is only the explicitly-future material — event sourcing/CRDT,
 > multi-user/cloud — not the spine. Open questions are marked **(open)** inline.
 >
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
-> **C** connector plugin trait → **M** mode axis → **T** Typst authoring *(all five
-> done)*. Event sourcing/CRDT and multi-user/cloud stay future (see
+> **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
+> state field *(all done)*. Event sourcing/CRDT and multi-user/cloud stay future (see
 > [FUTURE.md](FUTURE.md)).
 
 The touchstone example throughout is a reading-queue app in the spirit of
@@ -408,8 +409,8 @@ Three kinds of state, in three places:
   system is authoritative, the cache a replica. Server-side, per user, per connector.
 
 **Encryption — everything embedded is encrypted.** *(Built: the embedded manifest
-is sealed today; the per-component state field below rides the same seam when it
-lands.)* The rule is simple: *the device reads none of our embedded metadata; the
+is sealed today, and the document- and component-level state field rides the same
+seam.)* The rule is simple: *the device reads none of our embedded metadata; the
 framework reads all of it and holds the key; therefore all of it is encrypted.* The
 reMarkable only renders PDF pages to pixels and stores ink by page — it never
 introspects our embedded data. The framework reads it server-side on readback, where
@@ -421,10 +422,12 @@ So there is **no cleartext tier**:
 - The **structural manifest** (regions, version marker) **is sealed** with the
   per-user key (XChaCha20-Poly1305), so region names (`done`, `habit_streak`, article
   tokens) never leak in a shared PDF. *(Built.)*
-- The app's **state field** carried in the document (document- and component-level)
-  will be encrypted through the same seam — your code works in plaintext, the
-  framework encrypts on write and decrypts on read. *(Seam ready; no state-field
-  payload is carried yet — **(open)**.)*
+- The app's **state field** is carried in the document at both document- and
+  component-level, encrypted through the same seam — your code works in plaintext,
+  the framework encrypts on write and decrypts on read. *(Built: a `DocState`
+  payload rides the sealed manifest; components opt in via `state_key`/`render_state`
+  and `decode` reads its slice from the manifest, so ink is interpreted against the
+  base the document was rendered with. `Stepper` proves it end-to-end.)*
 
 ---
 
