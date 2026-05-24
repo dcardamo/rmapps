@@ -8,7 +8,8 @@ pub use inkapp_core::device::Device;
 pub use inkapp_core::document::{DocKey, Document, Documents};
 pub use inkapp_core::manifest::{Manifest, Region};
 pub use inkapp_core::runtime::{
-    app, document_source, render_document, App, Cycle, DocSet, RenderedDoc,
+    app, collect_typst_sources, compile_document, document_source, render_document, App, Cycle,
+    DocSet, RenderedDoc, REGION_PRELUDE,
 };
 pub use inkapp_core::secrets::{Scope, SecretStore};
 pub use inkapp_core::single_flight::SingleFlight;

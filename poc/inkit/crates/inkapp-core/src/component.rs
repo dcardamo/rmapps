@@ -19,4 +19,12 @@ pub trait Component {
     /// framework has already assigned strokes to regions (via `attribute`) before
     /// calling `decode`. The component filters to its own region name(s).
     fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<Self::Msg>;
+
+    /// The Typst source file(s) this component's `render` output `#import`s, as
+    /// `(root-absolute virtual path, source text)`. Default: none (the component
+    /// builds its Typst inline). Authored components override this to register
+    /// their `.typ` render half; the render driver imports each one into `main.typ`.
+    fn typst_sources(&self) -> Vec<(String, String)> {
+        Vec::new()
+    }
 }

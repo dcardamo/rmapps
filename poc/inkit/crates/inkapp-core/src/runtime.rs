@@ -7,13 +7,18 @@ use crate::document::{DocKey, Document};
 use crate::embed::embed_manifest;
 use crate::error::Result;
 use crate::manifest::{recover_regions, Manifest};
-use crate::render::{compile_to_document, document_to_pdf};
+use crate::render::document_to_pdf;
 use crate::widget::RenderCx;
 
 /// Default document page geometry (points). 3:4-ish to suit e-ink; the device
 /// fits to width. Single-page only this spec.
 pub const DOC_PAGE_W: f64 = 420.0;
 pub const DOC_PAGE_H: f64 = 560.0;
+
+/// The framework Typst prelude, baked into the binary. Always registered and
+/// imported so any component (and `#region`) is in scope.
+pub const REGION_PRELUDE: (&str, &str) =
+    ("/inkapp/region.typ", include_str!("../typst/region.typ"));
 
 /// A rendered document: its PDF (manifest embedded), the recovered manifest, the
 /// page height (for the device transform), and a content hash (for reconcile).
@@ -25,17 +30,45 @@ pub struct RenderedDoc {
     pub hash: u64,
 }
 
-/// Assemble a document's Typst source: a page header plus each component's render
-/// in flow order.
+/// Collect the Typst sources to register for this document: the prelude plus each
+/// component's declared sources, deduplicated by path (first occurrence wins).
+pub fn collect_typst_sources<M>(doc: &Document<M>) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> =
+        vec![(REGION_PRELUDE.0.to_string(), REGION_PRELUDE.1.to_string())];
+    for c in &doc.flow {
+        for src in c.typst_sources() {
+            if !out.iter().any(|(p, _)| p == &src.0) {
+                out.push(src);
+            }
+        }
+    }
+    out
+}
+
+/// Assemble a document's Typst source: `#import` lines for the prelude and every
+/// authored component source, then a page header, then each component's render in
+/// flow order.
 pub fn document_source<M>(doc: &Document<M>) -> String {
     let mut cx = RenderCx::new(0);
-    let mut src = format!(
+    let mut src = String::new();
+    for (path, _) in collect_typst_sources(doc) {
+        src.push_str(&format!("#import \"{path}\": *\n"));
+    }
+    src.push_str(&format!(
         "#set page(width: {DOC_PAGE_W}pt, height: {DOC_PAGE_H}pt, margin: 16pt)\n#set text(size: 12pt)\n"
-    );
+    ));
     for c in &doc.flow {
         src.push_str(&c.render(&mut cx));
     }
     src
+}
+
+/// Compile a document through the sources-aware path with all its Typst sources
+/// (prelude + authored components) registered. Shared by `render_document` and tests.
+pub fn compile_document<M>(doc: &Document<M>) -> Result<typst::layout::PagedDocument> {
+    let src = document_source(doc);
+    let sources = collect_typst_sources(doc);
+    crate::render::compile_to_document_with_sources(&src, &sources)
 }
 
 /// Stable hash of a string (std DefaultHasher is deterministic within a build,
@@ -51,7 +84,7 @@ fn hash_str(s: &str) -> u64 {
 /// with `key`.
 pub fn render_document<M>(doc: &Document<M>, version: u64, key: &Key) -> Result<RenderedDoc> {
     let src = document_source(doc);
-    let compiled = compile_to_document(&src)?;
+    let compiled = compile_document(doc)?;
     let page_h = compiled
         .pages
         .first()
