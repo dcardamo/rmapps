@@ -3,6 +3,7 @@
 
 pub mod calendar;
 pub mod component;
+pub mod components;
 pub mod connector;
 pub mod crypto;
 pub mod device;
@@ -20,7 +21,6 @@ pub mod runtime;
 pub mod secrets;
 pub mod single_flight;
 pub mod widget;
-pub mod components;
 pub mod world;
 
 pub use calendar::EventRow;

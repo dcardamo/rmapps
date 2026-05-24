@@ -27,13 +27,21 @@ pub struct CalendarView<M> {
 impl<M> CalendarView<M> {
     /// A read-only agenda: inert rows, decodes nothing (Display behavior).
     pub fn read_only(events: Vec<EventRow>) -> Self {
-        Self { events, mode: Mode::ReadOnly, on_cancel: None }
+        Self {
+            events,
+            mode: Mode::ReadOnly,
+            on_cancel: None,
+        }
     }
 
     /// An editable calendar: each event gets a cancel affordance; a mark decodes
     /// to `on_cancel(uid)` (Control behavior).
     pub fn editable(events: Vec<EventRow>, on_cancel: fn(&str) -> M) -> Self {
-        Self { events, mode: Mode::Editable, on_cancel: Some(on_cancel) }
+        Self {
+            events,
+            mode: Mode::Editable,
+            on_cancel: Some(on_cancel),
+        }
     }
 
     /// Escape for a Typst string literal (`\` and `"` only — other markup chars

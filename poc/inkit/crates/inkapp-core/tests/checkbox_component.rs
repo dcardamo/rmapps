@@ -1,8 +1,8 @@
 use inkapp_core::component::Component;
+use inkapp_core::components::checkbox::Checkbox;
 use inkapp_core::geometry::{PdfPoint, PdfRect};
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::{Manifest, Region};
-use inkapp_core::components::checkbox::Checkbox;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Msg {

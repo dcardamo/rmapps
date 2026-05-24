@@ -53,8 +53,7 @@ fn parse_ics(source: &str) -> Vec<EventRow> {
     for cal in parser.flatten() {
         for event in cal.events {
             let mut uid = None;
-            let (mut summary, mut start, mut end) =
-                (String::new(), String::new(), String::new());
+            let (mut summary, mut start, mut end) = (String::new(), String::new(), String::new());
             for prop in event.properties {
                 let val = prop.value.unwrap_or_default();
                 match prop.name.as_str() {
@@ -68,7 +67,13 @@ fn parse_ics(source: &str) -> Vec<EventRow> {
                 }
             }
             if let Some(uid) = uid {
-                out.push(EventRow { uid, summary, start, end, cancelled: false });
+                out.push(EventRow {
+                    uid,
+                    summary,
+                    start,
+                    end,
+                    cancelled: false,
+                });
             }
         }
     }

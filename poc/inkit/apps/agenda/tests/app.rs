@@ -9,7 +9,10 @@ fn view_renders_one_document_with_an_editable_region() {
     let src = document_source(&docs.0[0]);
     // The editable (local) calendar mints per-event regions; the read-only feed
     // mints none — so the only regions present come from the editable calendar.
-    assert!(src.contains("name: \"evt-0\""), "editable calendar has regions: {src}");
+    assert!(
+        src.contains("name: \"evt-0\""),
+        "editable calendar has regions: {src}"
+    );
     // Prove the contrast, not just the positive: total regions == editable events,
     // i.e. the read-only feed contributed zero. This is the mode axis at work.
     assert_eq!(
@@ -26,7 +29,12 @@ fn cancel_routes_to_local_calendar() {
     let mut m = App;
     update(Msg::EventCancelled { uid: uid.clone() }, &mut m, &cx);
     assert!(
-        cx.cal.events().iter().find(|e| e.uid == uid).unwrap().cancelled,
+        cx.cal
+            .events()
+            .iter()
+            .find(|e| e.uid == uid)
+            .unwrap()
+            .cancelled,
         "cancel reached the writable calendar"
     );
 }

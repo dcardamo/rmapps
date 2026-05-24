@@ -29,8 +29,14 @@ fn ev(uid: &str, summary: &str) -> EventRow {
 fn read_only_emits_no_region_or_affordance() {
     let cv = CalendarView::<Msg>::read_only(vec![ev("e1", "Standup")]);
     let src = cv.render(&mut RenderCx::new(0));
-    assert!(!src.contains("<region>"), "read-only renders no region: {src}");
-    assert!(!src.contains("rect("), "read-only renders no affordance box: {src}");
+    assert!(
+        !src.contains("<region>"),
+        "read-only renders no region: {src}"
+    );
+    assert!(
+        !src.contains("rect("),
+        "read-only renders no affordance box: {src}"
+    );
     assert!(src.contains("Standup"), "event text present: {src}");
 }
 
@@ -41,15 +47,30 @@ fn editable_emits_region_and_affordance_per_event() {
     });
     let src = cv.render(&mut RenderCx::new(0));
     assert!(src.contains("name: \"evt-0\""), "first event region: {src}");
-    assert!(src.contains("name: \"evt-1\""), "second event region: {src}");
-    assert_eq!(src.matches("rect(").count(), 2, "one affordance box per event");
+    assert!(
+        src.contains("name: \"evt-1\""),
+        "second event region: {src}"
+    );
+    assert_eq!(
+        src.matches("rect(").count(),
+        2,
+        "one affordance box per event"
+    );
 }
 
 #[test]
 fn both_modes_compile_through_typst() {
     let key = Key::from_bytes([0u8; 32]);
-    let ro: Document<Msg> = Document::keyed("ro", flow![CalendarView::<Msg>::read_only(vec![ev("e1", "Standup")])]);
-    let ed: Document<Msg> = Document::keyed("ed", flow![CalendarView::editable(vec![ev("e1", "Standup")], |uid| Msg::Cancel(uid.to_string()))]);
+    let ro: Document<Msg> = Document::keyed(
+        "ro",
+        flow![CalendarView::<Msg>::read_only(vec![ev("e1", "Standup")])],
+    );
+    let ed: Document<Msg> = Document::keyed(
+        "ed",
+        flow![CalendarView::editable(vec![ev("e1", "Standup")], |uid| {
+            Msg::Cancel(uid.to_string())
+        })],
+    );
     assert!(render_document(&ro, 1, &key).is_ok(), "read-only compiles");
     assert!(render_document(&ed, 1, &key).is_ok(), "editable compiles");
 }
@@ -61,7 +82,12 @@ fn read_only_decodes_nothing_editable_decodes_cancel() {
         regions: vec![Region {
             name: "evt-0".into(),
             page: 0,
-            rect: PdfRect { x0: 0.0, y0: 0.0, x1: 14.0, y1: 14.0 },
+            rect: PdfRect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 14.0,
+                y1: 14.0,
+            },
         }],
     };
     let ink = vec![RegionInk {
@@ -73,10 +99,18 @@ fn read_only_decodes_nothing_editable_decodes_cancel() {
     }];
 
     let ro = CalendarView::<Msg>::read_only(vec![ev("e1", "Standup")]);
-    assert!(ro.decode(&ink, &manifest).is_empty(), "read-only discards ink");
+    assert!(
+        ro.decode(&ink, &manifest).is_empty(),
+        "read-only discards ink"
+    );
 
-    let ed = CalendarView::editable(vec![ev("e1", "Standup")], |uid| Msg::Cancel(uid.to_string()));
-    assert_eq!(ed.decode(&ink, &manifest), vec![Msg::Cancel("e1".to_string())]);
+    let ed = CalendarView::editable(vec![ev("e1", "Standup")], |uid| {
+        Msg::Cancel(uid.to_string())
+    });
+    assert_eq!(
+        ed.decode(&ink, &manifest),
+        vec![Msg::Cancel("e1".to_string())]
+    );
 }
 
 #[test]
@@ -87,18 +121,41 @@ fn editable_decode_maps_region_index_to_event_uid() {
     let manifest = Manifest {
         version: 1,
         regions: vec![
-            Region { name: "evt-0".into(), page: 0, rect: PdfRect { x0: 0.0, y0: 0.0, x1: 14.0, y1: 14.0 } },
-            Region { name: "evt-1".into(), page: 0, rect: PdfRect { x0: 0.0, y0: 20.0, x1: 14.0, y1: 34.0 } },
+            Region {
+                name: "evt-0".into(),
+                page: 0,
+                rect: PdfRect {
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: 14.0,
+                    y1: 14.0,
+                },
+            },
+            Region {
+                name: "evt-1".into(),
+                page: 0,
+                rect: PdfRect {
+                    x0: 0.0,
+                    y0: 20.0,
+                    x1: 14.0,
+                    y1: 34.0,
+                },
+            },
         ],
     };
     // Ink only in evt-1's rect.
     let ink = vec![RegionInk {
         region: "evt-1".into(),
-        strokes: vec![Stroke { points: vec![PdfPoint { x: 7.0, y: 27.0 }], highlighter: false }],
+        strokes: vec![Stroke {
+            points: vec![PdfPoint { x: 7.0, y: 27.0 }],
+            highlighter: false,
+        }],
     }];
-    let ed = CalendarView::editable(
-        vec![ev("z9", "First"), ev("a1", "Second")],
-        |uid| Msg::Cancel(uid.to_string()),
+    let ed = CalendarView::editable(vec![ev("z9", "First"), ev("a1", "Second")], |uid| {
+        Msg::Cancel(uid.to_string())
+    });
+    assert_eq!(
+        ed.decode(&ink, &manifest),
+        vec![Msg::Cancel("a1".to_string())]
     );
-    assert_eq!(ed.decode(&ink, &manifest), vec![Msg::Cancel("a1".to_string())]);
 }

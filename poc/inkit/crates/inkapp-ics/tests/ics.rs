@@ -34,7 +34,10 @@ async fn flush_is_noop() {
 #[test]
 fn fixture_feed_parses() {
     let c = IcsConnector::from_fixture();
-    assert!(c.events().len() >= 2, "fixture feed has at least two events");
+    assert!(
+        c.events().len() >= 2,
+        "fixture feed has at least two events"
+    );
 }
 
 #[test]

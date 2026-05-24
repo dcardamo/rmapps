@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use inkapp_core::components::checkbox::Checkbox;
 use inkapp_core::connector::{Connector, ConnectorSet};
 use inkapp_core::crypto::Key;
 use inkapp_core::document::{DocKey, Document, Documents};
@@ -10,7 +11,6 @@ use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::Stroke;
 use inkapp_core::reconcile::DocOp;
 use inkapp_core::runtime::{app, DocSet};
-use inkapp_core::components::checkbox::Checkbox;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum Msg {
