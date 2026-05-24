@@ -1,8 +1,15 @@
 # Building apps on inkapp (developer experience)
 
-> **Status: exploratory.** This captures how we *want* it to feel to build an app
-> on inkapp. Much of it is not built yet, and some of it is still being argued out.
-> Open questions are marked **(open)** inline. Expect this doc to churn.
+> **Status: partially built.** The bottom half (render, manifest, ink attribution,
+> the MVU loop, the reading-queue worked example) and now the **secrets store +
+> embedded-manifest encryption** are implemented and tested. Still ahead: the `mode`
+> axis, the connector *plugin* trait, and Typst component *authoring* — these remain
+> aspirational below. Open questions are marked **(open)** inline.
+>
+> **Build order** (making this doc true): **S** secrets store → **E** encryption
+> *(both done)* → **C** connector plugin trait → **M** mode axis → **T** Typst
+> authoring. Event sourcing/CRDT and multi-user/cloud stay future (see
+> [FUTURE.md](FUTURE.md)).
 
 The touchstone example throughout is a reading-queue app in the spirit of
 `rmreader`: articles flow in from a service, render as PDFs on the device, the
@@ -336,21 +343,24 @@ Three kinds of state, in three places:
 - **Connector state** — local replicas of data owned by *external systems*; the
   system is authoritative, the cache a replica. Server-side, per user, per connector.
 
-**Encryption — everything embedded is encrypted.** The rule is simple: *the device
-reads none of our embedded metadata; the framework reads all of it and holds the
-key; therefore all of it is encrypted.* The reMarkable only renders PDF pages to
-pixels and stores ink by page — it never introspects our embedded data. The
-framework reads it server-side on readback, where it has the key (from the config
-store). The only reader lacking the key is a third party you shared the PDF with —
-exactly who you're hiding it from.
+**Encryption — everything embedded is encrypted.** *(Built: the embedded manifest
+is sealed today; the per-component state field below rides the same seam when it
+lands.)* The rule is simple: *the device reads none of our embedded metadata; the
+framework reads all of it and holds the key; therefore all of it is encrypted.* The
+reMarkable only renders PDF pages to pixels and stores ink by page — it never
+introspects our embedded data. The framework reads it server-side on readback, where
+it has the key (from the secrets store). The only reader lacking the key is a third
+party you shared the PDF with — exactly who you're hiding it from.
 
 So there is **no cleartext tier**:
 
+- The **structural manifest** (regions, version marker) **is sealed** with the
+  per-user key (XChaCha20-Poly1305), so region names (`done`, `habit_streak`, article
+  tokens) never leak in a shared PDF. *(Built.)*
 - The app's **state field** carried in the document (document- and component-level)
-  is encrypted. Your code works in plaintext; the framework encrypts on write,
-  decrypts on read.
-- The **structural manifest** (regions, version marker) is encrypted too — which
-  also stops region names (`done`, `habit_streak`, article tokens) from leaking.
+  will be encrypted through the same seam — your code works in plaintext, the
+  framework encrypts on write and decrypts on read. *(Seam ready; no state-field
+  payload is carried yet — **(open)**.)*
 
 ---
 
@@ -494,17 +504,23 @@ folds the `Msg`s through `update` (handing it the connectors), and re-renders `v
 
 ```rust
 fn main() {
+    // The framework seals everything it embeds with this per-user key, loaded
+    // from the secrets store (created on first run).
+    let key = SecretStore::open_default().unwrap().user_key().unwrap();
     inkapp::app(App)
         .connector(Readwise::new(token))   // this is what makes `cx.readwise` exist
         .update(update)
         .view(view)
+        .key(key)                          // per-user encryption key (required)
         .run();                            // the framework owns the loop, forever
 }
 ```
 
 You never call `update` or `view` yourself — `run()` drives them on each sync. The
 `&Connectors` (`cx`) handed to them is the typed set of connectors you registered
-here, which is why `cx.readwise` resolves.
+here, which is why `cx.readwise` resolves. The `key` comes from the framework's
+secrets store (`SecretStore`), and seals the manifest the framework embeds in each
+document.
 
 ### Testing
 
@@ -574,6 +590,9 @@ scopes:
 - **Per-connector credentials** — Readwise token, CalDAV login.
 - **Per-device auth** — reMarkable cloud auth, Supernote auth, etc.
 - **Per-user key** — the document-state encryption key.
+
+*(Built: a file-backed `SecretStore` with these three scopes; the per-user key is
+minted on first use. Multi-user/cloud key management remains future — see below.)*
 
 ## Scope & threat model
 
