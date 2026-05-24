@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use inkapp_core::connector::{Connector, ConnectorSet};
 use inkapp_core::crypto::Key;
 use inkapp_core::document::{DocKey, Document, Documents};
 use inkapp_core::flow;
@@ -37,6 +39,12 @@ impl Cx {
             .map(|s| s.to_string())
             .filter(|id| !self.db.archived.borrow().contains(id))
             .collect()
+    }
+}
+
+impl ConnectorSet for Cx {
+    fn connectors(&self) -> Vec<Arc<dyn Connector>> {
+        vec![]
     }
 }
 
@@ -78,8 +86,8 @@ fn ink_for(set: &DocSet, key: &str) -> Vec<Stroke> {
     }]
 }
 
-#[test]
-fn two_cycle_archive_and_delete() {
+#[tokio::test]
+async fn two_cycle_archive_and_delete() {
     let mut app = app(Model)
         .connector(Cx::fake())
         .update(update)
@@ -89,7 +97,7 @@ fn two_cycle_archive_and_delete() {
     let mut set = DocSet::default();
 
     // Cycle 0: initial render -> a, b, c.
-    let rendered = app.render(&mut set).unwrap();
+    let rendered = app.render(&mut set).await.unwrap();
     assert_eq!(rendered.len(), 3);
 
     // Draw: archive "b" and "c" (mark their checkboxes).
@@ -98,7 +106,7 @@ fn two_cycle_archive_and_delete() {
     ink.insert("c".into(), ink_for(&set, "c"));
 
     // Cycle 1: step.
-    let cycle = app.step(&mut set, &ink).unwrap();
+    let cycle = app.step(&mut set, &ink).await.unwrap();
 
     assert!(cycle.decoded.contains(&Msg::Archive("b".into())));
     assert!(cycle.decoded.contains(&Msg::Archive("c".into())));
@@ -114,8 +122,8 @@ fn two_cycle_archive_and_delete() {
     assert_eq!(keys, vec!["a".to_string()]);
 }
 
-#[test]
-fn surviving_key_entry_retained() {
+#[tokio::test]
+async fn surviving_key_entry_retained() {
     let mut app = app(Model)
         .connector(Cx::fake())
         .update(update)
@@ -123,12 +131,12 @@ fn surviving_key_entry_retained() {
         .key(Key::from_bytes([9u8; 32]))
         .build();
     let mut set = DocSet::default();
-    app.render(&mut set).unwrap();
+    app.render(&mut set).await.unwrap();
 
     // Mark only "b"; a and c survive.
     let mut ink: HashMap<String, Vec<Stroke>> = HashMap::new();
     ink.insert("b".into(), ink_for(&set, "b"));
-    app.step(&mut set, &ink).unwrap();
+    app.step(&mut set, &ink).await.unwrap();
 
     assert!(set.manifest(&DocKey::new("a")).is_some());
     assert!(set.manifest(&DocKey::new("c")).is_some());

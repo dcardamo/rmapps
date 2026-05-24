@@ -1,6 +1,7 @@
 //! The MVU loop runtime: the render walk (`render_document`) and the multi-cycle
 //! driver (`App`, `DocSet`, `step`).
 
+use crate::connector::ConnectorSet;
 use crate::crypto::Key;
 use crate::document::{DocKey, Document};
 use crate::embed::embed_manifest;
@@ -159,9 +160,27 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             key,
         }
     }
+}
+
+impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
+    /// Refresh every registered connector concurrently (warm caches before the
+    /// sync `view`/`update` read them). Per-connector refresh errors are
+    /// swallowed: a connector that can't refresh serves its stale cache.
+    async fn refresh_all(&self) {
+        let cs = self.connectors.connectors();
+        futures::future::join_all(cs.iter().map(|c| c.refresh())).await;
+    }
+
+    /// Flush every registered connector's write queue concurrently.
+    async fn flush_all(&self) {
+        let cs = self.connectors.connectors();
+        futures::future::join_all(cs.iter().map(|c| c.flush())).await;
+    }
 
     /// Render the full document set from current state, (re)populating `set`.
-    pub fn render(&mut self, set: &mut DocSet) -> Result<Vec<RenderedDoc>> {
+    /// Refreshes connectors first so `view` reads warm caches.
+    pub async fn render(&mut self, set: &mut DocSet) -> Result<Vec<RenderedDoc>> {
+        self.refresh_all().await;
         let docs = (self.view)(&self.model, &self.connectors);
         let mut out = Vec::new();
         let mut entries = HashMap::new();
@@ -183,10 +202,10 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         Ok(out)
     }
 
-    /// One loop cycle: decode `ink_by_key` (pre-fold view + stored manifest),
-    /// fold the messages, re-render, reconcile, and update `set` (preserving ink
-    /// on surviving keys and appending this cycle's input ink).
-    pub fn step(
+    /// One loop cycle: refresh, decode `ink_by_key` (pre-fold view + stored
+    /// manifest), fold the messages, re-render, reconcile, update `set`, then
+    /// flush queued writes.
+    pub async fn step(
         &mut self,
         set: &mut DocSet,
         ink_by_key: &HashMap<String, Vec<Stroke>>,
@@ -194,6 +213,8 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
     where
         Msg: Clone,
     {
+        self.refresh_all().await;
+
         // 1. Decode against the pre-fold trees + the stored manifests.
         let pre = (self.view)(&self.model, &self.connectors);
         let mut decoded: Vec<Msg> = Vec::new();
@@ -204,10 +225,6 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             let Some(entry) = set.entries.get(&doc.key.0) else {
                 continue;
             };
-            // Entries are version-stamped at render time, so this check is
-            // structural today (entry.version == entry.manifest.version by
-            // construction). It reserves the call site for the future path where
-            // ink carries its own base version (multi-device / vector clock).
             guard_version(entry.version, &entry.manifest)?;
             let region_ink = attribute(strokes, &entry.manifest);
             for c in &doc.flow {
@@ -215,11 +232,8 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             }
         }
 
-        // 2. Bump version, then fold each message through update. The version
-        //    stamps the post-fold render in phase 3.
+        // 2. Bump version, then fold each message through update.
         self.version += 1;
-        // Clone each message to fold; `decoded` itself is moved into the
-        // returned `Cycle` for the caller to inspect.
         for m in decoded.iter().cloned() {
             (self.update)(m, &mut self.model, &self.connectors);
         }
@@ -243,8 +257,8 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             .collect();
         let ops = reconcile(&prev, &next_pairs);
 
-        // 5. Apply: build the new entry map, preserving ink on survivors and
-        //    appending this cycle's input ink. Collect created/updated for push.
+        // 5. Apply: rebuild entries, preserving ink on survivors and appending
+        //    this cycle's input ink. Collect created/updated for push.
         let changed: HashMap<&str, ()> = ops
             .iter()
             .filter_map(|o| match o {
@@ -256,7 +270,6 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         let mut rendered_out: Vec<RenderedDoc> = Vec::new();
 
         for rd in next_rendered {
-            // Preserve prior ink for this key, then append this cycle's input.
             let mut ink = set
                 .entries
                 .get(&rd.key.0)
@@ -281,6 +294,9 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             }
         }
         set.entries = new_entries;
+
+        // 6. Push this cycle's enqueued writes out (recorded-and-retried).
+        self.flush_all().await;
 
         Ok(Cycle {
             decoded,

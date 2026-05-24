@@ -10,6 +10,9 @@ use inkapp_core::manifest::Manifest;
 use inkapp_core::widget::{RenderCx, Widget};
 use inkapp_core::widgets::highlight_text::HighlightableText;
 use inkapp_readwise::{Article, ArticleId, Readwise};
+use std::sync::Arc;
+
+use inkapp_core::connector::{Connector, ConnectorSet};
 
 /// Re-export so the app's tests/wiring use one `Checkbox` path.
 pub use inkapp_core::widgets::checkbox::Checkbox;
@@ -24,29 +27,40 @@ pub enum Msg {
     Archived { article: ArticleId },
 }
 
-/// The app's connectors (one connector this slice — a concrete struct, no
-/// framework codegen).
+/// The app's connectors (one connector this slice). Held as `Arc<Readwise>` so a
+/// connector — and its cache — can be shared across apps.
 pub struct Connectors {
-    pub readwise: Readwise,
+    pub readwise: Arc<Readwise>,
 }
 
 impl Connectors {
     pub fn fake() -> Self {
         Connectors {
-            readwise: Readwise::fake(),
+            readwise: Arc::new(Readwise::fake()),
         }
     }
 
     pub fn from_cassette() -> Self {
         Connectors {
-            readwise: Readwise::from_cassette(),
+            readwise: Arc::new(Readwise::from_cassette()),
         }
     }
 
     pub fn persisted(path: impl Into<std::path::PathBuf>) -> Self {
         Connectors {
-            readwise: Readwise::persisted(path),
+            readwise: Arc::new(Readwise::persisted(path)),
         }
+    }
+
+    /// Build from an existing shared connector (so two apps share one cache).
+    pub fn from_arc(readwise: Arc<Readwise>) -> Self {
+        Connectors { readwise }
+    }
+}
+
+impl ConnectorSet for Connectors {
+    fn connectors(&self) -> Vec<Arc<dyn Connector>> {
+        vec![self.readwise.clone()]
     }
 }
 

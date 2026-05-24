@@ -24,3 +24,4 @@ zip = "2"
 tempfile = "3"
 reading-queue = { path = "../../apps/reading-queue" }
 inkapp-readwise = { path = "../inkapp-readwise" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

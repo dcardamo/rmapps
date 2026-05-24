@@ -64,8 +64,8 @@ fn device_ink(
     device.read_ink(&bytes, page_h).unwrap()
 }
 
-#[test]
-fn reading_queue_loop_highlight_archive_preserve() {
+#[tokio::test]
+async fn reading_queue_loop_highlight_archive_preserve() {
     let device = Remarkable::new();
     let mut application = app(App)
         .connector(Connectors::fake())
@@ -81,7 +81,7 @@ fn reading_queue_loop_highlight_archive_preserve() {
     // The highlight-swipe below lands on union(tok-0, tok-1); at least one of
     // those token regions must exist for the Highlighted message to fire, so if
     // fake()'s a1 body is shortened this test must be updated in step.
-    let rendered = application.render(&mut set).unwrap();
+    let rendered = application.render(&mut set).await.unwrap();
     assert_eq!(
         rendered.len(),
         2,
@@ -110,7 +110,7 @@ fn reading_queue_loop_highlight_archive_preserve() {
     );
 
     // Cycle 1: step.
-    let cycle = application.step(&mut set, &ink).unwrap();
+    let cycle = application.step(&mut set, &ink).await.unwrap();
 
     // Decoded a highlight on a1 and an archive on a2.
     assert!(
@@ -156,7 +156,7 @@ fn reading_queue_loop_highlight_archive_preserve() {
     assert!(!set.ink(&x).is_empty(), "a1 ink preserved");
 
     // Cycle 2: empty ink -> stable (no new archives, no create/delete).
-    let cycle2 = application.step(&mut set, &HashMap::new()).unwrap();
+    let cycle2 = application.step(&mut set, &HashMap::new()).await.unwrap();
     assert!(cycle2.decoded.is_empty());
     assert!(!cycle2
         .ops

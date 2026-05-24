@@ -33,12 +33,12 @@ fn build_app() -> Framework<App, Msg, Connectors> {
         .build()
 }
 
-#[test]
+#[tokio::test]
 #[ignore = "manual: requires a paired reMarkable + rmapi"]
-fn publish_to_device() {
+async fn publish_to_device() {
     let mut application = build_app();
     let mut set = DocSet::default();
-    publish(&mut application, &mut set);
+    publish(&mut application, &mut set).await;
     eprintln!(
         "Published. On the tablet: open the docs under /ReadingQueue, highlight a word in one \
          article and tick the Archive box in another, then SYNC the device. Then run \
@@ -46,16 +46,16 @@ fn publish_to_device() {
     );
 }
 
-#[test]
+#[tokio::test]
 #[ignore = "manual: requires a paired reMarkable + rmapi; run after inking + syncing the device"]
-fn sync_from_device() {
+async fn sync_from_device() {
     let device = Remarkable::new();
     let mut application = build_app();
     let mut set = DocSet::default();
     // Rebuild the DocSet from current (persisted) state — the deterministic view
     // reproduces exactly what was published, so pulled ink attributes correctly.
-    application.render(&mut set).expect("render");
-    sync_once(&mut application, &device, &mut set);
+    application.render(&mut set).await.expect("render");
+    sync_once(&mut application, &device, &mut set).await;
     eprintln!(
         "Synced. Archived articles are deleted; highlights are baked into the bodies on re-push."
     );

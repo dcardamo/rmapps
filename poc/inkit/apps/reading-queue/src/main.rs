@@ -6,7 +6,8 @@
 use inkapp::{app, DocSet, SecretStore};
 use reading_queue::{update, view, App, Connectors};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let key = SecretStore::open_default()
         .and_then(|mut s| s.user_key())
         .expect("open secrets store / load user key");
@@ -20,6 +21,6 @@ fn main() {
         .key(key)
         .build();
     let mut set = DocSet::default();
-    let rendered = application.render(&mut set).expect("render");
+    let rendered = application.render(&mut set).await.expect("render");
     println!("reading-queue: rendered {} document(s)", rendered.len());
 }

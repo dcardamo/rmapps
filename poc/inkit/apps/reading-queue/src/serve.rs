@@ -143,8 +143,8 @@ pub fn pull_ink(
 }
 
 /// Render + push the current set (the "publish" half of a cycle).
-pub fn publish(app: &mut Framework<crate::App, Msg, Connectors>, set: &mut DocSet) {
-    let rendered = app.render(set).expect("render");
+pub async fn publish(app: &mut Framework<crate::App, Msg, Connectors>, set: &mut DocSet) {
+    let rendered = app.render(set).await.expect("render");
     for rd in &rendered {
         push_doc(&rd.key.0, &rd.pdf).expect("push");
     }
@@ -153,7 +153,7 @@ pub fn publish(app: &mut Framework<crate::App, Msg, Connectors>, set: &mut DocSe
 
 /// Pull ink for the whole folder, step once, and apply ops to the device (push
 /// updated/created, delete removed).
-pub fn sync_once(
+pub async fn sync_once(
     app: &mut Framework<crate::App, Msg, Connectors>,
     device: &Remarkable,
     set: &mut DocSet,
@@ -164,7 +164,7 @@ pub fn sync_once(
         .filter_map(|k| set.page_h(&k).map(|h| (k.0, h)))
         .collect();
     let ink = pull_ink(device, &page_h);
-    let cycle = app.step(set, &ink).expect("step");
+    let cycle = app.step(set, &ink).await.expect("step");
     for op in &cycle.ops {
         if let inkapp_core::reconcile::DocOp::Delete(k) = op {
             delete_doc(&k.0);
