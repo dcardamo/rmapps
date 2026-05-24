@@ -1,6 +1,7 @@
 //! The MVU loop runtime: the render walk (`render_document`) and the multi-cycle
 //! driver (`App`, `DocSet`, `step`).
 
+use crate::crypto::Key;
 use crate::document::{DocKey, Document};
 use crate::embed::embed_manifest;
 use crate::error::Result;
@@ -45,8 +46,9 @@ fn hash_str(s: &str) -> u64 {
     h.finish()
 }
 
-/// Render one document to a [`RenderedDoc`] at `version`.
-pub fn render_document<M>(doc: &Document<M>, version: u64) -> Result<RenderedDoc> {
+/// Render one document to a [`RenderedDoc`] at `version`, sealing its manifest
+/// with `key`.
+pub fn render_document<M>(doc: &Document<M>, version: u64, key: &Key) -> Result<RenderedDoc> {
     let src = document_source(doc);
     let compiled = compile_to_document(&src)?;
     let page_h = compiled
@@ -55,7 +57,7 @@ pub fn render_document<M>(doc: &Document<M>, version: u64) -> Result<RenderedDoc
         .map(|p| p.frame.height().to_pt())
         .unwrap_or(0.0);
     let manifest = recover_regions(&compiled)?.with_version(version);
-    let pdf = embed_manifest(&document_to_pdf(&compiled)?, &manifest)?;
+    let pdf = embed_manifest(&document_to_pdf(&compiled)?, &manifest, key)?;
     Ok(RenderedDoc {
         key: doc.key.clone(),
         pdf,
@@ -137,6 +139,7 @@ pub struct App<M, Msg, Cx> {
     update: UpdateFn<M, Msg, Cx>,
     view: ViewFn<M, Msg, Cx>,
     version: u64,
+    key: Key,
 }
 
 impl<M, Msg, Cx> App<M, Msg, Cx> {
@@ -145,6 +148,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         connectors: Cx,
         update: UpdateFn<M, Msg, Cx>,
         view: ViewFn<M, Msg, Cx>,
+        key: Key,
     ) -> Self {
         Self {
             model,
@@ -152,6 +156,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             update,
             view,
             version: 1,
+            key,
         }
     }
 
@@ -161,7 +166,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         let mut out = Vec::new();
         let mut entries = HashMap::new();
         for doc in &docs.0 {
-            let rd = render_document(doc, self.version)?;
+            let rd = render_document(doc, self.version, &self.key)?;
             entries.insert(
                 rd.key.0.clone(),
                 DocEntry {
@@ -223,7 +228,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         let next = (self.view)(&self.model, &self.connectors);
         let mut next_rendered: Vec<RenderedDoc> = Vec::new();
         for doc in &next.0 {
-            next_rendered.push(render_document(doc, self.version)?);
+            next_rendered.push(render_document(doc, self.version, &self.key)?);
         }
 
         // 4. Reconcile by key against the prior set.
@@ -343,7 +348,35 @@ pub struct BuilderFull<M, Msg, Cx> {
 }
 
 impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
+    /// Supply the per-user key the framework seals manifests with. Tests pass a
+    /// fixed `Key::from_bytes(..)`; apps pass `SecretStore::user_key()`.
+    pub fn key(self, key: Key) -> BuilderReady<M, Msg, Cx> {
+        BuilderReady {
+            model: self.model,
+            connectors: self.connectors,
+            update: self.update,
+            view: self.view,
+            key,
+        }
+    }
+}
+
+pub struct BuilderReady<M, Msg, Cx> {
+    model: M,
+    connectors: Cx,
+    update: UpdateFn<M, Msg, Cx>,
+    view: ViewFn<M, Msg, Cx>,
+    key: Key,
+}
+
+impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
     pub fn build(self) -> App<M, Msg, Cx> {
-        App::new(self.model, self.connectors, self.update, self.view)
+        App::new(
+            self.model,
+            self.connectors,
+            self.update,
+            self.view,
+            self.key,
+        )
     }
 }

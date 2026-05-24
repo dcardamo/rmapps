@@ -1,4 +1,5 @@
 use inkapp_core::component::Component;
+use inkapp_core::crypto::Key;
 use inkapp_core::document::Document;
 use inkapp_core::embed::extract_manifest;
 use inkapp_core::flow;
@@ -39,8 +40,9 @@ fn doc() -> Document<Msg> {
 
 #[test]
 fn renders_expected_regions() {
-    let rd = render_document(&doc(), 1).unwrap();
-    let m = extract_manifest(&rd.pdf).unwrap();
+    let key = Key::from_bytes([5u8; 32]);
+    let rd = render_document(&doc(), 1, &key).unwrap();
+    let m = extract_manifest(&rd.pdf, &key).unwrap();
     assert_eq!(m.version, 1);
     assert!(m.regions.iter().any(|r| r.name == "tok-0"));
     assert!(m.regions.iter().any(|r| r.name == "tok-1"));
@@ -49,8 +51,9 @@ fn renders_expected_regions() {
 
 #[test]
 fn render_is_deterministic() {
-    let a = render_document(&doc(), 1).unwrap();
-    let b = render_document(&doc(), 1).unwrap();
+    let key = Key::from_bytes([5u8; 32]);
+    let a = render_document(&doc(), 1, &key).unwrap();
+    let b = render_document(&doc(), 1, &key).unwrap();
     assert_eq!(a.hash, b.hash, "same doc -> same source hash");
     assert_eq!(a.manifest, b.manifest, "same doc -> same manifest");
 }

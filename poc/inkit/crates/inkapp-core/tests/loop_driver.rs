@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use inkapp_core::crypto::Key;
 use inkapp_core::document::{DocKey, Document, Documents};
 use inkapp_core::flow;
 use inkapp_core::geometry::PdfPoint;
@@ -83,6 +84,7 @@ fn two_cycle_archive_and_delete() {
         .connector(Cx::fake())
         .update(update)
         .view(view)
+        .key(Key::from_bytes([9u8; 32]))
         .build();
     let mut set = DocSet::default();
 
@@ -118,6 +120,7 @@ fn surviving_key_entry_retained() {
         .connector(Cx::fake())
         .update(update)
         .view(view)
+        .key(Key::from_bytes([9u8; 32]))
         .build();
     let mut set = DocSet::default();
     app.render(&mut set).unwrap();
