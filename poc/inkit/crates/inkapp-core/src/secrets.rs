@@ -92,12 +92,17 @@ impl SecretStore {
         Ok(base.join("inkapp").join("secrets.json"))
     }
 
-    /// Fetch a secret's raw bytes.
-    pub fn get(&self, scope: Scope, name: &str) -> Option<Vec<u8>> {
-        self.data
-            .section(scope)
-            .get(name)
-            .and_then(|b64| base64::engine::general_purpose::STANDARD.decode(b64).ok())
+    /// Fetch a secret's raw bytes. `Ok(None)` means absent; an `Err` means the
+    /// stored value is present but not valid base64 (corrupt store) — callers
+    /// must NOT treat that as "absent".
+    pub fn get(&self, scope: Scope, name: &str) -> Result<Option<Vec<u8>>> {
+        match self.data.section(scope).get(name) {
+            None => Ok(None),
+            Some(b64) => base64::engine::general_purpose::STANDARD
+                .decode(b64)
+                .map(Some)
+                .map_err(|e| Error::Secrets(format!("corrupt base64 for '{name}': {e}"))),
+        }
     }
 
     /// Store a secret and persist the file.
@@ -109,7 +114,7 @@ impl SecretStore {
 
     /// The per-user encryption key, generated and persisted on first call.
     pub fn user_key(&mut self) -> Result<Key> {
-        if let Some(bytes) = self.get(Scope::UserKey, USER_KEY_NAME) {
+        if let Some(bytes) = self.get(Scope::UserKey, USER_KEY_NAME)? {
             let arr: [u8; 32] = bytes
                 .as_slice()
                 .try_into()
@@ -123,20 +128,32 @@ impl SecretStore {
     }
 
     fn persist(&self) -> Result<()> {
-        if let Some(parent) = self.path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).map_err(|e| Error::Secrets(e.to_string()))?;
-            }
+        let parent = self.path.parent().filter(|p| !p.as_os_str().is_empty());
+        if let Some(parent) = parent {
+            std::fs::create_dir_all(parent).map_err(|e| Error::Secrets(e.to_string()))?;
         }
         let json =
             serde_json::to_vec_pretty(&self.data).map_err(|e| Error::Secrets(e.to_string()))?;
-        std::fs::write(&self.path, &json).map_err(|e| Error::Secrets(e.to_string()))?;
+        // Write to a sibling temp file, tighten perms, then atomically rename
+        // over the target so the key file is never visible with broad perms.
+        let dir = parent
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let mut tmp =
+            tempfile::NamedTempFile::new_in(&dir).map_err(|e| Error::Secrets(e.to_string()))?;
+        use std::io::Write;
+        tmp.write_all(&json)
+            .map_err(|e| Error::Secrets(e.to_string()))?;
+        tmp.flush().map_err(|e| Error::Secrets(e.to_string()))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(0o600))
+            tmp.as_file()
+                .set_permissions(std::fs::Permissions::from_mode(0o600))
                 .map_err(|e| Error::Secrets(e.to_string()))?;
         }
+        tmp.persist(&self.path)
+            .map_err(|e| Error::Secrets(e.to_string()))?;
         Ok(())
     }
 }
@@ -161,9 +178,15 @@ mod tests {
             s.set(Scope::UserKey, "default", b"k").unwrap();
         }
         let s = SecretStore::open(&path).unwrap();
-        assert_eq!(s.get(Scope::ConnectorCred, "readwise").unwrap(), b"tok");
-        assert_eq!(s.get(Scope::DeviceAuth, "remarkable").unwrap(), b"auth");
-        assert_eq!(s.get(Scope::UserKey, "default").unwrap(), b"k");
+        assert_eq!(
+            s.get(Scope::ConnectorCred, "readwise").unwrap().unwrap(),
+            b"tok"
+        );
+        assert_eq!(
+            s.get(Scope::DeviceAuth, "remarkable").unwrap().unwrap(),
+            b"auth"
+        );
+        assert_eq!(s.get(Scope::UserKey, "default").unwrap().unwrap(), b"k");
     }
 
     #[test]
@@ -202,5 +225,16 @@ mod tests {
         s.set(Scope::ConnectorCred, "x", b"y").unwrap();
         std::env::remove_var("INKAPP_SECRETS_PATH");
         assert!(path.exists());
+    }
+
+    #[test]
+    fn corrupt_base64_is_an_error_not_absent() {
+        let (_d, path) = tmp();
+        std::fs::write(&path, br#"{"connector_cred":{"x":"!!!not-base64!!!"}}"#).unwrap();
+        let s = SecretStore::open(&path).unwrap();
+        assert!(matches!(
+            s.get(Scope::ConnectorCred, "x"),
+            Err(Error::Secrets(_))
+        ));
     }
 }
