@@ -15,10 +15,12 @@ impl DocKey {
     }
 }
 
-/// One document: a key plus an ordered flow of components.
+/// One document: a key plus an ordered flow of components, plus optional
+/// app-owned document-level state carried in the sealed manifest.
 pub struct Document<M> {
     pub key: DocKey,
     pub flow: Vec<Box<dyn Component<Msg = M>>>,
+    pub state: Option<serde_json::Value>,
 }
 
 impl<M> Document<M> {
@@ -26,6 +28,20 @@ impl<M> Document<M> {
         Self {
             key: DocKey::new(key),
             flow,
+            state: None,
+        }
+    }
+
+    /// Like `keyed`, but carries document-level state sealed into the manifest.
+    pub fn keyed_with_state(
+        key: impl Into<String>,
+        flow: Vec<Box<dyn Component<Msg = M>>>,
+        state: serde_json::Value,
+    ) -> Self {
+        Self {
+            key: DocKey::new(key),
+            flow,
+            state: Some(state),
         }
     }
 }
