@@ -225,6 +225,10 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
             let Some(entry) = set.entries.get(&doc.key.0) else {
                 continue;
             };
+            // Entries are version-stamped at render time, so this check is
+            // structural today (entry.version == entry.manifest.version by
+            // construction). It reserves the call site for the future path where
+            // ink carries its own base version (multi-device / vector clock).
             guard_version(entry.version, &entry.manifest)?;
             let region_ink = attribute(strokes, &entry.manifest);
             for c in &doc.flow {
@@ -232,8 +236,11 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
             }
         }
 
-        // 2. Bump version, then fold each message through update.
+        // 2. Bump version, then fold each message through update. The version
+        //    stamps the post-fold render in phase 3.
         self.version += 1;
+        // Clone each message to fold; `decoded` itself is moved into the
+        // returned `Cycle` for the caller to inspect.
         for m in decoded.iter().cloned() {
             (self.update)(m, &mut self.model, &self.connectors);
         }
@@ -270,6 +277,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut rendered_out: Vec<RenderedDoc> = Vec::new();
 
         for rd in next_rendered {
+            // Preserve prior ink for this key, then append this cycle's input.
             let mut ink = set
                 .entries
                 .get(&rd.key.0)
