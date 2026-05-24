@@ -44,7 +44,7 @@
     {
       "id": 7,
       "subject": "Task 7: appdx.md reconciliation",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6],
       "description": "**Goal:** Make docs/appdx.md describe built reality: C done; real Connector/ConnectorSet/Arc<dyn> shape; async/tokio decided; assembling section reconciled; document-dependency refresh logged as next evolution.\n\n**Files:** docs/appdx.md\n\n**Verify:** nix develop -c cargo test --workspace\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"C marked built\", \"Connectors section reflects real shape\", \"I/O line flipped to async/tokio\", \"assembling reconciled\", \"open-questions updated\"]}\n```"
     }
