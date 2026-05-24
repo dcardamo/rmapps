@@ -71,6 +71,11 @@ impl LocalCal {
     }
 
     /// Record a cancel: optimistic (cache reflects it now) and enqueued for flush.
+    ///
+    /// The insert and the cache `recompute` are two steps, not one atomic update,
+    /// so concurrent `cancel`s could momentarily race the cache projection. The
+    /// framework drives this connector serially from `update`, so that window
+    /// never opens in practice; a caller hitting it concurrently must serialize.
     pub fn cancel(&self, uid: &str) {
         self.overlay.lock().unwrap().pending.insert(uid.to_string());
         self.recompute();
