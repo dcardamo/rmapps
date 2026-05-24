@@ -555,10 +555,9 @@ secrets store (`SecretStore`) and seals the manifest the framework embeds in eac
 document.
 
 (`main` is `async` because `run()` awaits the connector loop; the `update`/`view`
-you write stay sync.) The single-call `.connector(Readwise::new(token))` form
-sketched elsewhere in this doc is possible future ergonomics — a sugar that mints
-the whole-struct registration for you — over the current explicit `Connectors` +
-`impl ConnectorSet`.
+you write stay sync.) A single-call `.connector(Readwise::new(token))` form — each call registering one
+connector, the framework assembling the typed `cx` — is possible future ergonomics
+over today's explicit `Connectors` struct + `impl ConnectorSet`.
 
 ### Testing
 
