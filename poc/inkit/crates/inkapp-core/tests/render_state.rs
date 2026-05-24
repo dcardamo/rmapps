@@ -6,7 +6,7 @@ use inkapp_core::flow;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::runtime::render_document;
-use inkapp_core::widget::RenderCx;
+use inkapp_core::component::RenderCx;
 use serde_json::json;
 
 // Minimal stateful component: emits no regions, just carries state.

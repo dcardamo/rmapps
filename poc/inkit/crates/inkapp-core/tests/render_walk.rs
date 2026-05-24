@@ -8,7 +8,8 @@ use inkapp_core::flow;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::runtime::render_document;
-use inkapp_core::widget::{RenderCx, Widget};
+use inkapp_core::component::RenderCx;
+use inkapp_core::widget::Widget;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum Msg {

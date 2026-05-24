@@ -2,7 +2,7 @@ use inkapp_core::component::Component;
 use inkapp_core::geometry::{PdfPoint, PdfRect};
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::{Manifest, Region};
-use inkapp_core::widget::RenderCx;
+use inkapp_core::component::RenderCx;
 
 /// A minimal component: renders nothing meaningful, decodes any ink on region
 /// "x" into the unit message.

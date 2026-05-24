@@ -34,6 +34,7 @@ pub use geometry::{DevicePoint, PdfPoint, PdfRect};
 pub use manifest::{Manifest, Region};
 pub use mode::Mode;
 pub use reconcile::{reconcile, DocOp};
+pub use render::region_metadata;
 pub use runtime::{
     app, collect_typst_sources, compile_document, document_source, render_document, App, Cycle,
     DocSet, RenderedDoc, REGION_PRELUDE,

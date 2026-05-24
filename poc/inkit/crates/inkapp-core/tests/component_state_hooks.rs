@@ -2,7 +2,7 @@ use inkapp_core::component::Component;
 use inkapp_core::components::notice::Notice;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
-use inkapp_core::widget::RenderCx;
+use inkapp_core::component::RenderCx;
 use serde_json::json;
 
 // A minimal stateful component used only to exercise the new hooks.

@@ -1,7 +1,9 @@
 use crate::component::Component;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
-use crate::widget::{region_metadata, RenderCx, Widget};
+use crate::component::RenderCx;
+use crate::render::region_metadata;
+use crate::widget::Widget;
 
 /// A counter whose state lives ONLY in the document (no connector). It renders
 /// its current count and an increment region; on readback it adds the number of

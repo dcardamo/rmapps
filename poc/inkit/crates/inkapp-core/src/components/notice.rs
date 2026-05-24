@@ -11,8 +11,8 @@ use std::marker::PhantomData;
 use crate::component::Component;
 use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
+use crate::component::RenderCx;
 use crate::manifest::Manifest;
-use crate::widget::RenderCx;
 
 /// A display-only notice. `M` is the app message type — `Notice` never emits one,
 /// so it's a phantom; `Notice<()>` works when no surrounding `Msg` is needed.

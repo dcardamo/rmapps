@@ -5,7 +5,29 @@
 
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
-use crate::widget::RenderCx;
+
+/// Render-time context: supplies the current page index and a monotonically
+/// increasing id so components can mint unique region names if needed.
+#[derive(Debug, Default)]
+pub struct RenderCx {
+    pub page: usize,
+    next_id: u64,
+}
+
+impl RenderCx {
+    pub fn new(page: usize) -> Self {
+        Self { page, next_id: 0 }
+    }
+
+    /// Mint a fresh per-render id (used by components that subdivide into
+    /// programmatically-named regions).
+    #[must_use]
+    pub fn fresh_id(&mut self) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+}
 
 /// A view component. `render` emits Typst (declaring `<region>` metadata);
 /// `decode` interprets the ink attributed to this component's region(s) into

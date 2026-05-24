@@ -3,7 +3,9 @@ use crate::components::esc_typst_str;
 use crate::geometry::PdfPoint;
 use crate::ink::{RegionInk, Stroke};
 use crate::manifest::Manifest;
-use crate::widget::{is_valid_region_name, region_metadata, RenderCx, Widget};
+use crate::component::RenderCx;
+use crate::render::{is_valid_region_name, region_metadata};
+use crate::widget::Widget;
 
 /// How a checkbox region was marked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

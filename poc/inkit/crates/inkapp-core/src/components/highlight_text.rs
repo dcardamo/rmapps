@@ -1,7 +1,8 @@
 use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
-use crate::widget::{RenderCx, Widget};
+use crate::component::RenderCx;
+use crate::widget::Widget;
 
 /// A run of words, each individually highlightable. Each token is wrapped so its
 /// laid-out rect is recovered as a region named `tok-<i>`. Tokens listed in

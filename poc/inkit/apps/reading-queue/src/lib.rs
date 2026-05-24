@@ -9,7 +9,8 @@ use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::components::notice::Notice;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
-use inkapp_core::widget::{RenderCx, Widget};
+use inkapp_core::component::RenderCx;
+use inkapp_core::widget::Widget;
 use inkapp_readwise::{Article, ArticleId, Readwise};
 use std::sync::Arc;
 

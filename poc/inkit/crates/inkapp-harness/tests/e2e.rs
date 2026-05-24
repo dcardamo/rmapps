@@ -5,7 +5,8 @@ use inkapp_core::components::checkbox::{CheckState, Checkbox};
 use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::manifest::recover_regions;
 use inkapp_core::render::compile_to_document;
-use inkapp_core::widget::{RenderCx, Widget};
+use inkapp_core::component::RenderCx;
+use inkapp_core::widget::Widget;
 use inkapp_harness::simulator::{simulate, Gesture, Scenario};
 use inkapp_remarkable::Remarkable;
 

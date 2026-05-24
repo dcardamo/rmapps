@@ -14,8 +14,8 @@ use crate::component::Component;
 use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
+use crate::component::RenderCx;
 use crate::mode::Mode;
-use crate::widget::RenderCx;
 
 /// A calendar/agenda component. `M` is the app message type.
 pub struct CalendarView<M> {
