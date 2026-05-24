@@ -1,5 +1,6 @@
 mod common;
 
+use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
 use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::Stroke;
@@ -20,8 +21,9 @@ const ACCEPTANCE_FOLDER: &str = "/InkAppDev/acceptance";
 #[ignore = "requires a paired reMarkable; run: cargo test -p inkapp-harness --test acceptance writes_and_pushes_rm -- --ignored --nocapture"]
 fn writes_and_pushes_rm() {
     let device = Remarkable::new();
+    let key = Key::from_bytes([42u8; 32]);
     let entry = catalog().iter().find(|e| e.name == "checkmark").unwrap();
-    let pdf = render_template(entry).unwrap();
+    let pdf = render_template(entry, &key).unwrap();
 
     let stroke = Stroke {
         points: vec![

@@ -1,3 +1,4 @@
+use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
 use inkapp_core::embed::extract_manifest;
 use inkapp_harness::fixtures::Tool;
@@ -8,9 +9,10 @@ use inkapp_remarkable::Remarkable;
 
 #[test]
 fn bootstrap_round_trip_yields_one_sample_per_box() {
+    let key = Key::from_bytes([42u8; 32]);
     let entry = catalog().iter().find(|e| e.name == "checkmark").unwrap();
-    let pdf = render_template(entry).unwrap();
-    let manifest = extract_manifest(&pdf).unwrap();
+    let pdf = render_template(entry, &key).unwrap();
+    let manifest = extract_manifest(&pdf, &key).unwrap();
     let device = Remarkable::new();
 
     let synth = bootstrap_strokes(entry, &manifest);

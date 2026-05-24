@@ -1,3 +1,4 @@
+use inkapp_core::crypto::Key;
 use inkapp_core::embed::extract_manifest;
 use inkapp_harness::recording::{
     calibration_points, catalog, render_calibration, render_template, BOXES_PER_GESTURE,
@@ -14,9 +15,10 @@ fn catalog_has_seven_gestures() {
 
 #[test]
 fn template_declares_three_boxes() {
+    let key = Key::from_bytes([42u8; 32]);
     let entry = catalog().iter().find(|e| e.name == "checkmark").unwrap();
-    let pdf = render_template(entry).unwrap();
-    let manifest = extract_manifest(&pdf).unwrap();
+    let pdf = render_template(entry, &key).unwrap();
+    let manifest = extract_manifest(&pdf, &key).unwrap();
     for i in 0..BOXES_PER_GESTURE {
         let name = format!("box:checkmark:{i}");
         assert!(
@@ -28,8 +30,9 @@ fn template_declares_three_boxes() {
 
 #[test]
 fn calibration_declares_crosses_with_known_points() {
-    let pdf = render_calibration().unwrap();
-    let manifest = extract_manifest(&pdf).unwrap();
+    let key = Key::from_bytes([42u8; 32]);
+    let pdf = render_calibration(&key).unwrap();
+    let manifest = extract_manifest(&pdf, &key).unwrap();
     let pts = calibration_points();
     assert!(pts.len() >= 4, "at least 4 calibration points");
     for i in 0..pts.len() {

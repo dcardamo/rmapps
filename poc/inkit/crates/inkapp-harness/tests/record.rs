@@ -2,6 +2,7 @@ mod common;
 
 use std::path::Path;
 
+use inkapp_core::crypto::Key;
 use inkapp_harness::recording::{catalog, render_calibration, render_template};
 
 use common::{rmapi_mget, rmapi_mkdir, rmapi_put};
@@ -14,17 +15,18 @@ const FIXTURES_FOLDER: &str = "/InkAppDev/fixtures";
 #[test]
 #[ignore = "requires a paired reMarkable; run: cargo test -p inkapp-harness --test record push_templates -- --ignored --nocapture"]
 fn push_templates() {
+    let key = Key::from_bytes([42u8; 32]);
     rmapi_mkdir("/InkAppDev");
     rmapi_mkdir(FIXTURES_FOLDER);
     let dir = tempfile::tempdir().unwrap();
 
     let cal = dir.path().join("calibration.pdf");
-    std::fs::write(&cal, render_calibration().unwrap()).unwrap();
+    std::fs::write(&cal, render_calibration(&key).unwrap()).unwrap();
     rmapi_put(&cal, FIXTURES_FOLDER);
 
     for entry in catalog() {
         let path = dir.path().join(format!("{}.pdf", entry.name));
-        std::fs::write(&path, render_template(entry).unwrap()).unwrap();
+        std::fs::write(&path, render_template(entry, &key).unwrap()).unwrap();
         rmapi_put(&path, FIXTURES_FOLDER);
     }
     eprintln!(

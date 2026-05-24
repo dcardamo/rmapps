@@ -2,6 +2,7 @@ mod common;
 
 use std::path::Path;
 
+use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
 use inkapp_core::geometry::DevicePoint;
 use inkapp_harness::recording::{calibration_points, fit_scale, synth_calibration, PAGE_H};
@@ -46,6 +47,7 @@ fn tap_centroids(rm: &[u8]) -> Vec<DevicePoint> {
 #[test]
 fn transform_matches_calibration_within_tolerance() {
     let device = Remarkable::new();
+    let key = Key::from_bytes([42u8; 32]);
 
     let real = format!(
         "{}/tests/fixtures/recordings/calibration.rmdoc",
@@ -54,7 +56,7 @@ fn transform_matches_calibration_within_tolerance() {
     let (_pdf, rm) = if Path::new(&real).exists() {
         open_rmdoc(Path::new(&real))
     } else {
-        synth_calibration(&device).unwrap()
+        synth_calibration(&device, &key).unwrap()
     };
 
     let known = calibration_points();

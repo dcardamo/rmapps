@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
 use inkapp_core::document::DocKey;
 use inkapp_core::geometry::PdfRect;
@@ -69,6 +70,7 @@ fn reading_queue_loop_highlight_archive_preserve() {
         .connector(Connectors::fake())
         .update(update)
         .view(view)
+        .key(Key::from_bytes([42u8; 32]))
         .build();
     let mut set = DocSet::default();
 

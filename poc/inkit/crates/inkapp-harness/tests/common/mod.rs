@@ -4,12 +4,18 @@ use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
 use inkapp_core::embed::extract_manifest;
 use inkapp_harness::fixtures::Source;
 use inkapp_harness::recording::{
     bootstrap_strokes, extract_fixture, render_template, CatalogEntry, PAGE_H,
 };
+
+/// Fixed key used across harness tests so embed and extract agree.
+pub fn test_key() -> Key {
+    Key::from_bytes([42u8; 32])
+}
 
 /// Read the `.pdf` and the `.rm` entry from an `.rmdoc` zip (single-page recording assumed).
 pub fn open_rmdoc(path: &Path) -> (Vec<u8>, Vec<u8>) {
@@ -121,7 +127,7 @@ pub fn regen_fixture(
     );
     if Path::new(&rec_path).exists() {
         let (pdf, rm) = open_rmdoc(Path::new(&rec_path));
-        let manifest = extract_manifest(&pdf).unwrap();
+        let manifest = extract_manifest(&pdf, &test_key()).unwrap();
         let strokes = device.read_ink(&rm, PAGE_H).unwrap();
         let source = Source {
             recording: format!("recordings/{}.rmdoc", entry.name),
@@ -130,8 +136,8 @@ pub fn regen_fixture(
         };
         extract_fixture(entry, &strokes, &manifest, source)
     } else {
-        let pdf = render_template(entry).unwrap();
-        let manifest = extract_manifest(&pdf).unwrap();
+        let pdf = render_template(entry, &test_key()).unwrap();
+        let manifest = extract_manifest(&pdf, &test_key()).unwrap();
         let synth = bootstrap_strokes(entry, &manifest);
         let bytes = device.write_ink(&synth, PAGE_H).unwrap();
         let strokes = device.read_ink(&bytes, PAGE_H).unwrap();

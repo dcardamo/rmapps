@@ -12,7 +12,7 @@
 //! deterministic `render()` before pulling. Honors rmapi v4/token/mkdir notes
 //! (remarkable-pdf-mechanics.md §10).
 
-use inkapp::{app, App as Framework, DocSet, Remarkable};
+use inkapp::{app, App as Framework, DocSet, Remarkable, SecretStore};
 use reading_queue::serve::{publish, sync_once};
 use reading_queue::{update, view, App, Connectors, Msg};
 
@@ -22,10 +22,14 @@ const OVERLAY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/.overlay.json");
 
 /// Build the assembled app with the persisted (device-use) connector.
 fn build_app() -> Framework<App, Msg, Connectors> {
+    let key = SecretStore::open_default()
+        .and_then(|mut s| s.user_key())
+        .expect("open secrets store / load user key");
     app(App)
         .connector(Connectors::persisted(OVERLAY))
         .update(update)
         .view(view)
+        .key(key)
         .build()
 }
 

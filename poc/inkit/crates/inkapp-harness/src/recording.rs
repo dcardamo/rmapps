@@ -1,6 +1,7 @@
 //! On-device recording: the gesture catalog, self-instructing template
 //! generation, and extraction of captures into fixtures.
 
+use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
 use inkapp_core::embed::embed_manifest;
 use inkapp_core::error::Result;
@@ -150,7 +151,7 @@ fn place_box(x: f64, y: f64, w: f64, h: f64) -> String {
 ///
 /// The returned PDF has a manifest embedded; its regions are named
 /// `box:<name>:0`, `box:<name>:1`, `box:<name>:2`.
-pub fn render_template(entry: &CatalogEntry) -> Result<Vec<u8>> {
+pub fn render_template(entry: &CatalogEntry, key: &Key) -> Result<Vec<u8>> {
     let (bw, bh) = entry.box_shape.dims();
     let mut src = page_header();
 
@@ -187,7 +188,7 @@ pub fn render_template(entry: &CatalogEntry) -> Result<Vec<u8>> {
     let doc = compile_to_document(&src)?;
     let manifest = recover_regions(&doc)?.with_version(1);
     let pdf = document_to_pdf(&doc)?;
-    embed_manifest(&pdf, &manifest)
+    embed_manifest(&pdf, &manifest, key)
 }
 
 /// Known calibration-cross centers in PDF space (bottom-left origin, y-up).
@@ -216,7 +217,7 @@ pub fn calibration_points() -> Vec<PdfPoint> {
 
 /// Render the calibration sheet: crosshairs at known PDF points, each wrapped in
 /// a `cross:<i>` region whose center equals `calibration_points()[i]`.
-pub fn render_calibration() -> Result<Vec<u8>> {
+pub fn render_calibration(key: &Key) -> Result<Vec<u8>> {
     const HALF: f64 = 12.0;
     let mut src = page_header();
     src.push_str(&place_text(
@@ -261,7 +262,7 @@ pub fn render_calibration() -> Result<Vec<u8>> {
     let doc = compile_to_document(&src)?;
     let manifest = recover_regions(&doc)?.with_version(1);
     let pdf = document_to_pdf(&doc)?;
-    embed_manifest(&pdf, &manifest)
+    embed_manifest(&pdf, &manifest, key)
 }
 
 // ── Extraction ────────────────────────────────────────────────────────────────
@@ -398,8 +399,8 @@ pub fn bootstrap_strokes(entry: &CatalogEntry, manifest: &Manifest) -> Vec<Strok
 /// centroid equals `pdf_to_device(p)` up to f32 quantisation noise.
 ///
 /// Returns `(pdf_bytes, rm_bytes)`.
-pub fn synth_calibration(device: &dyn Device) -> Result<(Vec<u8>, Vec<u8>)> {
-    let pdf = render_calibration()?;
+pub fn synth_calibration(device: &dyn Device, key: &Key) -> Result<(Vec<u8>, Vec<u8>)> {
+    let pdf = render_calibration(key)?;
     let strokes: Vec<Stroke> = calibration_points()
         .into_iter()
         .map(|p| Stroke {
