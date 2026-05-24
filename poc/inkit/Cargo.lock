@@ -1709,6 +1709,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "inkapp-localcal"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "inkapp-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "inkapp-readwise"
 version = "0.1.0"
 dependencies = [
