@@ -90,7 +90,15 @@ pub fn render_document<M>(doc: &Document<M>, version: u64, key: &Key) -> Result<
         .first()
         .map(|p| p.frame.height().to_pt())
         .unwrap_or(0.0);
-    let manifest = recover_regions(&compiled)?.with_version(version);
+    let mut manifest = recover_regions(&compiled)?.with_version(version);
+    // Collect app-defined state into the manifest before sealing: the document's
+    // own blob, then each stateful component's slice keyed by state_key().
+    manifest.state.doc = doc.state.clone();
+    for c in &doc.flow {
+        if let (Some(k), Some(v)) = (c.state_key(), c.render_state()) {
+            manifest.state.components.insert(k, v);
+        }
+    }
     let pdf = embed_manifest(&document_to_pdf(&compiled)?, &manifest, key)?;
     Ok(RenderedDoc {
         key: doc.key.clone(),
