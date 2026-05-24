@@ -1,0 +1,61 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-24-document-component-state.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: DocState data model + workspace migration",
+      "status": "pending",
+      "description": "**Goal:** Add the sealed `DocState` payload to `Manifest` and make the whole workspace compile.\n\n**Files:** crates/inkapp-core/src/manifest.rs (add DocState, Manifest.state, derive Default, init recover_regions); add `..Default::default()` to every literal `Manifest {…}` in components/notice.rs + tests across inkapp-core and inkapp-harness; new crates/inkapp-core/tests/doc_state.rs.\n\n**Verify:** `cargo test -p inkapp-core -p inkapp-harness`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/manifest.rs\",\"crates/inkapp-core/tests/doc_state.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core -p inkapp-harness\",\"acceptanceCriteria\":[\"DocState serde round-trip\",\"manifest without state key deserializes\",\"workspace tests pass\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Component state hooks",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add opt-in `state_key`/`render_state` default methods to the `Component` trait.\n\n**Files:** crates/inkapp-core/src/component.rs; new crates/inkapp-core/tests/component_state_hooks.rs.\n\n**Verify:** `cargo test -p inkapp-core --test component_state_hooks`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/component.rs\",\"crates/inkapp-core/tests/component_state_hooks.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test component_state_hooks\",\"acceptanceCriteria\":[\"default None\",\"Notice None\",\"override Some\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Document-level state slot",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add `Document.state: Option<Value>` + `keyed_with_state` constructor.\n\n**Files:** crates/inkapp-core/src/document.rs; extend crates/inkapp-core/tests/document.rs.\n\n**Verify:** `cargo test -p inkapp-core --test document`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/document.rs\",\"crates/inkapp-core/tests/document.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test document\",\"acceptanceCriteria\":[\"keyed None\",\"keyed_with_state Some\",\"compiles\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Render-side state collection",
+      "status": "pending",
+      "blockedBy": [0, 1, 2],
+      "description": "**Goal:** `render_document` populates `manifest.state` (doc blob + per-component map) before sealing.\n\n**Files:** crates/inkapp-core/src/runtime.rs (render_document); new crates/inkapp-core/tests/render_state.rs.\n\n**Verify:** `cargo test -p inkapp-core --test render_state`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/tests/render_state.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test render_state\",\"acceptanceCriteria\":[\"doc blob carried\",\"component map carried\",\"stateless empty\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Stepper component (proof consumer)",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** Ship stateful `Stepper` whose read/decode use the carried base, not the prop.\n\n**Files:** new crates/inkapp-core/src/components/stepper.rs; crates/inkapp-core/src/components/mod.rs (`pub mod stepper;`); new crates/inkapp-core/tests/stepper_state.rs.\n\n**Keystone:** prop=9, carried base=5, one stroke → vec![6].\n\n**Verify:** `cargo test -p inkapp-core --test stepper_state`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/components/stepper.rs\",\"crates/inkapp-core/src/components/mod.rs\",\"crates/inkapp-core/tests/stepper_state.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test stepper_state\",\"acceptanceCriteria\":[\"stateful hooks\",\"read=base+increments\",\"keystone base over prop\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Sealed-PDF travel proof",
+      "status": "pending",
+      "blockedBy": [0, 3],
+      "description": "**Goal:** Prove the state payload survives seal/extract and never appears in cleartext.\n\n**Files:** extend crates/inkapp-core/tests/embed.rs.\n\n**Verify:** `cargo test -p inkapp-core --test embed`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/tests/embed.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test embed\",\"acceptanceCriteria\":[\"state round-trips sealed\",\"no cleartext leak\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Loop-level carried-base proof",
+      "status": "pending",
+      "blockedBy": [3, 4],
+      "description": "**Goal:** Through App::step, prove decode uses the carried base after Model moved on.\n\n**Files:** new crates/inkapp-core/tests/stepper_loop.rs.\n\n**Acceptance:** render at 5; set app.model=9 with no re-render; step one stroke → cycle.decoded == vec![6] (not vec![10]).\n\n**Verify:** `cargo test -p inkapp-core --test stepper_loop`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/tests/stepper_loop.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test stepper_loop\",\"acceptanceCriteria\":[\"decoded vec![6] via loop, carried base wins\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: Mark appdx state field built (DoD)",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Update docs/appdx.md State + Encryption sections and the top banner/build-order to record the state field as built.\n\n**Files:** docs/appdx.md.\n\n**Verify:** `rg -n \"Seam ready\" docs/appdx.md` (no matches); `rg -n \"state field\" docs/appdx.md` (built wording).\n\n```json:metadata\n{\"files\":[\"docs/appdx.md\"],\"verifyCommand\":\"rg -n \\\"Seam ready\\\" docs/appdx.md\",\"acceptanceCriteria\":[\"State section built\",\"Encryption note built\",\"banner+build-order updated\",\"no other markers changed\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-24T00:00:00Z"
+}
