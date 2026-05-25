@@ -87,6 +87,17 @@ rationale. The pieces:
   this crate implements both for reMarkable. The generic publish/sync engine and the
   `DeviceTransport` trait are framework code — transport is no longer per-app.
 
+- **`crates/rm-cloud`** — pure-Rust client for the current reMarkable Cloud sync protocol
+  (content-addressed blob store, root ref with compare-and-swap by generation). Exposes
+  immutable `Snapshot`s + `diff`, an atomic `commit` (rebase-on-412), rmapi-style path ops
+  (`ls`/`get`/`put`/`mkdir`/`mv`/`rm`/`put_content_only`), and a declarative working-set
+  `sync` for app loops. Reuses `rm-files` for the `.rmdoc` bundle; owns nothing of the local
+  scene format. Tested against an in-process axum fake cloud (behind the `fake` feature) and
+  an env-gated live-cloud suite isolated under `rmrs-test/<run-id>` (verified end-to-end
+  against the production cloud). reMarkable-specific → `rm-` prefix. No framework/app deps.
+  Intended to back a native `DeviceTransport` impl, replacing `rm-device`'s `RmTransport`
+  shelling out to the `rmapi` CLI (a later spec). See `docs/rm-cloud-protocol.md`.
+
 - **`crates/inkapp`** — the thin app-authoring **facade**: re-exports the core surface plus
   the default `Remarkable` device, so apps read the way the docs show. Apps depend on this.
 

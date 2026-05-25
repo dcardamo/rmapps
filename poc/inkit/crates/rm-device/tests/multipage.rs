@@ -63,10 +63,8 @@ fn doc() -> Document<Msg> {
 
     let check = Checkbox::with_msg("done", Msg::Done).label("Archive");
 
-    let mut flow: Vec<Box<dyn Component<Msg = Msg>>> = Vec::new();
-    flow.push(Box::new(body));
-    flow.push(Box::new(passage));
-    flow.push(Box::new(check));
+    let flow: Vec<Box<dyn Component<Msg = Msg>>> =
+        vec![Box::new(body), Box::new(passage), Box::new(check)];
     Document::keyed("d", flow)
 }
 

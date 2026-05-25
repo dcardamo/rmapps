@@ -75,9 +75,11 @@ fn state_round_trips_and_stays_sealed() {
     let doc = compile_to_document("#set page(width: 100pt, height: 100pt)\nhi").unwrap();
     let pdf = document_to_pdf(&doc).unwrap();
 
-    let mut state = DocState::default();
     // A distinctive marker we can search for in cleartext.
-    state.doc = Some(json!({"marker": "SEKRIT_CURSOR_7"}));
+    let mut state = DocState {
+        doc: Some(json!({"marker": "SEKRIT_CURSOR_7"})),
+        ..Default::default()
+    };
     state
         .components
         .insert("stepper:c".into(), json!(424242u64));

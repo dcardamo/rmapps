@@ -3,8 +3,10 @@ use serde_json::json;
 
 #[test]
 fn docstate_round_trips() {
-    let mut s = DocState::default();
-    s.doc = Some(json!({"cursor": 3}));
+    let mut s = DocState {
+        doc: Some(json!({"cursor": 3})),
+        ..Default::default()
+    };
     s.components.insert("stepper:c".into(), json!(5u64));
     let bytes = serde_json::to_vec(&s).unwrap();
     let back: DocState = serde_json::from_slice(&bytes).unwrap();

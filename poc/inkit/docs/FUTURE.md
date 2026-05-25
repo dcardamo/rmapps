@@ -69,3 +69,25 @@ framework. The data-type discipline, without the distributed machinery.
 architecture (content-relative regions, per-device render, MVU with messages-as-
 events, encrypt-everything, per-user app state, a coordinator in every round-trip)
 already leans this way and shouldn't be designed in a way that blocks it.
+
+---
+
+## rm-cloud: direct-device transport (no cloud)
+
+A USB-web-UI/SSH transport straight to the tablet could back the `Device` seam as an
+alternative to `rm-cloud`'s cloud sync — **same sync model, different medium**. Out of
+scope for `rm-cloud` v1 (cloud-only), but the snapshot/diff/commit core is medium-neutral,
+so a local transport could reuse most of it.
+
+---
+
+## inkapp loop testing on the fake cloud
+
+`inkapp-harness` can gain a higher-fidelity test tier built on `rm-cloud`'s `FakeCloud`
+(behind the `fake` feature): spin up a fake cloud, drive an app's real publish →
+(simulated device ink, written *through* the cloud as a `.rm` blob bump) → pull → `step` →
+republish loop, asserting incremental `Snapshot::diff` and content-only ink survival. This
+needs **no `rm-cloud` changes** (the public `Client` + `FakeCloud` compose); the
+inkapp-specific glue (a `CloudLoopHarness` + a gesture-fixture-to-`.rm` helper) lives in
+`inkapp-harness`, keeping `rm-cloud` app-agnostic. Brainstorm as a follow-up spec bundled
+with the `serve.rs` migration off the `rmapi` CLI, after `rm-cloud` ships.
