@@ -11,6 +11,9 @@ mod config;
 mod error;
 mod plumbing;
 
+#[cfg(feature = "fake")]
+pub mod fake;
+
 pub use config::Config;
 pub use error::{Error, Result};
 pub use plumbing::index::{
