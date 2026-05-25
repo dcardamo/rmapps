@@ -1,6 +1,7 @@
 //! The MVU loop runtime: the render walk (`render_document`) and the multi-cycle
 //! driver (`App`, `DocSet`, `step`).
 
+use crate::assets::AssetMap;
 use crate::component::RenderCx;
 use crate::connector::ConnectorSet;
 use crate::crypto::Key;
@@ -26,6 +27,12 @@ pub struct RenderedDoc {
     /// Number of pages this document paginated to under its render geometry.
     pub page_count: usize,
     pub hash: u64,
+}
+
+/// Flatten an `AssetMap` into the `(path, bytes)` slice form the compile
+/// functions take.
+fn assets_as_slice(assets: &AssetMap) -> Vec<(String, Vec<u8>)> {
+    assets.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
 }
 
 /// Collect the Typst sources to register for this document: the prelude plus each
@@ -78,9 +85,20 @@ pub fn compile_document_in<M>(
     doc: &Document<M>,
     geom: PageGeom,
 ) -> Result<typst::layout::PagedDocument> {
+    compile_document_in_with_assets(doc, geom, &AssetMap::new())
+}
+
+/// Like `compile_document_in`, but also registers `assets` so the document may
+/// embed `#image("/assets/{key}.png")`.
+pub fn compile_document_in_with_assets<M>(
+    doc: &Document<M>,
+    geom: PageGeom,
+    assets: &AssetMap,
+) -> Result<typst::layout::PagedDocument> {
     let src = document_source_in(doc, geom);
     let sources = collect_typst_sources(doc);
-    crate::render::compile_to_document_with_sources(&src, &sources)
+    let asset_vec = assets_as_slice(assets);
+    crate::render::compile_to_document_with_sources_and_assets(&src, &sources, &asset_vec)
 }
 
 /// Stable hash of a string (std DefaultHasher is deterministic within a build,
@@ -104,9 +122,23 @@ pub fn render_document_in<M>(
     key: &Key,
     geom: PageGeom,
 ) -> Result<RenderedDoc> {
+    render_document_in_with_assets(doc, version, key, geom, &AssetMap::new())
+}
+
+/// Like `render_document_in`, but registers `assets` so the document may embed
+/// `#image("/assets/{key}.png")`.
+pub fn render_document_in_with_assets<M>(
+    doc: &Document<M>,
+    version: u64,
+    key: &Key,
+    geom: PageGeom,
+    assets: &AssetMap,
+) -> Result<RenderedDoc> {
     let src = document_source_in(doc, geom);
     let sources = collect_typst_sources(doc);
-    let compiled = crate::render::compile_to_document_with_sources(&src, &sources)?;
+    let asset_vec = assets_as_slice(assets);
+    let compiled =
+        crate::render::compile_to_document_with_sources_and_assets(&src, &sources, &asset_vec)?;
     // A single page_h suffices: `#set page` fixes every page of a document to the same
     // height, so the per-page device transform uses the same height on every page.
     let page_h = compiled
