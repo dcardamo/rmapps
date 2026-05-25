@@ -9,7 +9,6 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 
-use async_trait::async_trait;
 use image::GenericImageView;
 use sha2::{Digest, Sha256};
 
@@ -63,7 +62,7 @@ pub(crate) fn normalize_to_png(bytes: &[u8]) -> Option<Vec<u8>> {
 /// How the pipeline fetches image bytes for a URL. Mirrors the readwise
 /// connector's `FetchTransport` seam: a trait with a fake for tests and a real
 /// concurrent retrying HTTP implementation.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait ImageFetcher: Send + Sync {
     /// Fetch one URL's raw bytes, or `None` on any failure.
     async fn fetch(&self, url: &str) -> Option<Vec<u8>>;
@@ -87,7 +86,7 @@ impl FakeFetcher {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ImageFetcher for FakeFetcher {
     async fn fetch(&self, url: &str) -> Option<Vec<u8>> {
         self.responses.get(url).cloned()
@@ -98,7 +97,7 @@ impl ImageFetcher for FakeFetcher {
 /// network unless a live build injects `HttpImageFetcher`.
 pub struct OfflineFetcher;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ImageFetcher for OfflineFetcher {
     async fn fetch(&self, _url: &str) -> Option<Vec<u8>> {
         None
@@ -132,7 +131,7 @@ impl Default for HttpImageFetcher {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ImageFetcher for HttpImageFetcher {
     async fn fetch(&self, url: &str) -> Option<Vec<u8>> {
         let resp = self.client.get(url).send().await.ok()?;
