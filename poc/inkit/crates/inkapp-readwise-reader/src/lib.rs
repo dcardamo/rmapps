@@ -281,12 +281,9 @@ impl Readwise {
             cache_articles: Arc::new(RwLock::new(source.clone())),
             fetch: Arc::new(CassetteFetch { source }),
             cache: None,
-            locations: vec![
-                "new".into(),
-                "later".into(),
-                "shortlist".into(),
-                "feed".into(),
-            ],
+            // Single source of truth: derive the default refresh locations from
+            // the default config, so `build()` and `live()` can't drift.
+            locations: Self::locations_from(&ReaderConfig::default()),
             overlay: Mutex::new(overlay),
             persist_path,
             transport: Arc::new(NoopTransport),
@@ -434,6 +431,17 @@ impl Readwise {
     }
 
     /// Move an article to a new location (optimistic + enqueued).
+    /// Move an article to a new location (optimistic + enqueued for `flush`).
+    ///
+    /// LIMITATION (current): the optimistic overlay only *hides* the article from
+    /// the current views until the next `refresh`. That is correct for moves OUT
+    /// of every visible view (e.g. `Archive`), but a move to a still-visible
+    /// Library location (`Later`/`Shortlist`/`New`) will make the item briefly
+    /// vanish and then reappear at its new location after `refresh`. No caller
+    /// exercises a visible-target move yet (the reading-queue app only archives);
+    /// the reader UI will, so an optimistic location-override is a planned
+    /// refinement — see the `#[ignore]`d `move_to_visible_location_keeps_it_visible`
+    /// spec test. Use `archive`/`delete` for the hide-from-view cases today.
     pub fn move_to(&self, id: &ArticleId, loc: Location) {
         let mut ov = self.overlay.lock().unwrap();
         if !ov.archived.contains(id) {
@@ -579,7 +587,9 @@ impl Readwise {
 
     /// Build a `reqwest-middleware` client with exponential-backoff retry on transient
     /// failures (429 / 5xx). Wraps a plain `reqwest::Client` so all live transports
-    /// share one connection pool.
+    /// share one connection pool. NOTE: this is pure exponential backoff (5 retries)
+    /// and does not read the `Retry-After` header; if Readwise's 20/min rate limit
+    /// proves bursty in practice, switch to a policy that honors `Retry-After`.
     fn retrying_http_client() -> reqwest_middleware::ClientWithMiddleware {
         use reqwest_middleware::ClientBuilder;
         use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};

@@ -32,3 +32,26 @@ fn move_and_delete_enqueue_and_hide() {
         "deleted leaves the queue"
     );
 }
+
+/// Failing-test-as-spec for a planned refinement (Spec #11 review, issue #1):
+/// an optimistic move to a *visible* Library location should keep the article in
+/// view at its new location, not hide it until the next refresh. Today `move_to`
+/// hides via the overlay regardless of target, so this fails — un-ignore it when
+/// the optimistic location-override lands.
+#[test]
+#[ignore = "spec for a future refinement: optimistic move to a visible location should keep the article visible"]
+fn move_to_visible_location_keeps_it_visible() {
+    let rw = Readwise::fake(); // fake articles default to Location::New (a Library location)
+    let id = rw.library()[0].id.clone();
+    rw.move_to(&id, Location::Later);
+    let found = rw.library().into_iter().find(|a| a.id == id);
+    assert!(
+        found.is_some(),
+        "a move to a visible location should keep the article in the library view"
+    );
+    assert_eq!(
+        found.unwrap().location,
+        Location::Later,
+        "and show it at its new location"
+    );
+}
