@@ -254,6 +254,10 @@ pub struct App<M, Msg, Cx> {
 }
 
 impl<M, Msg, Cx> App<M, Msg, Cx> {
+    // The App genuinely has this many independent collaborators; the builder
+    // (`app(..).connector(..).update(..).view(..).key(..)`) is the ergonomic
+    // construction path, so the wide `new` is acceptable.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         model: M,
         connectors: Cx,
@@ -577,6 +581,8 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
     }
 
     /// Inject the durable asset cache used for warm-restart / offline image serving.
+    /// Asset bytes occupy the `assets/*` key namespace; a cache shared with a
+    /// connector must keep its own keys clear of that prefix.
     #[must_use]
     pub fn asset_cache(mut self, cache: Arc<Cache>) -> Self {
         self.asset_cache = Some(cache);
