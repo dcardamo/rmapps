@@ -53,3 +53,7 @@ required-features = ["fake"]
 [[test]]
 name = "fake_porcelain"
 required-features = ["fake"]
+
+[[test]]
+name = "fake_sync"
+required-features = ["fake"]
