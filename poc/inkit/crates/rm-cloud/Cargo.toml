@@ -1,0 +1,42 @@
+[package]
+name = "rm-cloud"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Pure-Rust client for the reMarkable Cloud sync protocol (content-addressed snapshots, path ops, working-set sync)"
+
+[dependencies]
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+async-trait = "0.1"
+rm-files = { path = "../rm-files" }
+axum = { version = "0.8", optional = true }
+
+[features]
+fake = ["dep:axum", "tokio/full"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+tempfile = "3"
+
+[[test]]
+name = "fake_lifecycle"
+required-features = ["fake"]
+
+[[test]]
+name = "fake_content_only"
+required-features = ["fake"]
+
+[[test]]
+name = "fake_conflict"
+required-features = ["fake"]
+
+[[test]]
+name = "fake_concurrency"
+required-features = ["fake"]
