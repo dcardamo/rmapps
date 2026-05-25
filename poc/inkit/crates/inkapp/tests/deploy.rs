@@ -1,20 +1,16 @@
-use inkapp::DeployConfig;
+use inkapp::{resolve_transport, DeviceConfig};
 
 #[test]
-fn parses_explicit_backend_and_folder() {
-    let cfg =
-        DeployConfig::from_toml("backend = \"remarkable\"\nfolder = \"/ReadingQueue\"").unwrap();
-    assert_eq!(cfg.backend, "remarkable");
-    assert_eq!(cfg.folder, "/ReadingQueue");
+fn device_config_backend_defaults_to_remarkable() {
+    assert_eq!(DeviceConfig::default().backend, "remarkable");
 }
 
 #[test]
-fn backend_defaults_to_remarkable() {
-    let cfg = DeployConfig::from_toml("folder = \"/Agenda\"").unwrap();
-    assert_eq!(cfg.backend, "remarkable");
+fn resolve_transport_builds_known_backend() {
+    assert!(resolve_transport("remarkable", "/ReadingQueue".into()).is_ok());
 }
 
 #[test]
-fn missing_folder_is_an_error() {
-    assert!(DeployConfig::from_toml("backend = \"remarkable\"").is_err());
+fn resolve_transport_rejects_unknown_backend() {
+    assert!(resolve_transport("supernote", "/Agenda".into()).is_err());
 }

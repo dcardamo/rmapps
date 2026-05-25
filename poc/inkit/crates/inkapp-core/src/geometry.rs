@@ -109,6 +109,17 @@ impl From<PageConfig> for PageGeom {
     }
 }
 
+/// The `[device]` config section — which device backend to deploy to. The
+/// per-app target folder lives in each app's own config section, not here.
+#[derive(Debug, Clone, serde::Deserialize, inkapp_config::Config)]
+#[serde(default)]
+#[config(kind = "device", namespace = "framework")]
+pub struct DeviceConfig {
+    /// Device backend identifier (e.g. "remarkable").
+    #[config(default = String::from("remarkable"))]
+    pub backend: String,
+}
+
 /// Convert a Typst top-left-origin rect to a PDF bottom-left-origin rect using
 /// the height of the rect's own page.
 pub fn typst_to_pdf_rect(x: f64, y: f64, w: f64, h: f64, page_height_pt: f64) -> PdfRect {
@@ -183,6 +194,17 @@ mod tests {
     fn page_config_defaults_match_pagegeom_default() {
         let c = PageConfig::default();
         assert_eq!(PageGeom::from(c), PageGeom::default());
+    }
+
+    #[test]
+    fn device_config_defaults_to_remarkable() {
+        assert_eq!(DeviceConfig::default().backend, "remarkable");
+    }
+
+    #[test]
+    fn device_config_registers() {
+        use inkapp_config::{Namespace, Registry};
+        assert!(Registry::find(Namespace::Framework, "device").is_some());
     }
 
     #[test]

@@ -1,9 +1,8 @@
-//! Config-driven, device-agnostic on-device deployment. Apps call
-//! `inkapp::publish` / `inkapp::sync_once`; the backend and target folder come
-//! from a `deploy.toml` located via the `INKAPP_DEPLOY_CONFIG` env var. This is
-//! the only place a concrete device backend is named.
-
-use std::path::Path;
+//! Device-agnostic on-device deployment facade. Apps resolve the `[device]`
+//! backend (from `config.toml`) plus their own target folder, build a transport
+//! via [`resolve_transport`], and pass it to [`publish`] / [`sync_once`]. This is
+//! the only place a concrete device backend is named, so `inkapp-config` never
+//! needs to depend on a `*-device` crate.
 
 use inkapp_core::connector::ConnectorSet;
 use inkapp_core::error::{Error, Result};
@@ -12,65 +11,32 @@ use inkapp_core::sync::{self, DeviceTransport};
 
 use rm_device::RmTransport;
 
-/// Env var naming the path to the deploy TOML.
-const CONFIG_ENV: &str = "INKAPP_DEPLOY_CONFIG";
-
-fn default_backend() -> String {
-    "remarkable".to_string()
-}
-
-/// Deployment configuration: which device backend, and the device folder this
-/// app's documents live under.
-#[derive(Debug, serde::Deserialize)]
-pub struct DeployConfig {
-    #[serde(default = "default_backend")]
-    pub backend: String,
-    pub folder: String,
-}
-
-impl DeployConfig {
-    /// Parse a `DeployConfig` from TOML text.
-    pub fn from_toml(text: &str) -> Result<Self> {
-        toml::from_str(text).map_err(|e| Error::Config(format!("parse deploy config: {e}")))
-    }
-
-    /// Load from the file named by `INKAPP_DEPLOY_CONFIG`.
-    pub fn from_env() -> Result<Self> {
-        let path = std::env::var(CONFIG_ENV)
-            .map_err(|_| Error::Config(format!("{CONFIG_ENV} is not set")))?;
-        Self::from_path(path)
-    }
-
-    fn from_path(path: impl AsRef<Path>) -> Result<Self> {
-        let text = std::fs::read_to_string(path.as_ref())
-            .map_err(|e| Error::Config(format!("read deploy config {:?}: {e}", path.as_ref())))?;
-        Self::from_toml(&text)
-    }
-}
-
-/// Resolve a config into a concrete transport. The single place backends are
-/// named; a new device family adds one arm and one `*-device` crate.
-fn resolve(cfg: &DeployConfig) -> Result<Box<dyn DeviceTransport>> {
-    match cfg.backend.as_str() {
-        "remarkable" => Ok(Box::new(RmTransport::new(cfg.folder.clone()))),
+/// Resolve a backend identifier + device folder into a concrete transport. The
+/// single place backends are named; a new device family adds one arm and one
+/// `*-device` crate. Errors on an unknown backend.
+pub fn resolve_transport(backend: &str, folder: String) -> Result<Box<dyn DeviceTransport>> {
+    match backend {
+        "remarkable" => Ok(Box::new(RmTransport::new(folder))),
         other => Err(Error::Config(format!("unknown deploy backend {other:?}"))),
     }
 }
 
-/// Render the app's document set and push every document to the configured device.
-pub async fn publish<M, Msg, Cx: ConnectorSet>(app: &mut App<M, Msg, Cx>) -> Result<()> {
-    let transport = resolve(&DeployConfig::from_env()?)?;
+/// Render the app's document set and push every document over the given transport.
+pub async fn publish<M, Msg, Cx: ConnectorSet>(
+    app: &mut App<M, Msg, Cx>,
+    transport: &dyn DeviceTransport,
+) -> Result<()> {
     let mut set = DocSet::default();
-    sync::publish(app, &mut set, transport.as_ref()).await
+    sync::publish(app, &mut set, transport).await
 }
 
-/// Pull device ink, fold one cycle, and apply the resulting ops to the device.
+/// Pull device ink, fold one cycle, and apply the resulting ops over the transport.
 pub async fn sync_once<M, Msg: Clone, Cx: ConnectorSet>(
     app: &mut App<M, Msg, Cx>,
+    transport: &dyn DeviceTransport,
 ) -> Result<Cycle<Msg>> {
-    let transport = resolve(&DeployConfig::from_env()?)?;
     let mut set = DocSet::default();
-    sync::sync_once(app, &mut set, transport.as_ref()).await
+    sync::sync_once(app, &mut set, transport).await
 }
 
 #[cfg(test)]
@@ -79,15 +45,7 @@ mod tests {
 
     #[test]
     fn resolve_known_and_unknown_backends() {
-        let ok = DeployConfig {
-            backend: "remarkable".into(),
-            folder: "/X".into(),
-        };
-        assert!(resolve(&ok).is_ok());
-        let bad = DeployConfig {
-            backend: "supernote".into(),
-            folder: "/X".into(),
-        };
-        assert!(resolve(&bad).is_err());
+        assert!(resolve_transport("remarkable", "/X".into()).is_ok());
+        assert!(resolve_transport("supernote", "/X".into()).is_err());
     }
 }

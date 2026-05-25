@@ -33,7 +33,7 @@ pub use crypto::{open, seal, Key};
 pub use device::Device;
 pub use document::{DocKey, Document, Documents};
 pub use error::{Error, Result};
-pub use geometry::{DevicePoint, PageGeom, PdfPoint, PdfRect};
+pub use geometry::{DeviceConfig, DevicePoint, PageGeom, PdfPoint, PdfRect};
 pub use manifest::{Manifest, Region};
 pub use mode::Mode;
 pub use reconcile::{reconcile, DocOp};

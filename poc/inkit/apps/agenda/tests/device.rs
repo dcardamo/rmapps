@@ -1,6 +1,6 @@
-//! Manual on-device bars for the agenda app. Requires a paired reMarkable, an
-//! authenticated `rmapi`, and a deploy config: set `INKAPP_DEPLOY_CONFIG` to a
-//! `deploy.toml` with `backend = "remarkable"` and `folder = "/Agenda"`.
+//! Manual on-device bars for the agenda app. Requires a paired reMarkable and an
+//! authenticated `rmapi`. The transport is built here with the `remarkable`
+//! backend and the `/Agenda` folder.
 //!
 //!   1. publish the agenda to the device:
 //!      nix develop -c cargo test -p agenda --test device -- --ignored --nocapture publish_to_device
@@ -31,10 +31,14 @@ fn build_app() -> Framework<App, Msg, Connectors> {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi + INKAPP_DEPLOY_CONFIG"]
+#[ignore = "manual: requires a paired reMarkable + rmapi"]
 async fn publish_to_device() {
     let mut application = build_app();
-    inkapp::publish(&mut application).await.expect("publish");
+    let transport =
+        inkapp::resolve_transport("remarkable", "/Agenda".into()).expect("build transport");
+    inkapp::publish(&mut application, transport.as_ref())
+        .await
+        .expect("publish");
     eprintln!(
         "Published. On the tablet: open the agenda doc under /Agenda, mark the cancel box on an \
          event in the editable (lower) calendar, then SYNC the device. Then run `sync_from_device`."
@@ -42,9 +46,13 @@ async fn publish_to_device() {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi + INKAPP_DEPLOY_CONFIG; run after inking + syncing"]
+#[ignore = "manual: requires a paired reMarkable + rmapi; run after inking + syncing"]
 async fn sync_from_device() {
     let mut application = build_app();
-    inkapp::sync_once(&mut application).await.expect("sync");
+    let transport =
+        inkapp::resolve_transport("remarkable", "/Agenda".into()).expect("build transport");
+    inkapp::sync_once(&mut application, transport.as_ref())
+        .await
+        .expect("sync");
     eprintln!("Synced. A cancelled event is reflected on the editable calendar on re-push.");
 }

@@ -1,7 +1,7 @@
-//! Manual on-device bars. Requires a paired reMarkable, an authenticated `rmapi`,
-//! and a deploy config: set `INKAPP_DEPLOY_CONFIG` to a `deploy.toml` with
-//! `backend = "remarkable"` and `folder = "/ReadingQueue"`. Two steps, run as
-//! separate processes so inking happens out-of-band:
+//! Manual on-device bars. Requires a paired reMarkable and an authenticated
+//! `rmapi`. The transport is built here with the `remarkable` backend and the
+//! `/ReadingQueue` folder. Two steps, run as separate processes so inking happens
+//! out-of-band:
 //!
 //!   1. publish the queue to the device:
 //!      nix develop -c cargo test -p reading-queue --test device -- --ignored --nocapture publish_to_device
@@ -32,10 +32,14 @@ fn build_app() -> Framework<App, Msg, Connectors> {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi + INKAPP_DEPLOY_CONFIG"]
+#[ignore = "manual: requires a paired reMarkable + rmapi"]
 async fn publish_to_device() {
     let mut application = build_app();
-    inkapp::publish(&mut application).await.expect("publish");
+    let transport =
+        inkapp::resolve_transport("remarkable", "/ReadingQueue".into()).expect("build transport");
+    inkapp::publish(&mut application, transport.as_ref())
+        .await
+        .expect("publish");
     eprintln!(
         "Published. On the tablet: open the docs under /ReadingQueue, highlight a word in one \
          article and tick the Archive box in another, then SYNC the device. Then run \
@@ -44,10 +48,14 @@ async fn publish_to_device() {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi + INKAPP_DEPLOY_CONFIG; run after inking + syncing"]
+#[ignore = "manual: requires a paired reMarkable + rmapi; run after inking + syncing"]
 async fn sync_from_device() {
     let mut application = build_app();
-    inkapp::sync_once(&mut application).await.expect("sync");
+    let transport =
+        inkapp::resolve_transport("remarkable", "/ReadingQueue".into()).expect("build transport");
+    inkapp::sync_once(&mut application, transport.as_ref())
+        .await
+        .expect("sync");
     eprintln!(
         "Synced. Archived articles are deleted; highlights are baked into the bodies on re-push."
     );

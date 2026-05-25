@@ -20,7 +20,8 @@ pub use inkapp_core::single_flight::SingleFlight;
 pub use inkapp_core::{components, flow};
 
 mod deploy;
-pub use deploy::{publish, sync_once, DeployConfig};
+pub use deploy::{publish, resolve_transport, sync_once};
+pub use inkapp_core::geometry::DeviceConfig;
 pub use inkapp_core::sync::DeviceTransport;
 
 pub use rm_device::Remarkable;
