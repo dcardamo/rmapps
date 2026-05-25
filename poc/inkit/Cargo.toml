@@ -9,6 +9,7 @@ members = [
     "crates/inkapp-ics",
     "crates/inkapp-localcal",
     "crates/inkapp",
+    "crates/inkapp-content",
     "spikes/typst-readback",
     "apps/reading-queue",
     "apps/agenda",

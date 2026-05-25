@@ -2246,6 +2246,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "inkapp-content"
+version = "0.1.0"
+dependencies = [
+ "ego-tree",
+ "inkapp-core",
+ "scraper",
+ "sha2",
+]
+
+[[package]]
 name = "inkapp-core"
 version = "0.1.0"
 dependencies = [
@@ -2280,6 +2290,7 @@ version = "0.1.0"
 dependencies = [
  "agenda",
  "image",
+ "inkapp-content",
  "inkapp-core",
  "inkapp-ics",
  "inkapp-localcal",
@@ -3733,6 +3744,7 @@ name = "reading-queue"
 version = "0.1.0"
 dependencies = [
  "inkapp",
+ "inkapp-content",
  "inkapp-core",
  "inkapp-readwise-reader",
  "tokio",

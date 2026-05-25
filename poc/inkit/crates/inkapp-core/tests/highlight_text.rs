@@ -147,3 +147,41 @@ fn tokens_with_markup_chars_are_safe() {
         .collect();
     assert_eq!(toks.len(), 3, "all tokens recover despite markup chars");
 }
+
+#[test]
+fn highlighted_token_indices_reports_only_overlapped_highlighter() {
+    use inkapp_core::components::highlighted_token_indices;
+    use inkapp_core::geometry::PdfRect;
+    use inkapp_core::manifest::{Manifest, Region};
+
+    let manifest = Manifest {
+        regions: vec![Region {
+            name: "tok-1".into(),
+            page: 0,
+            rect: PdfRect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 20.0,
+                y1: 10.0,
+            },
+        }],
+        ..Default::default()
+    };
+    let hit = vec![RegionInk {
+        region: "tok-1".into(),
+        strokes: vec![Stroke {
+            points: vec![PdfPoint { x: 1.0, y: 1.0 }, PdfPoint { x: 19.0, y: 9.0 }],
+            highlighter: true,
+        }],
+    }];
+    assert_eq!(highlighted_token_indices(3, &hit, &manifest), vec![1]);
+
+    let pen = vec![RegionInk {
+        region: "tok-1".into(),
+        strokes: vec![Stroke {
+            points: vec![PdfPoint { x: 1.0, y: 1.0 }],
+            highlighter: false,
+        }],
+    }];
+    assert!(highlighted_token_indices(3, &pen, &manifest).is_empty());
+}

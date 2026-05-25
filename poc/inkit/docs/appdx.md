@@ -21,10 +21,18 @@
 > via the secret store, cassette mode retained for tests) backed by a reusable
 > **`inkapp-core::cache`** durable primitive — a `foyer` hybrid memory+disk cache with
 > sha256 integrity for content-addressed derived keys, giving warm-restart/offline
-> reads. **Pagination** (so apps never think in pages) and the **offline image
-> pipeline** (fetch → normalize → cache → serve images for `#image`, with a 1×1
-> placeholder fallback) are built; the **HTML→Typst content** half is the parallel
-> worktree that emits the `#image` calls feeding this pipeline.
+> reads, with **pagination** (so apps never think in pages) already built. Two
+> further halves now complete the reader and compose cleanly. The **HTML→Typst
+> article content pipeline** (`inkapp-content`) sanitizes Readwise `html_content`
+> and converts it to structured Typst — headings, bold/italic, links, lists,
+> blockquotes, code, figures — with per-token highlight regions, and its `Article`
+> component decodes highlighter ink into coalesced span strings, replacing
+> whitespace-split plaintext. The **offline image pipeline** fetches → normalizes
+> → caches → serves images for `#image` (with a 1×1 placeholder fallback). The two
+> meet at one seam: `Article` emits `#image("/assets/{key}.png")` and returns the
+> `(key, url)` pairs, where `key = sha256(url)[..16]` (`asset_key`/`asset_path` are
+> the single source of truth shared by both sides), and the image pipeline serves
+> exactly those keys.
 >
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
 > **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
