@@ -14,7 +14,7 @@ use inkapp_harness::fixtures::{GestureFixture, Source};
 use inkapp_harness::recording::{
     bootstrap_strokes, extract_fixture, render_template, CatalogEntry, PAGE_H,
 };
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 /// Load a committed gesture fixture by name from the harness fixtures dir.
 pub fn fixture(name: &str) -> GestureFixture {

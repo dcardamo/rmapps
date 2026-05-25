@@ -15,4 +15,4 @@ pub use inkapp_core::secrets::{Scope, SecretStore};
 pub use inkapp_core::single_flight::SingleFlight;
 pub use inkapp_core::{components, flow};
 
-pub use inkapp_remarkable::Remarkable;
+pub use rm_device::Remarkable;

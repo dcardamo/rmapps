@@ -12,7 +12,7 @@ use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::Manifest;
 use inkapp_core::readback::attribute;
 use inkapp_core::runtime::render_document_in;
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 /// The test app's messages. `Ord` so we can compare sets independent of order.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -2,7 +2,7 @@ use inkapp_core::manifest::recover_regions;
 use inkapp_core::region_metadata;
 use inkapp_core::render::compile_to_document;
 use inkapp_harness::simulator::{simulate, Gesture, Scenario};
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 #[test]
 fn stroke_in_region_is_read_back() {

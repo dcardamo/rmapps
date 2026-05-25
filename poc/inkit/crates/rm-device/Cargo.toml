@@ -1,5 +1,5 @@
 [package]
-name = "inkapp-remarkable"
+name = "rm-device"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"

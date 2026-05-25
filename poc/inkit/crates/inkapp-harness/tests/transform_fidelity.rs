@@ -5,7 +5,7 @@ use std::path::Path;
 use inkapp_core::device::Device;
 use inkapp_core::geometry::DevicePoint;
 use inkapp_harness::recording::{calibration_points, fit_scale, synth_calibration, PAGE_H};
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 use rm_files::Scene;
 
 use common::open_rmdoc;
@@ -89,7 +89,7 @@ fn transform_matches_calibration_within_tolerance() {
         let suggested = fit_scale(&expected_dev, &actual_dev);
         panic!(
             "transform error {max_err:.2}px exceeds tolerance {TOL}px. Gated adoption: \
-             refit and adopt constants in inkapp-remarkable (suggested uniform scale x{suggested:.4}), \
+             refit and adopt constants in rm-device (suggested uniform scale x{suggested:.4}), \
              regenerate goldens, record provenance, then re-run."
         );
     }

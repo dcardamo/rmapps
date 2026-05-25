@@ -8,7 +8,7 @@ use agenda::{update, view, App, Connectors, Msg};
 use inkapp_core::document::DocKey;
 use inkapp_core::ink::Stroke;
 use inkapp_core::runtime::{app, DocSet};
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 #[tokio::test]
 async fn agenda_cancel_marks_editable_event_only() {

@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/rm-files",
     "crates/inkapp-core",
-    "crates/inkapp-remarkable",
+    "crates/rm-device",
     "crates/inkapp-harness",
     "crates/inkapp-readwise-reader",
     "crates/inkapp-ics",

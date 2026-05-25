@@ -7,4 +7,4 @@ description = "inkapp facade: the app-authoring surface (core + default device)"
 
 [dependencies]
 inkapp-core = { path = "../inkapp-core" }
-inkapp-remarkable = { path = "../inkapp-remarkable" }
+rm-device = { path = "../rm-device" }

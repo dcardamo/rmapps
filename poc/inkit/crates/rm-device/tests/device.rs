@@ -1,7 +1,7 @@
 use inkapp_core::device::Device;
 use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::Stroke;
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 // A4 height in pt. The 0.5pt round-trip tolerance below is calibrated to this
 // page height: the f32 quantization error in `.rm` scene coordinates is

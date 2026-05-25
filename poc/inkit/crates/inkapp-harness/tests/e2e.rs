@@ -7,7 +7,7 @@ use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::manifest::recover_regions;
 use inkapp_core::render::compile_to_document;
 use inkapp_harness::simulator::{simulate, Gesture, Scenario};
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 const TOKENS: &[&str] = &["the", "quick", "brown", "fox", "lazy", "dog"];
 

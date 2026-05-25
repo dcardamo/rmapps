@@ -4,7 +4,7 @@ use inkapp_core::device::Device;
 use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::Stroke;
 use inkapp_harness::recording::{catalog, render_template, PAGE_H};
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 use common::{rmapi_mkdir, rmapi_put};
 

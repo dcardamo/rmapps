@@ -10,8 +10,8 @@ use inkapp_core::ink::Stroke;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::reconcile::DocOp;
 use inkapp_core::runtime::{app, document_source, DocSet};
-use inkapp_remarkable::Remarkable;
 use reading_queue::{update, view, App, Connectors, Msg};
+use rm_device::Remarkable;
 
 /// Union rect of the named regions (for placing a swipe across several tokens).
 /// App-loop-specific (multi-token swipe); the single-region/fixture/device-ink

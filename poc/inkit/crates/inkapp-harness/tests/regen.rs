@@ -1,7 +1,7 @@
 mod common;
 
 use inkapp_harness::recording::catalog;
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 use common::regen_fixture;
 

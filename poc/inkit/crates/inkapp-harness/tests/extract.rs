@@ -6,7 +6,7 @@ use inkapp_harness::fixtures::Tool;
 use inkapp_harness::recording::{
     bootstrap_strokes, catalog, extract_fixture, render_template, Source, BOXES_PER_GESTURE, PAGE_H,
 };
-use inkapp_remarkable::Remarkable;
+use rm_device::Remarkable;
 
 #[test]
 fn bootstrap_round_trip_yields_one_sample_per_box() {
