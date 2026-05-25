@@ -96,8 +96,14 @@ pub fn parse_doc_index(bytes: &[u8]) -> Result<Vec<FileEntry>> {
     let schema = lines
         .next()
         .ok_or_else(|| Error::Parse("empty doc index".into()))?;
-    if schema != "3" && schema != "4" {
-        return Err(Error::Parse(format!("unsupported doc schema {schema:?}")));
+    match schema {
+        // Schema 4 (what the device/app writes) carries a header line
+        // `0:<docId>:<count>:<size>` after the schema, like the root index. Skip it.
+        "4" => {
+            let _ = lines.next();
+        }
+        "3" => {}
+        other => return Err(Error::Parse(format!("unsupported doc schema {other:?}"))),
     }
     let mut out = Vec::new();
     for line in lines {
@@ -246,6 +252,23 @@ mod tests {
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].id, "x.content");
         assert_eq!(parsed[1].size, 7);
+    }
+
+    #[test]
+    fn parse_schema4_doc_index_with_header() {
+        // The real cloud returns per-doc indexes as schema 4 with a header line
+        // `0:<docId>:<count>:<size>` (verified against the live cloud), unlike rmapi's
+        // schema-3 writes. The reader must skip that header.
+        let raw = "4\n\
+            0:014e3cd9:2:8617\n\
+            e0f1:0:014e3cd9.content:0:8309\n\
+            4587:0:014e3cd9.metadata:0:308\n";
+        let parsed = parse_doc_index(raw.as_bytes()).unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].id, "014e3cd9.content");
+        assert_eq!(parsed[0].hash, "e0f1");
+        assert_eq!(parsed[1].id, "014e3cd9.metadata");
+        assert_eq!(parsed[1].size, 308);
     }
 
     #[test]

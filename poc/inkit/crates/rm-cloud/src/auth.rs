@@ -82,9 +82,14 @@ pub async fn refresh_user_token(
     if device_token.is_empty() {
         return Err(Error::MissingCredential("device_token"));
     }
+    // The user-token endpoint takes no body, but the cloud rejects a POST with no
+    // `Content-Length` (HTTP 411). reqwest omits the header for an empty body, so set it
+    // explicitly to 0.
     let resp = http
         .post(config.user_new())
         .bearer_auth(device_token)
+        .header(reqwest::header::CONTENT_LENGTH, "0")
+        .body(Vec::<u8>::new())
         .send()
         .await?;
     match resp.status() {

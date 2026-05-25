@@ -37,6 +37,23 @@ Default hosts: `auth = https://webapp-prod.cloud.remarkable.engineering`,
 `sync = https://internal.cloud.remarkable.com`. `rm-cloud` overrides them with
 `RM_CLOUD_HOST` (sets all hosts to one base — used to point at the fake cloud or a proxy).
 
+### Live-cloud requirements (verified against the production cloud)
+
+Three things the production cloud enforces that aren't obvious from the data model — each
+was found by running the live test suite, and each has a regression guard:
+
+- **User-token POST needs an explicit `Content-Length`.** `POST /token/json/2/user/new`
+  has no body, but the cloud returns **411 Length Required** unless `Content-Length: 0` is
+  sent explicitly (reqwest omits it for an empty body).
+- **Blob uploads must carry a CRC32C checksum.** `PUT /sync/v3/files/<hash>` is rejected
+  with **400 `{"message":"missing checksum"}`** unless it includes
+  `x-goog-hash: crc32c=<base64(big-endian CRC32C-Castagnoli of the body)>` (plus a
+  `content-type`). Downloads need no checksum.
+- **Per-doc indexes come back as schema 4 with a header line.** The device/app writes
+  per-doc indexes as schema `4` — `4\n0:<docId>:<count>:<size>\n` then the file lines —
+  not the schema `3` (no header) that rmapi's writer emits. The reader must accept both and
+  skip the v4 header for per-doc indexes exactly as for the root index.
+
 ### Auth
 
 - **Pairing.** POST a one-time 8-char code (from <https://my.remarkable.com/device/desktop/connect>)
