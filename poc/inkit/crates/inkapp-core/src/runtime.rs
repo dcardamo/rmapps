@@ -103,7 +103,8 @@ pub fn render_document_in<M>(
     geom: PageGeom,
 ) -> Result<RenderedDoc> {
     let src = document_source_in(doc, geom);
-    let compiled = compile_document_in(doc, geom)?;
+    let sources = collect_typst_sources(doc);
+    let compiled = crate::render::compile_to_document_with_sources(&src, &sources)?;
     let page_h = compiled
         .pages
         .first()
