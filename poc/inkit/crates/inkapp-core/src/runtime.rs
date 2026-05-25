@@ -653,7 +653,7 @@ mod theme_render_tests {
     }
 
     #[test]
-    fn rendering_is_deterministic() {
+    fn themed_source_is_deterministic() {
         // The PDF carries a sealed manifest whose AEAD nonce is fresh per `seal`
         // (an enforced crypto invariant — see `crypto::nonce_randomizes_output`),
         // so the *embedded* bytes are intentionally non-reproducible. The
