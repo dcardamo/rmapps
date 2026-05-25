@@ -60,20 +60,21 @@ impl<M> GestureAction<M> {
             return false;
         }
         // Non-highlighter strokes attributed to this region with a point inside
-        // the rect (the Checkbox two-stage filter), unioned into one bbox span so
-        // a multi-stroke scribble is handled as a single gesture.
+        // the rect (the Checkbox two-stage filter); union their bounding boxes so
+        // a multi-stroke scribble is handled as a single gesture. Highlighter
+        // strokes are excluded, so a highlight never triggers the action.
         let mut min_x = f64::INFINITY;
         let mut max_x = f64::NEG_INFINITY;
-        for p in ink
+        for bbox in ink
             .iter()
             .filter(|ri| ri.region == self.name)
             .flat_map(|ri| &ri.strokes)
             .filter(|s| !s.highlighter)
             .filter(|s| s.points.iter().any(|p| region.rect.contains(p.x, p.y)))
-            .flat_map(|s| &s.points)
+            .filter_map(|s| s.bbox())
         {
-            min_x = min_x.min(p.x);
-            max_x = max_x.max(p.x);
+            min_x = min_x.min(bbox.x0);
+            max_x = max_x.max(bbox.x1);
         }
         if min_x > max_x {
             return false; // no qualifying pen strokes

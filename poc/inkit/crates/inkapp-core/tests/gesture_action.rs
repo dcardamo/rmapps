@@ -66,6 +66,22 @@ fn no_fire_on_tap() {
 }
 
 #[test]
+fn no_fire_on_narrow_pen_stroke() {
+    let g = GestureAction::with_msg("title", "How CGI changed the web", M::Archived);
+    let manifest = manifest_with("title", TITLE_RECT);
+    // A short pen stroke spanning only ~30% of the 100pt-wide region — below the
+    // 0.6 strike threshold, so it must not fire.
+    let ink = region_ink(
+        false,
+        vec![PdfPoint { x: 40.0, y: 18.0 }, PdfPoint { x: 70.0, y: 18.0 }],
+    );
+    assert!(
+        g.decode(&ink, &manifest).is_empty(),
+        "a narrow pen stroke is not a strike"
+    );
+}
+
+#[test]
 fn no_fire_on_highlighter_swipe() {
     let g = GestureAction::with_msg("title", "How CGI changed the web", M::Archived);
     let manifest = manifest_with("title", TITLE_RECT);
