@@ -3320,6 +3320,7 @@ dependencies = [
  "inkapp",
  "inkapp-core",
  "inkapp-readwise-reader",
+ "rm-files",
  "tokio",
  "zip",
 ]
