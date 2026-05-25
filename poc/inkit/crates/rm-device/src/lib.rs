@@ -11,6 +11,9 @@ use inkapp_core::geometry::{DevicePoint, PdfPoint};
 use inkapp_core::ink::Stroke;
 use rm_files::{Pen, PenColor, Point, Scene, SceneItem};
 
+mod transport;
+pub use transport::RmCommand;
+
 /// reMarkable Paper Pro Move `.rm` stroke coordinate space (width/height).
 ///
 /// This is NOT the physical screen (1696×954, 16:9) nor the document canvas the

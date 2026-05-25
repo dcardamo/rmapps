@@ -8,3 +8,5 @@ description = "reMarkable Device implementation for inkapp (PDF<->scene transfor
 [dependencies]
 inkapp-core = { path = "../inkapp-core" }
 rm-files = { path = "../rm-files" }
+zip = "2"
+tempfile = "3"
