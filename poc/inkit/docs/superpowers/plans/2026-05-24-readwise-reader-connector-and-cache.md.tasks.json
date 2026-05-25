@@ -4,58 +4,58 @@
     {
       "id": 0,
       "subject": "Task 0: Pure crate rename inkapp-readwise → inkapp-readwise-reader",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Rename the crate with zero behavior change; whole workspace stays green.\n\n**Files:** git mv crates/inkapp-readwise → crates/inkapp-readwise-reader; package name; workspace member; connector name() → \"readwise-reader\"; dependents apps/reading-queue (Cargo + lib.rs + 3 tests) and crates/inkapp-harness (Cargo + tests/app_loop.rs).\n\n**Verify:** cargo test --workspace\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise-reader/Cargo.toml\",\"Cargo.toml\",\"crates/inkapp-readwise-reader/src/lib.rs\",\"apps/reading-queue/Cargo.toml\",\"apps/reading-queue/src/lib.rs\",\"apps/reading-queue/tests/banner.rs\",\"apps/reading-queue/tests/shared.rs\",\"apps/reading-queue/tests/app.rs\",\"crates/inkapp-harness/Cargo.toml\",\"crates/inkapp-harness/tests/app_loop.rs\"],\"verifyCommand\":\"cargo test --workspace\",\"acceptanceCriteria\":[\"no inkapp_readwise/inkapp-readwise references remain\",\"cargo test --workspace passes\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: inkapp-core::cache durable primitive (foyer + sha2)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Generic durable bounded keyed cache with sha256 integrity.\n\n**Files:** Create crates/inkapp-core/src/cache.rs; lib.rs (pub mod cache + re-export); error.rs (Cache variant); Cargo.toml (foyer 0.22 serde, sha2 0.10).\n\n**Verify:** cargo test -p inkapp-core cache::\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/cache.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/src/error.rs\",\"crates/inkapp-core/Cargo.toml\"],\"verifyCommand\":\"cargo test -p inkapp-core cache::\",\"acceptanceCriteria\":[\"bytes/json round-trip; miss=None\",\"identical content=identical Integrity\",\"derived_key stable & distinct\",\"values survive close+reopen\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Expand Article model, Location, Write variants, library()/feed()",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Rich Article (keep body+highlights, add fields #[serde(default)], derive Default), Location enum (+Default+as_str), Write {Move,Delete,Highlight}, ReaderConfig, library()/feed()/move_to/delete; keep queue()+cassette+reading-queue green.\n\n**Files:** crates/inkapp-readwise-reader/src/lib.rs; tests/model.rs.\n\n**Verify:** cargo test -p inkapp-readwise-reader model && cargo test --workspace\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise-reader/src/lib.rs\",\"crates/inkapp-readwise-reader/tests/model.rs\"],\"verifyCommand\":\"cargo test -p inkapp-readwise-reader model\",\"acceptanceCriteria\":[\"old cassette JSON still loads\",\"queue() back-compat\",\"library()/feed() filter by location\",\"move_to/delete enqueue+hide\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: FetchTransport seam + cache-backed refresh + overlay reconciliation",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** FetchTransport/Page + CassetteFetch; optional durable Cache; rewrite refresh() to page/dedupe/sort/cap → durable+warm cache; with_cache_hydrated; overlay reconciliation (spec §D) after the flight; partial-failure preserves warm cache; rename warm field cache_articles.\n\n**Files:** crates/inkapp-readwise-reader/src/lib.rs; tests/refresh.rs.\n\n**Verify:** cargo test -p inkapp-readwise-reader refresh && cargo test --workspace\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise-reader/src/lib.rs\",\"crates/inkapp-readwise-reader/tests/refresh.rs\"],\"verifyCommand\":\"cargo test -p inkapp-readwise-reader refresh\",\"acceptanceCriteria\":[\"multi-page paged/deduped/sorted desc\",\"per-collection cap\",\"fetch error preserves warm cache + Err\",\"warm restart via durable cache\",\"overlay entry pruned when server reflects it\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Live Reader API request/parse (pure) + HTTP transports",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** Pure build_list_url/highlight_body/parse_list/status_error + HttpFetch/HttpWrite over reqwest-middleware (v3 list/update/delete, v2 highlights); ConnectorError Auth+RateLimited.\n\n**Files:** Create crates/inkapp-readwise-reader/src/http.rs; lib.rs (mod http); crates/inkapp-core/src/connector.rs; Cargo.toml (reqwest 0.12 json, reqwest-middleware 0.4); tests/http.rs.\n\n**Verify:** cargo test -p inkapp-readwise-reader http && cargo test --workspace\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise-reader/src/http.rs\",\"crates/inkapp-readwise-reader/src/lib.rs\",\"crates/inkapp-core/src/connector.rs\",\"crates/inkapp-readwise-reader/Cargo.toml\",\"crates/inkapp-readwise-reader/tests/http.rs\"],\"verifyCommand\":\"cargo test -p inkapp-readwise-reader http\",\"acceptanceCriteria\":[\"list JSON parses → Vec<Article>+cursor\",\"list URL query correct\",\"highlight body matches v2 shape\",\"401→Auth, 429→RateLimited\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: live() constructor — SecretStore token, cache dir, config, retry",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Readwise::live(secrets,cache_dir,config): token from SecretStore (ConnectorCred \"readwise-reader\"); durable Cache; retrying reqwest-middleware client (reqwest-retry, 5); locations from config; HttpWrite lookup from warm cache; hydrate. Missing token → Auth.\n\n**Files:** crates/inkapp-readwise-reader/src/lib.rs; Cargo.toml (reqwest-retry 0.7); tests/live_ctor.rs.\n\n**Verify:** cargo test -p inkapp-readwise-reader live_ctor && cargo test --workspace\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise-reader/src/lib.rs\",\"crates/inkapp-readwise-reader/Cargo.toml\",\"crates/inkapp-readwise-reader/tests/live_ctor.rs\"],\"verifyCommand\":\"cargo test -p inkapp-readwise-reader live_ctor\",\"acceptanceCriteria\":[\"no token → Auth\",\"token → constructs\",\"locations from config incl feed\",\"client retries 429/5xx\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: pull example (offline warm-cache proof) + read-only live bar",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** examples/pull.rs: live refresh, print counts+titles, close, offline second pass hydrated from durable cache. tests/live.rs::live_readwise_reader #[ignore] read-only asserts non-empty. Add Readwise::close().\n\n**Files:** Create crates/inkapp-readwise-reader/examples/pull.rs, tests/live.rs; lib.rs (close()).\n\n**Verify (manual):** cargo build -p inkapp-readwise-reader --examples; with token: cargo run --example pull; cargo test --test live -- --ignored.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-readwise-reader/examples/pull.rs\",\"crates/inkapp-readwise-reader/tests/live.rs\",\"crates/inkapp-readwise-reader/src/lib.rs\"],\"verifyCommand\":\"cargo build -p inkapp-readwise-reader --examples\",\"acceptanceCriteria\":[\"pull example compiles & shows offline warm pass\",\"live bar #[ignore], read-only, asserts non-empty\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Mark built in docs/appdx.md",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** Record live readwise-reader connector + inkapp-core::cache primitive (foyer) as built; note pagination + content/image pipeline remain next worktrees.\n\n**Files:** docs/appdx.md.\n\n**Verify:** cargo test --workspace\n\n```json:metadata\n{\"files\":[\"docs/appdx.md\"],\"verifyCommand\":\"cargo test --workspace\",\"acceptanceCriteria\":[\"appdx notes live connector + Cache primitive built\",\"workspace tests green\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-24"
+  "lastUpdated": "2026-05-24T23:59:00Z"
 }
