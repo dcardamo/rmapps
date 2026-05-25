@@ -64,7 +64,6 @@ impl InkWorld {
         // Vendored reading fonts share the same book as the typst-assets defaults.
         for data in VENDORED_FONTS {
             let bytes = Bytes::new(data.to_vec());
-            // A single TTF/OTF file may contain multiple faces.
             for face in Font::iter(bytes) {
                 fonts.push(face);
             }
@@ -154,18 +153,19 @@ mod tests {
     }
 
     #[test]
-    fn vendored_body_font_in_book() {
+    fn vendored_fonts_in_book() {
         // The framework must embed the reading fonts so `#set text(font: ...)`
-        // resolves with no host font search. Newsreader is the reader() body face.
+        // resolves with no host font search. Check every vendored family.
         let world = InkWorld::new("hello");
-        let has_newsreader = world
-            .book()
-            .families()
-            .any(|(name, _)| name.eq_ignore_ascii_case("Newsreader"));
-        assert!(
-            has_newsreader,
-            "Newsreader must be in the embedded font book"
-        );
+        for family in ["Newsreader", "Fraunces", "Hanken Grotesk"] {
+            assert!(
+                world
+                    .book()
+                    .families()
+                    .any(|(n, _)| n.eq_ignore_ascii_case(family)),
+                "{family} must be in the embedded font book",
+            );
+        }
     }
 
     #[test]
