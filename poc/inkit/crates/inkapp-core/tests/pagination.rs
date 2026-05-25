@@ -64,3 +64,16 @@ fn flow_region_recovers_one_rect_per_frame() {
         "frames in page order: {pages:?}"
     );
 }
+
+#[test]
+fn orphaned_flow_end_errors() {
+    let src = r#"
+#set page(width: 200pt, height: 100pt, margin: 8pt)
+#context [#metadata((name: "p", role: "flow-end", page: here().position().page - 1, x: here().position().x / 1pt, y: here().position().y / 1pt)) <region>]
+"#;
+    let doc = inkapp_core::render::compile_to_document(src).unwrap();
+    assert!(
+        inkapp_core::manifest::recover_regions(&doc).is_err(),
+        "orphaned flow-end must error"
+    );
+}

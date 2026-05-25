@@ -141,6 +141,16 @@ pub fn recover_regions(doc: &PagedDocument) -> Result<Manifest> {
         }
     }
 
+    // Symmetric to the missing-end check: a flow-end with no matching flow-start would
+    // otherwise silently drop the region.
+    for name in flow_ends.keys() {
+        if !flow_starts.iter().any(|s| &s.name == name) {
+            return Err(Error::Region(format!(
+                "flow region '{name}' has an end marker but no start marker"
+            )));
+        }
+    }
+
     for start in flow_starts {
         let end = flow_ends.get(&start.name).ok_or_else(|| {
             Error::Region(format!("flow region '{}' has no end marker", start.name))
@@ -216,6 +226,10 @@ mod split_tests {
     fn three_pages_middle_is_full_height() {
         let rs = split_rects("p", 0, 10.0, 500.0, 50.0, 2, 20.0, &[560.0, 560.0, 560.0]).unwrap();
         assert_eq!(rs.len(), 3);
+        assert_eq!(
+            rs[0].rect,
+            typst_to_pdf_rect(10.0, 500.0, 50.0, 60.0, 560.0)
+        ); // start page: 500..560
         assert_eq!(rs[1].rect, typst_to_pdf_rect(10.0, 0.0, 50.0, 560.0, 560.0));
         assert_eq!(rs[2].rect, typst_to_pdf_rect(10.0, 0.0, 50.0, 20.0, 560.0));
     }
