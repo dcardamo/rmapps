@@ -734,8 +734,10 @@ Left (accepted, not rough):
 
 ## Secrets & config
 
-The framework manages a config/secrets store holding per-**user** secrets in three
-scopes:
+The framework manages **two** per-**user** stores under `$XDG_CONFIG_HOME/inkapp/`,
+with one rule between them: **config references secrets by name, never by value.**
+
+**`secrets.json`** (0600, machine-managed) holds secrets in three scopes:
 
 - **Per-connector credentials** — Readwise token, CalDAV login.
 - **Per-device auth** — reMarkable cloud auth, Supernote auth, etc.
@@ -743,6 +745,32 @@ scopes:
 
 *(Built: a file-backed `SecretStore` with these three scopes; the per-user key is
 minted on first use. Multi-user/cloud key management remains future — see below.)*
+
+**`config.toml`** (0644, hand-editable, shareable) holds every non-secret setting.
+It is **typed and app/connector-declared** via `#[derive(Config)]`, which registers a
+schema into a per-binary `inventory` registry the `config` CLI introspects. Sections
+are **namespaced and instanced** — `[connector.<kind>.<instance>]`,
+`[app.<kind>.<instance>]`, and framework `[page]` / `[device]` — so the same app can
+run multiple times with different config; the instance is chosen at launch
+(`--instance` / `$INKAPP_INSTANCE`). An app instance binds connector instances by
+explicit **`ConnectorRef`** (`"kind.instance"`); a **`SecretRef`** field names a
+secret in `secrets.json`. Config is read once at launch into an immutable snapshot
+(`ConfigStore`, path-overridable via `$INKAPP_CONFIG_PATH`).
+
+Editing surfaces: hand-edit the file, or the `config` CLI each app binary mounts
+(`path`, `template`, `describe`, `validate`, `get`, `set`, `edit`). An on-device
+config document is a future surface the registry already enables.
+
+**Deployment config lives here too.** The device backend and on-device target folder
+are config, not a separate file: the framework `[device].backend` section (resolved to
+a `DeviceTransport` by the facade's `resolve_transport`) plus each app instance's
+`device_folder` key. (This subsumes the earlier separate deployment-config file —
+see "On-device deployment" below.)
+
+*(Built — Spec #13: `inkapp-config` (`ConfigStore`, registry, `SecretRef`/`ConnectorRef`,
+CLI) + `inkapp-config-derive`; connectors gained `from_config`; `reading-queue` and
+`agenda` are wired from config — the agenda ICS feed URL now comes from config, closing
+the committed-fixture-only gap; the `[device]` section folds deployment config in.)*
 
 ## Scope & threat model
 
@@ -773,15 +801,17 @@ management and tenant-isolation mechanics are undesigned.
 ## On-device deployment is framework-provided
 
 On-device deployment is no longer per-app code. An app deploys with two
-device-agnostic calls — `inkapp::publish(&mut app)` and
-`inkapp::sync_once(&mut app)` — and the device backend plus target folder come
-from a `deploy.toml` (located via `INKAPP_DEPLOY_CONFIG`), resolved by the
-`inkapp` facade. The generic engine (`inkapp-core::sync`) drives any
-`DeviceTransport`; the reMarkable backend (`rm-device::RmTransport`, over an
-`rmapi` command seam) is today's only implementation. Adding a device family is a
-new `*-device` crate plus one `match` arm in the facade — apps and the engine are
-untouched. The old per-app `serve.rs` (duplicated across reading-queue and
-agenda) is gone.
+device-agnostic calls — `inkapp::publish(&mut app, transport)` and
+`inkapp::sync_once(&mut app, transport)`. The device backend plus target folder
+come from **`config.toml`** (see "Secrets & config"): the framework
+`[device].backend` section and the app instance's `device_folder` key. The app
+resolves them and asks the `inkapp` facade to build a transport —
+`resolve_transport(backend, folder)` — which it passes to `publish`/`sync_once`.
+The generic engine (`inkapp-core::sync`) drives any `DeviceTransport`; the
+reMarkable backend (`rm-device::RmTransport`, over an `rmapi` command seam) is
+today's only implementation. Adding a device family is a new `*-device` crate plus
+one `match` arm in `resolve_transport` — apps and the engine are untouched. The old
+per-app `serve.rs` (duplicated across reading-queue and agenda) is gone.
 
 ---
 
