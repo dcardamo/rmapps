@@ -10,7 +10,7 @@ use inkapp_core::error::{Error, Result};
 use inkapp_core::runtime::{App, Cycle, DocSet};
 use inkapp_core::sync::{self, DeviceTransport};
 
-use rm_device::RmTransport;
+use rm_device::CloudTransport;
 
 /// Env var naming the path to the deploy TOML.
 const CONFIG_ENV: &str = "INKAPP_DEPLOY_CONFIG";
@@ -52,7 +52,7 @@ impl DeployConfig {
 /// named; a new device family adds one arm and one `*-device` crate.
 fn resolve(cfg: &DeployConfig) -> Result<Box<dyn DeviceTransport>> {
     match cfg.backend.as_str() {
-        "remarkable" => Ok(Box::new(RmTransport::new(cfg.folder.clone()))),
+        "remarkable" => Ok(Box::new(CloudTransport::from_env(cfg.folder.clone())?)),
         other => Err(Error::Config(format!("unknown deploy backend {other:?}"))),
     }
 }
@@ -78,16 +78,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolve_known_and_unknown_backends() {
-        let ok = DeployConfig {
-            backend: "remarkable".into(),
-            folder: "/X".into(),
-        };
-        assert!(resolve(&ok).is_ok());
+    fn resolve_routes_known_and_rejects_unknown_backends() {
+        // An unknown backend is rejected with a clear config error.
         let bad = DeployConfig {
             backend: "supernote".into(),
             folder: "/X".into(),
         };
-        assert!(resolve(&bad).is_err());
+        match resolve(&bad) {
+            Err(e) => assert!(
+                e.to_string().contains("unknown deploy backend"),
+                "unexpected error: {e}"
+            ),
+            Ok(_) => panic!("an unknown backend must not resolve"),
+        }
+
+        // The known "remarkable" backend routes to the cloud transport. We assert
+        // routing (not a live connection): resolving may still fail downstream if
+        // no cloud credentials are present, but it must NOT be the unknown-backend
+        // error above.
+        let ok = DeployConfig {
+            backend: "remarkable".into(),
+            folder: "/X".into(),
+        };
+        if let Err(e) = resolve(&ok) {
+            assert!(
+                !e.to_string().contains("unknown deploy backend"),
+                "remarkable should be a known backend"
+            );
+        }
     }
 }

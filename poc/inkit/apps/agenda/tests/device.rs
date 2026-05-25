@@ -1,6 +1,7 @@
-//! Manual on-device bars for the agenda app. Requires a paired reMarkable, an
-//! authenticated `rmapi`, and a deploy config: set `INKAPP_DEPLOY_CONFIG` to a
-//! `deploy.toml` with `backend = "remarkable"` and `folder = "/Agenda"`.
+//! Manual on-device bars for the agenda app. Requires reMarkable cloud credentials
+//! in the environment (`RM_CLOUD_DEVICE_TOKEN`, or a valid `RM_CLOUD_USER_TOKEN`)
+//! and a deploy config: set `INKAPP_DEPLOY_CONFIG` to a `deploy.toml` with
+//! `backend = "remarkable"` and `folder = "/Agenda"`.
 //!
 //!   1. publish the agenda to the device:
 //!      nix develop -c cargo test -p agenda --test device -- --ignored --nocapture publish_to_device
@@ -31,7 +32,7 @@ fn build_app() -> Framework<App, Msg, Connectors> {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi + INKAPP_DEPLOY_CONFIG"]
+#[ignore = "manual: requires reMarkable cloud creds (RM_CLOUD_*) + INKAPP_DEPLOY_CONFIG"]
 async fn publish_to_device() {
     let mut application = build_app();
     inkapp::publish(&mut application).await.expect("publish");
@@ -42,7 +43,7 @@ async fn publish_to_device() {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi + INKAPP_DEPLOY_CONFIG; run after inking + syncing"]
+#[ignore = "manual: requires reMarkable cloud creds (RM_CLOUD_*) + INKAPP_DEPLOY_CONFIG; run after inking + syncing"]
 async fn sync_from_device() {
     let mut application = build_app();
     inkapp::sync_once(&mut application).await.expect("sync");

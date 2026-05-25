@@ -89,5 +89,6 @@ so a local transport could reuse most of it.
 republish loop, asserting incremental `Snapshot::diff` and content-only ink survival. This
 needs **no `rm-cloud` changes** (the public `Client` + `FakeCloud` compose); the
 inkapp-specific glue (a `CloudLoopHarness` + a gesture-fixture-to-`.rm` helper) lives in
-`inkapp-harness`, keeping `rm-cloud` app-agnostic. Brainstorm as a follow-up spec bundled
-with the `serve.rs` migration off the `rmapi` CLI, after `rm-cloud` ships.
+`inkapp-harness`, keeping `rm-cloud` app-agnostic. (The device transport itself has already
+migrated off the `rmapi` CLI to a native `rm-cloud`-backed `CloudTransport`; this remaining
+item is the higher-fidelity *loop test* on top of it.)

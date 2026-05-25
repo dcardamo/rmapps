@@ -40,6 +40,38 @@ pub struct DocFiles {
 }
 
 impl DocFiles {
+    /// Build a brand-new PDF document file-set: a fresh UUID, a `DocumentType`
+    /// `.metadata` (named `visible_name`, under `parent`), a minimal PDF `.content`,
+    /// and the `.pdf` blob. No `.rm` ink yet — the device adds those when the user
+    /// writes (and the `.content` page list, on first open). Later background swaps
+    /// go through [`Client::put_content_only`](crate::Client::put_content_only),
+    /// which preserves that ink (mechanics §1, §3).
+    ///
+    /// The `.content` carries only `fileType: "pdf"` (plus a format marker); the
+    /// device derives the page list from the PDF on open — a freshly deployed PDF
+    /// has a null page list until then (see `rm_files` content parsing).
+    pub fn new_pdf(visible_name: &str, parent: &str, pdf: Vec<u8>) -> Self {
+        let id = uuid::Uuid::new_v4().to_string();
+        let meta = Metadata {
+            visible_name: visible_name.to_string(),
+            doc_type: "DocumentType".to_string(),
+            parent: parent.to_string(),
+            last_modified: super::document::now_millis(),
+            deleted: false,
+            extra: Default::default(),
+        };
+        let content = br#"{"fileType":"pdf","formatVersion":1}"#.to_vec();
+        let files = vec![
+            (
+                format!("{id}.metadata"),
+                serde_json::to_vec(&meta).expect("serialize metadata"),
+            ),
+            (format!("{id}.content"), content),
+            (format!("{id}.pdf"), pdf),
+        ];
+        Self { id, files }
+    }
+
     /// Get a file's bytes by logical name.
     pub fn get(&self, name: &str) -> Option<&[u8]> {
         self.files

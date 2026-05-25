@@ -2,7 +2,6 @@
 
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
 
 use inkapp_core::crypto::Key;
 use inkapp_core::device::Device;
@@ -105,50 +104,77 @@ pub fn assert_golden(name: &str, png: &[u8]) {
     }
 }
 
-// ── rmapi helpers ──────────────────────────────────────────────────────────────
+// ── reMarkable cloud helpers (manual on-device bars) ─────────────────────────
+//
+// Back the `#[ignore]`d on-device tests. They talk to the real reMarkable cloud
+// via `rm-cloud` (credentials from `RM_CLOUD_DEVICE_TOKEN` / `RM_CLOUD_USER_TOKEN`),
+// replacing the old `rmapi` CLI shell-outs. Each builds a short-lived runtime
+// because the callers are synchronous `#[test]`s.
 
-/// `rmapi mkdir` — creates a single non-recursive directory level.
-/// Errors are silently swallowed because rmapi returns non-zero on an existing
-/// directory. Create each ancestor separately (mechanics doc §10).
-pub fn rmapi_mkdir(folder: &str) {
-    let _ = Command::new("rmapi")
-        .args(["-ni", "mkdir", folder])
-        .stdin(Stdio::null())
-        .status();
+/// A fresh tokio runtime for one blocking cloud call.
+fn cloud_rt() -> tokio::runtime::Runtime {
+    tokio::runtime::Runtime::new().expect("build tokio runtime")
 }
 
-/// `rmapi put --content-only <pdf> <folder>` — push a PDF to the device,
-/// preserving any on-device ink annotation bundle.
-pub fn rmapi_put(pdf_path: &Path, folder: &str) {
-    let ok = Command::new("rmapi")
-        .args([
-            "-ni",
-            "put",
-            "--content-only",
-            pdf_path.to_str().unwrap(),
-            folder,
-        ])
-        .stdin(Stdio::null())
-        .status()
-        .expect("spawn rmapi")
-        .success();
-    assert!(ok, "rmapi put failed for {}", pdf_path.display());
+/// A cloud client from the environment (panics with a clear message if creds are absent).
+fn cloud_client() -> rm_cloud::Client {
+    rm_cloud::Client::from_env()
+        .expect("RM_CLOUD_DEVICE_TOKEN or RM_CLOUD_USER_TOKEN must be set for on-device bars")
 }
 
-/// `rmapi mget <remote>` — recursively pull a remote *folder* into `dest_dir`.
-/// rmapi nests the download under a subdir named after the remote's basename
-/// (e.g. `mget /InkAppDev/fixtures` writes `<dest_dir>/fixtures/*.rmdoc`); callers
-/// that need a flat layout must move the files up. (Plain `get` is single-file
-/// only and errors on a folder, so folder pulls must use `mget`.)
-pub fn rmapi_mget(remote: &str, dest_dir: &Path) {
-    let ok = Command::new("rmapi")
-        .args(["-ni", "mget", remote])
-        .current_dir(dest_dir)
-        .stdin(Stdio::null())
-        .status()
-        .expect("spawn rmapi")
-        .success();
-    assert!(ok, "rmapi mget failed for {remote}");
+/// Ensure a folder path exists on the cloud (like `mkdir -p`); returns its id.
+/// Unlike the old `rmapi mkdir`, this creates every missing ancestor in one call.
+pub fn cloud_mkdir(folder: &str) -> String {
+    cloud_rt().block_on(async { cloud_client().mkdir_p(folder).await.expect("mkdir_p") })
+}
+
+/// Push a PDF to `folder` as a document named after the file stem, preserving any
+/// on-device ink (a content-only PDF-blob swap when the doc already exists; a new
+/// document otherwise).
+pub fn cloud_put(pdf_path: &Path, folder: &str) {
+    let name = pdf_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .expect("utf-8 pdf stem")
+        .to_string();
+    let pdf = std::fs::read(pdf_path).expect("read pdf");
+    cloud_rt().block_on(async {
+        let client = cloud_client();
+        let folder_id = client.mkdir_p(folder).await.expect("mkdir_p");
+        let existing = client
+            .ls(&folder_id)
+            .await
+            .expect("ls")
+            .into_iter()
+            .find(|e| !e.is_folder && e.name == name);
+        match existing {
+            Some(e) => client
+                .put_content_only(&e.id, pdf)
+                .await
+                .expect("put_content_only"),
+            None => client
+                .put(rm_cloud::DocFiles::new_pdf(&name, &folder_id, pdf))
+                .await
+                .expect("put"),
+        }
+    });
+}
+
+/// Pull every document under `folder` into `dest_dir` as `<visibleName>.rmdoc`.
+/// Replaces `rmapi mget`; the cloud has no folder-nesting quirk, so files land flat.
+pub fn cloud_mget(folder: &str, dest_dir: &Path) {
+    cloud_rt().block_on(async {
+        let client = cloud_client();
+        let folder_id = client.mkdir_p(folder).await.expect("mkdir_p");
+        for entry in client.ls(&folder_id).await.expect("ls") {
+            if entry.is_folder {
+                continue;
+            }
+            let df = client.get(&entry.id).await.expect("get");
+            let path = dest_dir.join(format!("{}.rmdoc", entry.name));
+            df.write_rmdoc(&path).expect("write_rmdoc");
+        }
+    });
 }
 
 /// Regenerate a gesture fixture from its real recording if present, else from

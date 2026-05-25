@@ -28,12 +28,14 @@ An uploaded PDF on reMarkable is a set of files keyed by a document UUID:
 Because they're independent files keyed differently, you can replace the PDF
 backgrounds without touching the ink, and vice-versa.
 
-## 3. `rmapi put --content-only` = pure PDF-blob swap
+## 3. Content-only update = pure PDF-blob swap
 
-From rmapi's source (`ReplaceDocumentFile` in `api/sync15/apictx.go`): it finds the
-document's `.pdf` file entry, uploads the **new PDF blob**, updates that entry's
-hash/size, rehashes, and re-uploads the doc index. **It never writes `.content` or any
-`.rm`.** Consequences, all verified on-device:
+A content-only update finds the document's `.pdf` file entry, uploads the **new PDF
+blob**, updates that entry's hash/size, rehashes, and re-uploads the doc index. **It
+never writes `.content` or any `.rm`.** inkapp does this natively via
+`rm_cloud::Client::put_content_only` (the same mechanic the now-retired `rmapi
+put --content-only` implemented in its `ReplaceDocumentFile`). Consequences, all
+verified on-device:
 
 - Annotations and page order (incl. user-inserted pages) are **preserved
   byte-for-byte**; only the PDF backing changes.
@@ -96,26 +98,28 @@ rarely needed.)
 ## 9. Sync ordering / conflicts
 
 A content-only push only rewrites the `.pdf` blob — a *different file* from your `.rm`
-ink and `.content`. rmapi fetches the current cloud hash-tree before modifying (the
-"remote tree has changed, refresh" messages) and handles cloud-side generation
-conflicts. The discipline: **sync the device → run rmbujo → sync the device**, so the
-tablet's edits reach the cloud *before* the push (rmapi can't see un-synced device
-changes). No manual download-first is needed on our side.
+ink and `.content`. The `rm-cloud` client fetches the current root snapshot before
+committing and resolves cloud-side generation conflicts by rebasing on a 412
+(compare-and-swap on the root generation). The discipline: **sync the device → run the
+app → sync the device**, so the tablet's edits reach the cloud *before* the push (the
+cloud can't see un-synced device changes). No manual download-first is needed on our side.
 
-## 10. rmapi gotchas
+## 10. Transport notes (native `rm-cloud` client)
 
-- **v4 cloud break:** stock rmapi 0.0.32/0.0.33 fails (HTTP 400 on the `rm-filename`
-  header) against the post-2026-05-18 v4 cloud. Fixed by patch (PR #63/#65); rmbujo
-  vendors `nix/overlays/rmapi.nix` until nixpkgs ships the fix.
-- **`mkdir` is not recursive** — create each ancestor folder (`/base`, then
-  `/base/2027`).
-- **Token-clobber:** rmapi can zero its own conf on a transient failure or empty-stdin
-  auth prompt. Pass `-ni` to non-pairing calls; never feed empty stdin; snapshot the
-  conf after pairing.
-- **`put` (no flag)** assigns a fresh UUID = new document; use `--content-only`
-  (preserve annotations) or `--force` (replace, drops annotations).
-- Official-cloud pairing needs a one-time code from
-  <https://my.remarkable.com/device/desktop/connect>.
+inkapp speaks the reMarkable cloud protocol directly via the pure-Rust `rm-cloud`
+crate — there is no `rmapi` CLI dependency. The protocol facts that shaped its design:
+
+- **`mkdir` is not recursive at the protocol level** — each folder is its own document
+  with a `parent` id, so a path is created one level at a time. `rm_cloud::Client::mkdir_p`
+  walks the path and creates each missing ancestor.
+- **A new document gets a fresh UUID.** `Client::put` of a freshly built `DocFiles`
+  (e.g. `DocFiles::new_pdf`) creates a new document; the ink-preserving update is
+  `put_content_only` (swap the `.pdf` blob only — see §3).
+- **Auth** is by device/user token (`RM_CLOUD_DEVICE_TOKEN` / `RM_CLOUD_USER_TOKEN`);
+  the device token is minted once via the one-time code at
+  <https://my.remarkable.com/device/desktop/connect>. The user token is refreshed
+  automatically from the device token. Tokens live in the environment, not a CLI conf
+  file, so there is no token-clobber failure mode.
 
 ## 11. Determinism
 

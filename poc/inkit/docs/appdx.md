@@ -777,11 +777,11 @@ device-agnostic calls — `inkapp::publish(&mut app)` and
 `inkapp::sync_once(&mut app)` — and the device backend plus target folder come
 from a `deploy.toml` (located via `INKAPP_DEPLOY_CONFIG`), resolved by the
 `inkapp` facade. The generic engine (`inkapp-core::sync`) drives any
-`DeviceTransport`; the reMarkable backend (`rm-device::RmTransport`, over an
-`rmapi` command seam) is today's only implementation. Adding a device family is a
-new `*-device` crate plus one `match` arm in the facade — apps and the engine are
-untouched. The old per-app `serve.rs` (duplicated across reading-queue and
-agenda) is gone.
+`DeviceTransport`; the reMarkable backend (`rm-device::CloudTransport`, backed
+natively by the pure-Rust `rm-cloud` client — no `rmapi` CLI) is today's only
+implementation. Adding a device family is a new `*-device` crate plus one `match`
+arm in the facade — apps and the engine are untouched. The old per-app `serve.rs`
+(duplicated across reading-queue and agenda) is gone.
 
 ---
 

@@ -78,6 +78,28 @@ impl Client {
         Ok(out)
     }
 
+    /// Resolve a slash-separated folder path to its folder id, creating any missing
+    /// segments along the way (like `mkdir -p`). A leading slash is optional; an empty
+    /// path (or `"/"`) resolves to the root (`""`). Each segment is matched
+    /// case-sensitively against existing `CollectionType` children. This is the
+    /// path→id bridge for callers that think in rmapi-style paths (e.g. a device
+    /// transport deploying under `/ReadingQueue`).
+    pub async fn mkdir_p(&self, path: &str) -> Result<String> {
+        let mut parent = String::new();
+        for segment in path.split('/').filter(|s| !s.is_empty()) {
+            let existing = self
+                .ls(&parent)
+                .await?
+                .into_iter()
+                .find(|e| e.is_folder && e.name == segment);
+            parent = match existing {
+                Some(e) => e.id,
+                None => self.mkdir(segment, &parent).await?,
+            };
+        }
+        Ok(parent)
+    }
+
     /// Create a folder under `parent`; returns the new folder id.
     pub async fn mkdir(&self, name: &str, parent: &str) -> Result<String> {
         let id = Uuid::new_v4().to_string();

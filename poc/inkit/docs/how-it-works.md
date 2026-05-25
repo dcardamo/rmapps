@@ -10,7 +10,7 @@ inkapp is built around one repeating cycle:
   │  Render (Typst)                                        │
   │    │  Produces a PDF with embedded manifest            │
   │    ▼                                                   │
-  │  Sync to device  (rmapi / device abstraction)          │
+  │  Sync to device  (rm-cloud / device abstraction)       │
   │    │  PDF lands on reMarkable (or Supernote, etc.)     │
   │    ▼                                                   │
   │  User reads and writes with the pen                    │
@@ -59,8 +59,8 @@ state and layout are always in sync.
 
 ### 3. Sync to device
 
-The document is pushed to the device via `rmapi` (for reMarkable) or the equivalent
-device-specific transport. The framework abstracts the transport behind a sync trait, so
+The document is pushed to the device via the native `rm-cloud` client (for reMarkable) or the
+equivalent device-specific transport. The framework abstracts the transport behind a sync trait, so
 the same handler code works across devices. See
 [remarkable-pdf-mechanics.md](remarkable-pdf-mechanics.md) for device-level sync rules
 (content-only updates, the leading-page-index invariant, annotation preservation).

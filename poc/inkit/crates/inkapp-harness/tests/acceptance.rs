@@ -6,7 +6,7 @@ use inkapp_core::ink::Stroke;
 use inkapp_harness::recording::{catalog, render_template, PAGE_H};
 use rm_device::Remarkable;
 
-use common::{rmapi_mkdir, rmapi_put};
+use common::{cloud_mkdir, cloud_put};
 
 const ACCEPTANCE_FOLDER: &str = "/InkAppDev/acceptance";
 
@@ -40,11 +40,11 @@ fn writes_and_pushes_rm() {
     let path = dir.path().join("acceptance.pdf");
     std::fs::write(&path, &pdf).unwrap();
 
-    rmapi_mkdir("/InkAppDev");
-    rmapi_mkdir(ACCEPTANCE_FOLDER);
-    rmapi_put(&path, ACCEPTANCE_FOLDER);
+    cloud_mkdir("/InkAppDev");
+    cloud_mkdir(ACCEPTANCE_FOLDER);
+    cloud_put(&path, ACCEPTANCE_FOLDER);
     // NOTE: the sideload step below is a MANUAL operator action — this test cannot do it
-    // automatically because rmapi content-only push carries the PDF only, not .rm bundles.
+    // automatically because the content-only push carries the PDF only, not .rm bundles.
     eprintln!(
         "pushed acceptance PDF to {ACCEPTANCE_FOLDER}; wrote the framework-generated .rm to {}.\n\
          content-only push carries the PDF only — to verify the WRITTEN .rm renders, MANUALLY \

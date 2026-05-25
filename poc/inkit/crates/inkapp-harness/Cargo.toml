@@ -20,6 +20,9 @@ rm-device = { path = "../rm-device" }
 # rm-files is needed by the transform-fidelity test to read raw device coords
 # from a synthesized .rm capture and measure centroid error directly.
 rm-files = { path = "../rm-files" }
+# rm-cloud backs the manual on-device bars (acceptance/record) that push and pull
+# documents to/from the reMarkable cloud.
+rm-cloud = { path = "../rm-cloud" }
 zip = "2"
 tempfile = "3"
 reading-queue = { path = "../../apps/reading-queue" }

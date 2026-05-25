@@ -58,3 +58,7 @@ required-features = ["fake"]
 [[test]]
 name = "fake_sync"
 required-features = ["fake"]
+
+[[test]]
+name = "fake_paths"
+required-features = ["fake"]
