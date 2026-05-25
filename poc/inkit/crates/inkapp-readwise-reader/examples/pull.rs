@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use inkapp_config::SecretRef;
 use inkapp_core::connector::Connector;
 use inkapp_core::secrets::SecretStore;
 use inkapp_readwise_reader::{ReaderConfig, Readwise};
@@ -14,7 +15,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache_dir = std::env::temp_dir().join("inkapp-readwise-reader-pull");
 
     // Pass 1: live refresh.
-    let rw = Readwise::live(&store, &cache_dir, ReaderConfig::default()).await?;
+    let cfg = ReaderConfig {
+        token: SecretRef("readwise-reader".into()),
+        ..Default::default()
+    };
+    let rw = Readwise::from_config(cfg, &store, &cache_dir).await?;
     rw.refresh().await?;
     println!(
         "LIVE  feed={} library={}",

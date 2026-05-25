@@ -5,7 +5,7 @@
 //! Writes (move / delete / add highlight) update an optimistic overlay AND
 //! enqueue a durable write that `flush` pushes through a `WriteTransport` with
 //! retry. The default transports are cassette/no-op (no live account); live
-//! transports are wired by `live()` and exercised by a manual `#[ignore]` bar.
+//! transports are wired by `from_config()` and exercised by a manual `#[ignore]` bar.
 
 pub mod http;
 
@@ -231,24 +231,25 @@ impl WriteTransport for ScriptedTransport {
     }
 }
 
-/// Which locations make up the Library view, and per-collection caps.
-#[derive(Debug, Clone)]
+/// Which locations make up the Library view, per-collection caps, and the token.
+#[derive(Debug, Clone, serde::Deserialize, inkapp_config::Config)]
+#[serde(default)]
+#[config(kind = "readwise", namespace = "connector")]
 pub struct ReaderConfig {
+    /// Reader API token (name in the secret store).
+    pub token: inkapp_config::SecretRef,
+    /// Reader locations that make up the Library view, in order.
+    #[config(default = vec![Location::New, Location::Later, Location::Shortlist])]
     pub library_locations: Vec<Location>,
+    /// Maximum number of Library articles to keep.
+    #[config(default = 100)]
     pub library_max: usize,
+    /// Whether to include the Feed collection.
+    #[config(default = true)]
     pub feed_enabled: bool,
+    /// Maximum number of Feed articles to keep.
+    #[config(default = 100)]
     pub feed_max: usize,
-}
-
-impl Default for ReaderConfig {
-    fn default() -> Self {
-        Self {
-            library_locations: vec![Location::New, Location::Later, Location::Shortlist],
-            library_max: 100,
-            feed_enabled: true,
-            feed_max: 100,
-        }
-    }
 }
 
 /// The connector. Reads come from the warm `RwLock` cache (populated by
@@ -282,7 +283,7 @@ impl Readwise {
             fetch: Arc::new(CassetteFetch { source }),
             cache: None,
             // Single source of truth: derive the default refresh locations from
-            // the default config, so `build()` and `live()` can't drift.
+            // the default config, so `build()` and `from_config()` can't drift.
             locations: Self::locations_from(&ReaderConfig::default()),
             overlay: Mutex::new(overlay),
             persist_path,
@@ -541,22 +542,25 @@ impl Readwise {
         v
     }
 
-    /// Assemble a live connector: token from the secret store, durable cache,
-    /// retrying HTTP read+write transports.
+    /// Assemble a live connector from typed config: token resolved from the secret
+    /// store by name, durable cache under `cache_dir`, retrying HTTP transports.
     ///
-    /// Returns `ConnectorError::Auth` when the `readwise-reader` token is absent.
-    pub async fn live(
+    /// Returns `ConnectorError::Auth` when the configured token name is absent.
+    pub async fn from_config(
+        cfg: ReaderConfig,
         secrets: &inkapp_core::secrets::SecretStore,
         cache_dir: impl Into<PathBuf>,
-        config: ReaderConfig,
     ) -> Result<Self, ConnectorError> {
         use inkapp_core::secrets::Scope;
 
+        if cfg.token.is_empty() {
+            return Err(ConnectorError::Auth("no readwise token configured".into()));
+        }
         let raw_token = secrets
-            .get(Scope::ConnectorCred, "readwise-reader")
+            .get(Scope::ConnectorCred, cfg.token.name())
             .map_err(|e| ConnectorError::Auth(e.to_string()))?
             .ok_or_else(|| {
-                ConnectorError::Auth("no readwise-reader token in secret store".into())
+                ConnectorError::Auth(format!("secret '{}' not in store", cfg.token.name()))
             })?;
         let token =
             String::from_utf8(raw_token).map_err(|e| ConnectorError::Auth(e.to_string()))?;
@@ -571,8 +575,7 @@ impl Readwise {
         let fetch = Arc::new(crate::http::HttpFetch::new(client.clone(), token.clone()));
 
         let mut me = Readwise::build(Vec::new(), Overlay::default(), None);
-        me.locations = Self::locations_from(&config);
-        me.config = config;
+        me.locations = Self::locations_from(&cfg);
         me.fetch = fetch;
 
         // Write transport needs to look up cached articles for highlight metadata.
@@ -581,6 +584,7 @@ impl Readwise {
             warm.read().unwrap().iter().find(|a| &a.id == id).cloned()
         });
         me.transport = Arc::new(crate::http::HttpWrite::new(client, token, lookup));
+        me.config = cfg;
 
         Ok(me.with_cache_hydrated(cache).await)
     }
@@ -595,7 +599,11 @@ impl Readwise {
         use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(5);
-        ClientBuilder::new(reqwest::Client::new())
+        let inner = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("reqwest client builds (TLS backend init)");
+        ClientBuilder::new(inner)
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
             .build()
     }

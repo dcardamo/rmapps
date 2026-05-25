@@ -1,3 +1,4 @@
+use inkapp_config::SecretRef;
 use inkapp_core::connector::Connector;
 use inkapp_core::secrets::SecretStore;
 use inkapp_readwise_reader::{ReaderConfig, Readwise};
@@ -7,7 +8,11 @@ use inkapp_readwise_reader::{ReaderConfig, Readwise};
 async fn live_readwise_reader() {
     let store = SecretStore::open_default().expect("secret store");
     let cache_dir = std::env::temp_dir().join("inkapp-readwise-reader-livetest");
-    let rw = Readwise::live(&store, &cache_dir, ReaderConfig::default())
+    let cfg = ReaderConfig {
+        token: SecretRef("readwise-reader".into()),
+        ..Default::default()
+    };
+    let rw = Readwise::from_config(cfg, &store, &cache_dir)
         .await
         .expect("live ctor");
     rw.refresh().await.expect("refresh");
