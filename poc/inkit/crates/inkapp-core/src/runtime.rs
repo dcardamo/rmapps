@@ -83,7 +83,6 @@ pub fn document_source<M>(doc: &Document<M>) -> String {
 /// order with the theme available on the `RenderCx`.
 pub fn document_source_in<M>(doc: &Document<M>, env: impl Into<RenderEnv>) -> String {
     let env = env.into();
-    let mut cx = RenderCx::new(0).with_theme(env.theme.clone());
     let mut src = String::new();
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));
@@ -92,6 +91,7 @@ pub fn document_source_in<M>(doc: &Document<M>, env: impl Into<RenderEnv>) -> St
         Some(p) => format!(", fill: {p}"),
         None => String::new(),
     };
+    let mut cx = RenderCx::new(0).with_theme(env.theme);
     src.push_str(&format!(
         "#set page(width: {}pt, height: {}pt, margin: {}pt{})\n#set text(size: 12pt)\n",
         env.geom.w, env.geom.h, env.geom.margin, fill
