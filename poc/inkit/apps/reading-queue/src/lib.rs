@@ -10,7 +10,7 @@ use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::components::notice::Notice;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
-use inkapp_readwise::{Article, ArticleId, Readwise};
+use inkapp_readwise_reader::{Article, ArticleId, Readwise};
 use std::sync::Arc;
 
 use inkapp_core::connector::{Connector, ConnectorSet};

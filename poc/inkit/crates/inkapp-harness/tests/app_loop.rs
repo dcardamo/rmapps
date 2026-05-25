@@ -94,7 +94,7 @@ async fn reading_queue_loop_highlight_archive_preserve() {
     );
     assert!(
         cycle.decoded.contains(&Msg::Archived {
-            article: inkapp_readwise::ArticleId::new("a2")
+            article: inkapp_readwise_reader::ArticleId::new("a2")
         }),
         "decoded an archive on a2: {:?}",
         cycle.decoded
@@ -103,12 +103,12 @@ async fn reading_queue_loop_highlight_archive_preserve() {
     // Connector recorded both; a2 archived -> Delete(a2).
     assert_eq!(
         application.connectors.readwise.archived(),
-        vec![inkapp_readwise::ArticleId::new("a2")]
+        vec![inkapp_readwise_reader::ArticleId::new("a2")]
     );
     assert!(!application
         .connectors
         .readwise
-        .highlights(&inkapp_readwise::ArticleId::new("a1"))
+        .highlights(&inkapp_readwise_reader::ArticleId::new("a1"))
         .is_empty());
     assert!(cycle.ops.contains(&DocOp::Delete(y.clone())));
 

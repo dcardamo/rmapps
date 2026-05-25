@@ -5,7 +5,7 @@ members = [
     "crates/inkapp-core",
     "crates/inkapp-remarkable",
     "crates/inkapp-harness",
-    "crates/inkapp-readwise",
+    "crates/inkapp-readwise-reader",
     "crates/inkapp-ics",
     "crates/inkapp-localcal",
     "crates/inkapp",

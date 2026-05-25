@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use inkapp::{document_source, render_document, Key};
 use inkapp_core::connector::Connector;
-use inkapp_readwise::{Readwise, ScriptedTransport, MAX_ATTEMPTS};
+use inkapp_readwise_reader::{Readwise, ScriptedTransport, MAX_ATTEMPTS};
 use reading_queue::{view, App, Connectors};
 
 #[tokio::test]

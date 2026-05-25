@@ -1,4 +1,4 @@
-use inkapp_readwise::Readwise;
+use inkapp_readwise_reader::Readwise;
 
 #[test]
 fn overlay_persists_across_instances() {

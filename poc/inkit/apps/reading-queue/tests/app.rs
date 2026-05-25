@@ -2,7 +2,7 @@ use inkapp_core::component::Component;
 use inkapp_core::geometry::{PdfPoint, PdfRect};
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::{Manifest, Region};
-use inkapp_readwise::ArticleId;
+use inkapp_readwise_reader::ArticleId;
 use reading_queue::{update, view, App, ArticleBody, Checkbox, Connectors, Msg};
 
 #[test]
@@ -69,7 +69,7 @@ fn view_is_one_document_per_article() {
 
 #[test]
 fn article_body_decodes_highlight_to_msg() {
-    use inkapp_readwise::Article;
+    use inkapp_readwise_reader::Article;
 
     let article = Article {
         id: ArticleId::new("a1"),

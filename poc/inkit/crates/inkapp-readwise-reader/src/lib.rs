@@ -291,7 +291,7 @@ impl Readwise {
 #[async_trait::async_trait]
 impl Connector for Readwise {
     fn name(&self) -> &str {
-        "readwise"
+        "readwise-reader"
     }
 
     async fn refresh(&self) -> Result<(), ConnectorError> {

@@ -23,7 +23,7 @@ rm-files = { path = "../rm-files" }
 zip = "2"
 tempfile = "3"
 reading-queue = { path = "../../apps/reading-queue" }
-inkapp-readwise = { path = "../inkapp-readwise" }
+inkapp-readwise-reader = { path = "../inkapp-readwise-reader" }
 agenda = { path = "../../apps/agenda" }
 inkapp-ics = { path = "../inkapp-ics" }
 inkapp-localcal = { path = "../inkapp-localcal" }

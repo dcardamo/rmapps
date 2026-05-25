@@ -2,7 +2,7 @@
 //! the committed cassette so tests run on real-shaped data.
 //!
 //! Run:
-//!   READWISE_TOKEN=xxxx nix develop -c cargo test -p inkapp-readwise --test refresh -- --ignored refresh_cassette
+//!   READWISE_TOKEN=xxxx nix develop -c cargo test -p inkapp-readwise-reader --test refresh -- --ignored refresh_cassette
 //!
 //! Reads the token from READWISE_TOKEN (the operator's rmreader credential),
 //! fetches the reading list via `curl`, and rewrites fixtures/cassette/articles.json.

@@ -1,9 +1,9 @@
 [package]
-name = "inkapp-readwise"
+name = "inkapp-readwise-reader"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Cassette-backed Readwise connector for inkapp (committed real-shaped data + working overlay)"
+description = "Readwise Reader connector for inkapp: live sync + durable cache (cassette mode for tests)"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

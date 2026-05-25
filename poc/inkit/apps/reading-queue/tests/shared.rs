@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use inkapp_readwise::Readwise;
+use inkapp_readwise_reader::Readwise;
 use reading_queue::Connectors;
 
 #[test]

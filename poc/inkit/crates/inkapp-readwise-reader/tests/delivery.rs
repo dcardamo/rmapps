@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use inkapp_core::connector::Connector;
-use inkapp_readwise::{Readwise, ScriptedTransport, MAX_ATTEMPTS};
+use inkapp_readwise_reader::{Readwise, ScriptedTransport, MAX_ATTEMPTS};
 
 #[tokio::test]
 async fn refresh_is_ok_and_keeps_queue_warm() {
