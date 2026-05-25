@@ -12,6 +12,22 @@ use inkapp_core::connector::{Connector, ConnectorSet};
 use inkapp_ics::IcsConnector;
 use inkapp_localcal::LocalCal;
 
+/// The agenda app's own config section.
+#[derive(Debug, Clone, serde::Deserialize, inkapp_config::Config)]
+#[serde(default)]
+#[config(kind = "agenda", namespace = "app")]
+pub struct AppConfig {
+    /// On-device folder path for this instance's documents (device-neutral).
+    #[config(default = String::from("/Agenda"))]
+    pub device_folder: String,
+    /// ICS feed connector instance ("ics.<instance>").
+    #[config(default = inkapp_config::ConnectorRef { kind: "ics".into(), instance: "main".into() })]
+    pub feed: inkapp_config::ConnectorRef,
+    /// Local calendar connector instance ("localcal.<instance>").
+    #[config(default = inkapp_config::ConnectorRef { kind: "localcal".into(), instance: "main".into() })]
+    pub cal: inkapp_config::ConnectorRef,
+}
+
 /// No own state: the events live in the connectors.
 pub struct App;
 
@@ -42,6 +58,24 @@ impl Connectors {
             feed: Arc::new(IcsConnector::from_fixture()),
             cal: Arc::new(LocalCal::persisted(path)),
         }
+    }
+
+    /// Build both connectors from config: resolve the bound ICS + localcal
+    /// instances (erroring if either binding names a missing instance) and
+    /// construct each from its resolved config.
+    pub fn from_config(
+        store: &inkapp_config::ConfigStore,
+        app: &AppConfig,
+    ) -> Result<Self, inkapp_config::ConfigError> {
+        use inkapp_config::Namespace;
+        store.require_instance(Namespace::Connector, &app.feed.kind, &app.feed.instance)?;
+        store.require_instance(Namespace::Connector, &app.cal.kind, &app.cal.instance)?;
+        let ics_cfg: inkapp_ics::IcsConfig = store.resolve(&app.feed.instance)?;
+        let cal_cfg: inkapp_localcal::LocalCalConfig = store.resolve(&app.cal.instance)?;
+        Ok(Self {
+            feed: Arc::new(IcsConnector::from_config(&ics_cfg)),
+            cal: Arc::new(LocalCal::from_config(&cal_cfg)?),
+        })
     }
 }
 
