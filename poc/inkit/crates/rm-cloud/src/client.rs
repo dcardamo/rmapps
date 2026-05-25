@@ -47,7 +47,13 @@ impl Client {
         Self::new(config, Credentials::from_device_token(device_token))
     }
 
-    /// Build a client from an explicit user token.
+    /// Build a client from an explicit user token only.
+    ///
+    /// **Cannot auto-refresh:** user tokens are short-lived, and without a device token
+    /// this client cannot mint a new one — once the token expires, calls fail with
+    /// [`Error::MissingCredential`]. Use this for tests or ephemeral, already-valid
+    /// tokens; prefer [`from_device_token`](Self::from_device_token) for anything
+    /// long-running.
     pub fn from_user_token(config: Config, user_token: impl Into<String>) -> Self {
         Self::new(
             config,

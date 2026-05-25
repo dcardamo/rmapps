@@ -5,6 +5,7 @@ use crate::client::Client;
 use crate::error::{Error, Result};
 use crate::plumbing::commit::{DocUpsert, Mutation};
 use crate::plumbing::index::parse_doc_index;
+use crate::plumbing::snapshot::Snapshot;
 use crate::porcelain::docfiles::DocFiles;
 
 /// Current time in unix millis as a string (reMarkable's `lastModified` format).
@@ -12,15 +13,21 @@ pub(crate) fn now_millis() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis()
         .to_string()
 }
 
 impl Client {
-    /// Download a document's full file-set.
+    /// Download a document's full file-set (fetches a fresh snapshot first).
     pub async fn get(&self, id: &str) -> Result<DocFiles> {
         let snap = self.snapshot().await?;
+        self.get_from(&snap, id).await
+    }
+
+    /// Download a document's file-set against an already-fetched `snap`. Avoids a
+    /// redundant root fetch when iterating many docs (used by `ls`/`sync`).
+    pub(crate) async fn get_from(&self, snap: &Snapshot, id: &str) -> Result<DocFiles> {
         let doc = snap.doc(id).ok_or(Error::NotFound)?;
         // doc-index blob is keyed by the doc hash, named "<id>.docSchema".
         let index = self.get_blob(&doc.hash, &format!("{id}.docSchema")).await?;

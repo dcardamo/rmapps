@@ -29,17 +29,18 @@ impl Client {
     /// List the direct children of `parent` ("" = root).
     pub async fn ls(&self, parent: &str) -> Result<Vec<Entry>> {
         let snap = self.snapshot().await?;
+        let ids: Vec<String> = snap.docs().map(|d| d.id.clone()).collect();
         let mut out = Vec::new();
-        for doc in snap.docs() {
-            // Fetch each doc's metadata (small blobs). Acceptable for v1; an index-level
-            // metadata cache is a later optimization.
-            let meta = self.get(&doc.id).await?.metadata()?;
+        for id in &ids {
+            // Fetch each doc's metadata (small blobs), reusing the one snapshot above.
+            // Acceptable for v1; an index-level metadata cache is a later optimization.
+            let meta = self.get_from(&snap, id).await?.metadata()?;
             if meta.deleted {
                 continue;
             }
             if meta.parent == parent {
                 out.push(Entry {
-                    id: doc.id.clone(),
+                    id: id.clone(),
                     name: meta.visible_name,
                     parent: meta.parent,
                     is_folder: meta.doc_type == "CollectionType",

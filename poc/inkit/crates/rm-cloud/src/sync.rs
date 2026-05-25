@@ -14,6 +14,12 @@ use crate::porcelain::docfiles::DocFiles;
 pub const APP_KEY_FIELD: &str = "rmCloudKey";
 
 /// The desired set of app-owned documents, keyed by app key.
+///
+/// **Destructive semantics:** [`sync`](Client::sync) makes the cloud *match* this set —
+/// any app-owned document (one carrying [`APP_KEY_FIELD`]) whose key is **not** present
+/// here is **deleted**. An empty `WorkingSet` therefore means "remove all of this app's
+/// documents." Pass the full intended set every time; do not pass an empty set as a no-op
+/// (use the `since` fast path for that — see [`sync`](Client::sync)).
 #[derive(Default)]
 pub struct WorkingSet {
     /// app key -> desired document file-set (its metadata must carry `rmCloudKey`).
@@ -32,6 +38,10 @@ pub struct SyncReport {
 impl Client {
     /// Reconcile the cloud to `target`. If `since` is given and the generation is
     /// unchanged, returns an empty report immediately (no-op fast path).
+    ///
+    /// This is **declarative and destructive**: app-owned documents whose key is absent
+    /// from `target` are removed (see [`WorkingSet`]). Always pass the complete intended
+    /// set; rely on the `since` fast path — not an empty `target` — to express "no change".
     pub async fn sync(
         &self,
         target: WorkingSet,
@@ -44,13 +54,18 @@ impl Client {
             }
         }
 
-        // Map existing app-owned docs: app key -> (doc id, doc hash).
+        // Map existing app-owned docs: app key -> (doc id, doc hash). Reuse the `live`
+        // snapshot for each metadata fetch rather than re-snapshotting per doc.
         let mut existing: BTreeMap<String, (String, String)> = BTreeMap::new();
-        for d in live.docs() {
-            if let Ok(df) = self.get(&d.id).await {
+        let live_ids: Vec<(String, String)> = live
+            .docs()
+            .map(|d| (d.id.clone(), d.hash.clone()))
+            .collect();
+        for (id, hash) in &live_ids {
+            if let Ok(df) = self.get_from(&live, id).await {
                 if let Ok(meta) = df.metadata() {
                     if let Some(k) = meta.extra.get(APP_KEY_FIELD).and_then(|v| v.as_str()) {
-                        existing.insert(k.to_string(), (d.id.clone(), d.hash.clone()));
+                        existing.insert(k.to_string(), (id.clone(), hash.clone()));
                     }
                 }
             }

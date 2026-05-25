@@ -45,9 +45,10 @@ pub fn doc_hash(files: &[FileEntry]) -> String {
     sorted.sort_by(|a, b| a.id.cmp(&b.id));
     let mut h = Sha256::new();
     for f in sorted {
-        if let Ok(raw) = hex::decode(&f.hash) {
-            h.update(raw);
-        }
+        // File hashes are always crate-generated lowercase hex; a non-hex value is a
+        // programmer error that would silently corrupt the doc hash, so fail loudly.
+        let raw = hex::decode(&f.hash).expect("file hash must be valid hex");
+        h.update(raw);
     }
     hex::encode(h.finalize())
 }

@@ -1,6 +1,6 @@
 //! Endpoint configuration, with env overrides for pointing tests at a fake.
 
-/// Resolved base URLs for the three reMarkable cloud surfaces.
+/// Resolved base URLs for the reMarkable cloud surfaces (auth + sync hosts).
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Auth host (token endpoints).
@@ -30,7 +30,7 @@ impl Config {
         }
     }
 
-    /// All three host bases set to `base` (used by the fake cloud).
+    /// Both host bases (auth + sync) set to `base` (used by the fake cloud).
     pub fn single_host(base: impl Into<String>) -> Self {
         let base = base.into();
         Self {
