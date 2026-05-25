@@ -16,6 +16,7 @@ use inkapp_core::device::Device;
 use inkapp_core::error::{Error, Result};
 use inkapp_core::ink::Stroke;
 use inkapp_core::sync::DeviceTransport;
+use rm_files::Bundle;
 
 use crate::Remarkable;
 
@@ -126,27 +127,23 @@ impl RmCommand for Rmapi {
     }
 }
 
-/// Read the first `.rm` entry's PDF-space strokes out of an `.rmdoc` zip, via the
-/// device transform. Empty if the document has no ink yet.
-fn strokes_from_rmdoc(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Stroke> {
-    use std::io::Read;
-    let Ok(file) = std::fs::File::open(path) else {
+/// Assemble per-page PDF-space strokes from an `.rmdoc` bundle, indexed by the
+/// bundle's `.content` page order: slot `p` aligns with the manifest's
+/// `region.page == p`. An un-inked page occupies its slot as an empty `Vec`, so it
+/// never shifts later pages. All pages of a document share one `page_h` (Typst
+/// `#set page` fixes every page to the same height). Empty if the bundle won't open.
+pub fn strokes_by_page(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Vec<Stroke>> {
+    let Ok(bundle) = Bundle::open(path) else {
         return Vec::new();
     };
-    let Ok(mut zip) = zip::ZipArchive::new(file) else {
-        return Vec::new();
-    };
-    let names: Vec<String> = (0..zip.len())
-        .map(|i| zip.by_index(i).unwrap().name().to_string())
-        .collect();
-    let Some(rm) = names.into_iter().find(|n| n.ends_with(".rm")) else {
-        return Vec::new();
-    };
-    let mut bytes = Vec::new();
-    if zip.by_name(&rm).unwrap().read_to_end(&mut bytes).is_err() {
-        return Vec::new();
-    }
-    device.read_ink(&bytes, page_h).unwrap_or_default()
+    bundle
+        .pages()
+        .into_iter()
+        .map(|pg| match pg.scene_bytes() {
+            Some(bytes) => device.read_ink(bytes, page_h).unwrap_or_default(),
+            None => Vec::new(),
+        })
+        .collect()
 }
 
 /// reMarkable transport: maps the framework's key/PDF/ink model onto `rmapi` and
@@ -197,10 +194,10 @@ impl<C: RmCommand> DeviceTransport for RmTransport<C> {
             return out;
         }
         for d in discover(dir.path(), page_h_by_key) {
-            let strokes = strokes_from_rmdoc(&self.device, &d.path, d.page_h);
-            if !strokes.is_empty() {
-                // Single-page for now; multi-page rmdoc support is a future step.
-                out.insert(d.key, vec![strokes]);
+            let pages = strokes_by_page(&self.device, &d.path, d.page_h);
+            // Insert only when the document carries ink on some page.
+            if pages.iter().any(|pg| !pg.is_empty()) {
+                out.insert(d.key, pages);
             }
         }
         out
@@ -271,14 +268,19 @@ mod tests {
         }
         fn mget(&self, _folder: &str, into_dir: &Path) -> bool {
             if let Some((key, rm_bytes)) = &self.mget_doc {
-                // Mimic mget's nested layout: <into_dir>/<remote-folder>/<key>.rmdoc
+                // Mimic mget's nested layout AND the `.rmdoc` bundle format
+                // `Bundle::open` expects: a `<uuid>.content` page list plus a
+                // `<uuid>/<page>.rm` for each inked page.
+                use std::io::Write;
                 let nested = into_dir.join("RemoteFolder");
                 std::fs::create_dir_all(&nested).unwrap();
                 let f = std::fs::File::create(nested.join(format!("{key}.rmdoc"))).unwrap();
                 let mut zw = zip::ZipWriter::new(f);
-                zw.start_file("page0.rm", zip::write::SimpleFileOptions::default())
+                let opts = zip::write::SimpleFileOptions::default();
+                zw.start_file("doc.content", opts).unwrap();
+                zw.write_all(br#"{"cPages":{"pages":[{"id":"p0"}]}}"#)
                     .unwrap();
-                use std::io::Write;
+                zw.start_file("doc/p0.rm", opts).unwrap();
                 zw.write_all(rm_bytes).unwrap();
                 zw.finish().unwrap();
             }
