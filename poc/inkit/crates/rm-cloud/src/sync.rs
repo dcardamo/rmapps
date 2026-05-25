@@ -62,11 +62,10 @@ impl Client {
             .map(|d| (d.id.clone(), d.hash.clone()))
             .collect();
         for (id, hash) in &live_ids {
-            if let Ok(df) = self.get_from(&live, id).await {
-                if let Ok(meta) = df.metadata() {
-                    if let Some(k) = meta.extra.get(APP_KEY_FIELD).and_then(|v| v.as_str()) {
-                        existing.insert(k.to_string(), (id.clone(), hash.clone()));
-                    }
+            // Only the `.metadata` blob is needed to read the app-key marker.
+            if let Ok(meta) = self.metadata_by(hash, id).await {
+                if let Some(k) = meta.extra.get(APP_KEY_FIELD).and_then(|v| v.as_str()) {
+                    existing.insert(k.to_string(), (id.clone(), hash.clone()));
                 }
             }
         }

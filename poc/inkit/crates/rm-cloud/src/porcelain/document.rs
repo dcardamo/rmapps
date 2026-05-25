@@ -43,6 +43,35 @@ impl Client {
         })
     }
 
+    /// Read just a document's `.metadata` (its doc-index + the one metadata blob),
+    /// resolving the doc hash from `snap`. Far cheaper than [`get_from`](Self::get_from)
+    /// for `ls`/`sync`, which only need metadata — not the PDF/ink blobs.
+    pub(crate) async fn metadata_from(
+        &self,
+        snap: &Snapshot,
+        id: &str,
+    ) -> Result<crate::porcelain::docfiles::Metadata> {
+        let doc = snap.doc(id).ok_or(Error::NotFound)?;
+        self.metadata_by(&doc.hash, id).await
+    }
+
+    /// Read a document's `.metadata` given its doc hash directly (no snapshot lookup),
+    /// fetching only the doc-index blob and the `.metadata` blob.
+    pub(crate) async fn metadata_by(
+        &self,
+        doc_hash: &str,
+        id: &str,
+    ) -> Result<crate::porcelain::docfiles::Metadata> {
+        let index = self.get_blob(doc_hash, &format!("{id}.docSchema")).await?;
+        let entries = parse_doc_index(&index)?;
+        let meta = entries
+            .iter()
+            .find(|e| e.id.ends_with(".metadata"))
+            .ok_or_else(|| Error::Parse(format!("doc {id} has no .metadata file")))?;
+        let bytes = self.get_blob(&meta.hash, &meta.id).await?;
+        Ok(serde_json::from_slice(&bytes)?)
+    }
+
     /// Download a document and open it as a `rm_files::Bundle` (via a temp `.rmdoc`).
     pub async fn get_bundle(&self, id: &str) -> Result<rm_files::Bundle> {
         let docfiles = self.get(id).await?;
