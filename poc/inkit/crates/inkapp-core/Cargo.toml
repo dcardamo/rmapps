@@ -24,6 +24,7 @@ base64 = "0.22"
 tempfile = "3"
 futures = "0.3"
 async-trait = "0.1"
+image = { version = "0.25", features = ["avif-native"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
