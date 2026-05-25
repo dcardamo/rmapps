@@ -287,15 +287,28 @@ fn element_attr(node: NodeRef<Node>, attr: &str) -> Option<String> {
     }
 }
 
-/// Concatenate all descendant text (preserving content; used for code/captions).
+/// Concatenate descendant text, skipping DROP subtrees entirely — so a dangerous
+/// element nested inside `<pre>`/`<figure>` never leaks its body as visible text
+/// (the flat `descendants()` walk this replaces did not honor the DROP set).
 fn collect_text(node: NodeRef<Node>) -> String {
     let mut s = String::new();
-    for d in node.descendants() {
-        if let Node::Text(t) = d.value() {
-            s.push_str(&t.text);
+    collect_text_into(node, &mut s);
+    s
+}
+
+fn collect_text_into(node: NodeRef<Node>, out: &mut String) {
+    for child in node.children() {
+        match child.value() {
+            Node::Text(t) => out.push_str(&t.text),
+            Node::Element(el) => {
+                if DROP.contains(&el.name()) {
+                    continue;
+                }
+                collect_text_into(child, out);
+            }
+            _ => {}
         }
     }
-    s
 }
 
 /// Convert sanitized, structured HTML into Typst. `highlights` (matched by token
@@ -495,5 +508,30 @@ mod tests {
             assert!(!c.typst.contains(leak), "{leak} must not leak");
         }
         assert!(c.typst.contains("#let t = \"ok\""));
+    }
+
+    #[test]
+    fn pre_drops_nested_dangerous_subtree_text() {
+        let c = convert("<pre>ok<script>alert(1)</script></pre>", &[]);
+        assert!(c.typst.contains("#raw(block: true,"));
+        assert!(
+            !c.typst.contains("alert"),
+            "script body inside pre must not leak"
+        );
+        assert!(c.typst.contains("ok"));
+    }
+
+    #[test]
+    fn figcaption_drops_nested_dangerous_subtree_text() {
+        let url = "https://example.com/c.png";
+        let c = convert(
+            &format!("<figure><img src=\"{url}\"><figcaption>cap<style>.x{{}}</style></figcaption></figure>"),
+            &[],
+        );
+        assert!(
+            !c.typst.contains(".x{"),
+            "style body inside figcaption must not leak"
+        );
+        assert!(c.typst.contains("cap"));
     }
 }
