@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use inkapp_core::assets::{asset_key, asset_path, FakeFetcher, ImageFetcher, OfflineFetcher};
+use inkapp_core::assets::{asset_key, asset_path, FakeFetcher, ImageFetcher};
 use inkapp_core::component::{Component, RenderCx};
 use inkapp_core::connector::{Connector, ConnectorSet};
 use inkapp_core::crypto::Key;
@@ -78,14 +78,14 @@ async fn app_resolves_and_embeds_declared_image() {
 
 #[tokio::test]
 async fn app_uses_placeholder_when_offline() {
-    // Default fetcher is OfflineFetcher; the declared image fails to fetch but the
-    // placeholder is registered, so compilation still succeeds.
+    // No `.fetcher(..)` call: the builder default is OfflineFetcher, so the declared
+    // image fails to fetch but the placeholder is registered and compilation still
+    // succeeds. This also proves the default is offline (no network).
     let mut application = app(Model)
         .connector(Cx)
         .update(update)
         .view(view)
         .key(Key::from_bytes([5u8; 32]))
-        .fetcher(Arc::new(OfflineFetcher))
         .build();
 
     let mut set = DocSet::default();

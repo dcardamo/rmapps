@@ -276,6 +276,15 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             asset_cache,
         }
     }
+
+    /// Flush the asset cache (if any) so resolved images survive a restart.
+    /// Live binaries call this on shutdown. Does not require connectors.
+    pub async fn close(&self) -> Result<()> {
+        if let Some(c) = &self.asset_cache {
+            c.close().await?;
+        }
+        Ok(())
+    }
 }
 
 impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
@@ -306,15 +315,6 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
             }
         }
         resolve_assets(&pairs, self.asset_cache.as_deref(), &*self.fetcher).await
-    }
-
-    /// Flush the asset cache (if any) so resolved images survive a restart.
-    /// Live binaries call this on shutdown.
-    pub async fn close(&self) -> Result<()> {
-        if let Some(c) = &self.asset_cache {
-            c.close().await?;
-        }
-        Ok(())
     }
 
     /// Render the full document set from current state, (re)populating `set`.
