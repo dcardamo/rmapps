@@ -167,6 +167,36 @@ fn no_cross_page_attribution() {
 }
 
 #[test]
+fn split_region_with_ink_on_only_one_page_still_stitches() {
+    let m = Manifest {
+        version: 0,
+        regions: vec![
+            Region {
+                name: "p".into(),
+                page: 0,
+                rect: rect(0.0, 0.0, 100.0, 100.0),
+            },
+            Region {
+                name: "p".into(),
+                page: 1,
+                rect: rect(0.0, 0.0, 100.0, 100.0),
+            },
+        ],
+        ..Default::default()
+    };
+    // Page 0 empty, page 1 has the only stroke.
+    let pages = vec![vec![], vec![dot(20.0, 20.0)]];
+    let out = attribute(&pages, &m);
+    assert_eq!(
+        out.len(),
+        1,
+        "one stitched RegionInk even though only one frame was inked"
+    );
+    assert_eq!(out[0].region, "p");
+    assert_eq!(out[0].strokes.len(), 1);
+}
+
+#[test]
 fn attribute_page_is_single_page_wrapper() {
     let m = Manifest {
         version: 0,
