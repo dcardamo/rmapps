@@ -12,6 +12,15 @@
 > manifest. What remains is only the explicitly-future material — event sourcing/CRDT,
 > multi-user/cloud — not the spine. Open questions are marked **(open)** inline.
 >
+> **Beyond the spine — the first real app (`reader`).** The proof-point reading app
+> is now underway. Its data foundation is built: a **live `inkapp-readwise-reader`
+> connector** (real HTTP Reader list reads + move/delete/highlight write-back, token
+> via the secret store, cassette mode retained for tests) backed by a reusable
+> **`inkapp-core::cache`** durable primitive — a `foyer` hybrid memory+disk cache with
+> sha256 integrity for content-addressed derived keys, giving warm-restart/offline
+> reads. **Pagination** (so apps never think in pages) and the **HTML→Typst content +
+> image pipeline** are the next worktrees.
+>
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
 > **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
 > state field *(all done)*. Event sourcing/CRDT and multi-user/cloud stay future (see
@@ -349,6 +358,14 @@ Both archetypes are now built: the **read-only feed** is `inkapp-ics` (parses an
 ICS calendar, caches `EventRow`s, no write queue, no-op `flush`), and a
 **writable** local calendar `inkapp-localcal` stands in for CalDAV (optimistic
 `cancel` + deferred `flush` to a local store; real CalDAV transport stays future).
+
+The **live Readwise Reader** bidirectional connector (`inkapp-readwise-reader`) is
+now built on this seam for the `reader` app: a pluggable `FetchTransport` does real
+HTTP Reader list reads (paged, deduped, retried) and a `WriteTransport` pushes
+move/delete/create-highlight; reads are served from a warm in-memory cache that
+`refresh` fills and persists to a durable **`inkapp-core::cache`** (a reusable
+`foyer` memory+disk primitive) for warm-restart/offline reads, with the token read
+from the secret store and cassette mode retained for offline tests.
 
 **Delivery & failures.** A write method *records* the write durably and returns — it
 does **not** block on the network — and makes the change locally visible this render
