@@ -15,6 +15,9 @@ comemo = "0.5"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Native reMarkable cloud client for the on-device push step (replaces the rmapi CLI).
+rm-cloud = { path = "../../crates/rm-cloud" }
+tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 lopdf = "0.36"
