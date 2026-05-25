@@ -21,8 +21,14 @@
 > via the secret store, cassette mode retained for tests) backed by a reusable
 > **`inkapp-core::cache`** durable primitive — a `foyer` hybrid memory+disk cache with
 > sha256 integrity for content-addressed derived keys, giving warm-restart/offline
-> reads. **Pagination** (so apps never think in pages) and the **HTML→Typst content +
-> image pipeline** are the next worktrees.
+> reads, with **pagination** (so apps never think in pages) already built. The
+> **HTML→Typst article content pipeline** is now built too: the reusable
+> `inkapp-content` crate sanitizes Readwise `html_content` and converts it to
+> structured Typst (headings, bold/italic, links, lists, blockquotes, code,
+> figures) with per-token highlight regions, and its `Article` component decodes
+> highlighter ink into coalesced span strings — replacing whitespace-split
+> plaintext in the reading-queue app. Image **fetching and serving** remains the
+> one parallel worktree, wired through `Article`'s `(key, url)` image contract.
 >
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
 > **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
