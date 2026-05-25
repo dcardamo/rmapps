@@ -44,3 +44,7 @@ required-features = ["fake"]
 [[test]]
 name = "fake_auth"
 required-features = ["fake"]
+
+[[test]]
+name = "fake_snapshot"
+required-features = ["fake"]

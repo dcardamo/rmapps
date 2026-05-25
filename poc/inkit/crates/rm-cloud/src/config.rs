@@ -46,15 +46,13 @@ impl Config {
     pub(crate) fn user_new(&self) -> String {
         format!("{}/token/json/2/user/new", self.auth)
     }
-    #[allow(dead_code)]
     pub(crate) fn root_get(&self) -> String {
         format!("{}/sync/v4/root", self.sync)
     }
-    #[allow(dead_code)]
+    #[allow(dead_code)] // used by commit in Task 6
     pub(crate) fn root_put(&self) -> String {
         format!("{}/sync/v3/root", self.sync)
     }
-    #[allow(dead_code)]
     pub(crate) fn blob(&self, hash: &str) -> String {
         format!("{}/sync/v3/files/{}", self.sync, hash)
     }

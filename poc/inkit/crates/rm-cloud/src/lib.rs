@@ -8,15 +8,17 @@
 #![warn(missing_docs)]
 
 mod auth;
+mod client;
 mod config;
 mod error;
-mod plumbing;
+pub mod plumbing;
 mod transport;
 
 #[cfg(feature = "fake")]
 pub mod fake;
 
 pub use auth::{refresh_user_token, register_device, Credentials};
+pub use client::Client;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use plumbing::index::{

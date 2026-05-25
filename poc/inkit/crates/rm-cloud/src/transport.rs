@@ -16,8 +16,6 @@ pub(crate) fn status_error(status: StatusCode) -> Error {
 }
 
 /// Return `Ok(resp)` for 2xx, else the mapped error.
-// used by the blob/commit layers in later tasks
-#[allow(dead_code)]
 pub(crate) fn check(resp: reqwest::Response) -> Result<reqwest::Response> {
     let status = resp.status();
     if status.is_success() {
