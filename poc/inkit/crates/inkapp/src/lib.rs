@@ -24,3 +24,6 @@ pub use deploy::{publish, sync_once, DeployConfig};
 pub use inkapp_core::sync::DeviceTransport;
 
 pub use rm_device::Remarkable;
+
+pub use inkapp_config::store::{select_instance, ConfigStore};
+pub use inkapp_config::{cli, Config, ConfigError, ConnectorRef, Namespace, SecretRef};
