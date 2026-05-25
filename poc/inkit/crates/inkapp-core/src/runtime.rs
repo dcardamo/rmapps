@@ -14,6 +14,7 @@ use crate::error::Result;
 use crate::geometry::PageGeom;
 use crate::manifest::{recover_regions, Manifest};
 use crate::render::document_to_pdf;
+use crate::theme::Theme;
 
 /// The framework Typst prelude, baked into the binary. Always registered and
 /// imported so any component (and `#region`) is in scope.
@@ -53,23 +54,47 @@ pub fn collect_typst_sources<M>(doc: &Document<M>) -> Vec<(String, String)> {
     out
 }
 
+/// The render-time environment threaded into a document render: page geometry +
+/// the device palette. `From<PageGeom>` lets existing geom-only call sites pass a
+/// `PageGeom` unchanged (theme then defaults to grayscale).
+#[derive(Debug, Clone, Default)]
+pub struct RenderEnv {
+    pub geom: PageGeom,
+    pub theme: Theme,
+}
+
+impl From<PageGeom> for RenderEnv {
+    fn from(geom: PageGeom) -> Self {
+        Self {
+            geom,
+            theme: Theme::default(),
+        }
+    }
+}
+
 /// Assemble a document's Typst source at the default page geometry.
 pub fn document_source<M>(doc: &Document<M>) -> String {
     document_source_in(doc, PageGeom::default())
 }
 
-/// Assemble a document's Typst source at an explicit page geometry: `#import`
-/// lines for the prelude and authored sources, the `#set page` from `geom`, then
-/// each component's render in flow order.
-pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom) -> String {
-    let mut cx = RenderCx::new(0);
+/// Assemble a document's Typst source for a render environment: `#import` lines
+/// for the prelude and authored sources, the `#set page` from `env.geom` (with a
+/// `fill:` only when the theme sets `paper`), then each component's render in flow
+/// order with the theme available on the `RenderCx`.
+pub fn document_source_in<M>(doc: &Document<M>, env: impl Into<RenderEnv>) -> String {
+    let env = env.into();
+    let mut cx = RenderCx::new(0).with_theme(env.theme.clone());
     let mut src = String::new();
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));
     }
+    let fill = match &env.theme.paper {
+        Some(p) => format!(", fill: {p}"),
+        None => String::new(),
+    };
     src.push_str(&format!(
-        "#set page(width: {}pt, height: {}pt, margin: {}pt)\n#set text(size: 12pt)\n",
-        geom.w, geom.h, geom.margin
+        "#set page(width: {}pt, height: {}pt, margin: {}pt{})\n#set text(size: 12pt)\n",
+        env.geom.w, env.geom.h, env.geom.margin, fill
     ));
     for c in &doc.flow {
         src.push_str(&c.render(&mut cx));
@@ -86,19 +111,19 @@ pub fn compile_document<M>(doc: &Document<M>) -> Result<typst::layout::PagedDocu
 /// (prelude + authored components) registered.
 pub fn compile_document_in<M>(
     doc: &Document<M>,
-    geom: PageGeom,
+    env: impl Into<RenderEnv>,
 ) -> Result<typst::layout::PagedDocument> {
-    compile_document_in_with_assets(doc, geom, &AssetMap::new())
+    compile_document_in_with_assets(doc, env, &AssetMap::new())
 }
 
 /// Like `compile_document_in`, but also registers `assets` so the document may
 /// embed `#image("/assets/{key}.png")`.
 pub fn compile_document_in_with_assets<M>(
     doc: &Document<M>,
-    geom: PageGeom,
+    env: impl Into<RenderEnv>,
     assets: &AssetMap,
 ) -> Result<typst::layout::PagedDocument> {
-    let src = document_source_in(doc, geom);
+    let src = document_source_in(doc, env);
     let sources = collect_typst_sources(doc);
     let asset_vec = assets_as_slice(assets);
     crate::render::compile_to_document_with_sources_and_assets(&src, &sources, &asset_vec)
@@ -123,9 +148,9 @@ pub fn render_document_in<M>(
     doc: &Document<M>,
     version: u64,
     key: &Key,
-    geom: PageGeom,
+    env: impl Into<RenderEnv>,
 ) -> Result<RenderedDoc> {
-    render_document_in_with_assets(doc, version, key, geom, &AssetMap::new())
+    render_document_in_with_assets(doc, version, key, env, &AssetMap::new())
 }
 
 /// Like `render_document_in`, but registers `assets` so the document may embed
@@ -134,10 +159,12 @@ pub fn render_document_in_with_assets<M>(
     doc: &Document<M>,
     version: u64,
     key: &Key,
-    geom: PageGeom,
+    env: impl Into<RenderEnv>,
     assets: &AssetMap,
 ) -> Result<RenderedDoc> {
-    let src = document_source_in(doc, geom);
+    let env = env.into();
+    let geom_h = env.geom.h;
+    let src = document_source_in(doc, env);
     let sources = collect_typst_sources(doc);
     let asset_vec = assets_as_slice(assets);
     let compiled =
@@ -148,7 +175,7 @@ pub fn render_document_in_with_assets<M>(
         .pages
         .first()
         .map(|p| p.frame.height().to_pt())
-        .unwrap_or(geom.h);
+        .unwrap_or(geom_h);
     let page_count = compiled.pages.len();
     let mut manifest = recover_regions(&compiled)?.with_version(version);
     // Collect app-defined state into the manifest before sealing: the document's
@@ -249,6 +276,7 @@ pub struct App<M, Msg, Cx> {
     version: u64,
     key: Key,
     geom: PageGeom,
+    theme: Theme,
     fetcher: Arc<dyn ImageFetcher>,
     asset_cache: Option<Arc<Cache>>,
 }
@@ -265,6 +293,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         view: ViewFn<M, Msg, Cx>,
         key: Key,
         geom: PageGeom,
+        theme: Theme,
         fetcher: Arc<dyn ImageFetcher>,
         asset_cache: Option<Arc<Cache>>,
     ) -> Self {
@@ -276,6 +305,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             version: 1,
             key,
             geom,
+            theme,
             fetcher,
             asset_cache,
         }
@@ -330,8 +360,16 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut out = Vec::new();
         let mut entries = HashMap::new();
         for doc in &docs.0 {
-            let rd =
-                render_document_in_with_assets(doc, self.version, &self.key, self.geom, &assets)?;
+            let rd = render_document_in_with_assets(
+                doc,
+                self.version,
+                &self.key,
+                RenderEnv {
+                    geom: self.geom,
+                    theme: self.theme.clone(),
+                },
+                &assets,
+            )?;
             entries.insert(
                 rd.key.0.clone(),
                 DocEntry {
@@ -401,7 +439,10 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
                 doc,
                 self.version,
                 &self.key,
-                self.geom,
+                RenderEnv {
+                    geom: self.geom,
+                    theme: self.theme.clone(),
+                },
                 &assets,
             )?);
         }
@@ -548,6 +589,7 @@ impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
             view: self.view,
             key,
             geom: PageGeom::default(),
+            theme: Theme::default(),
             fetcher: Arc::new(OfflineFetcher),
             asset_cache: None,
         }
@@ -561,6 +603,7 @@ pub struct BuilderReady<M, Msg, Cx> {
     view: ViewFn<M, Msg, Cx>,
     key: Key,
     geom: PageGeom,
+    theme: Theme,
     fetcher: Arc<dyn ImageFetcher>,
     asset_cache: Option<Arc<Cache>>,
 }
@@ -570,6 +613,14 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
     #[must_use]
     pub fn page(mut self, geom: PageGeom) -> Self {
         self.geom = geom;
+        self
+    }
+
+    /// Override the render palette (default: grayscale). Set by a binary's
+    /// bootstrap from the resolved device — app `update`/`view` stay device-blind.
+    #[must_use]
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
         self
     }
 
@@ -597,6 +648,7 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
             self.view,
             self.key,
             self.geom,
+            self.theme,
             self.fetcher,
             self.asset_cache,
         )

@@ -5,18 +5,32 @@
 
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
+use crate::theme::Theme;
 
-/// Render-time context: supplies the current page index and a monotonically
-/// increasing id so components can mint unique region names if needed.
+/// Render-time context: supplies the current page index, a monotonically
+/// increasing id so components can mint unique region names, and the device
+/// palette (`theme`) so components emit semantic-role colors, never literals.
 #[derive(Debug, Default)]
 pub struct RenderCx {
     pub page: usize,
     next_id: u64,
+    pub theme: Theme,
 }
 
 impl RenderCx {
     pub fn new(page: usize) -> Self {
-        Self { page, next_id: 0 }
+        Self {
+            page,
+            next_id: 0,
+            theme: Theme::default(),
+        }
+    }
+
+    /// Builder: set the palette this render uses (default is grayscale).
+    #[must_use]
+    pub fn with_theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
+        self
     }
 
     /// Mint a fresh per-render id (used by components that subdivide into

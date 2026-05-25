@@ -41,8 +41,8 @@ pub use reconcile::{reconcile, DocOp};
 pub use render::region_metadata;
 pub use runtime::{
     app, collect_typst_sources, compile_document, compile_document_in, document_source,
-    document_source_in, render_document, render_document_in, App, Cycle, DocSet, RenderedDoc,
-    REGION_PRELUDE,
+    document_source_in, render_document, render_document_in, App, Cycle, DocSet, RenderEnv,
+    RenderedDoc, REGION_PRELUDE,
 };
 pub use secrets::{Scope, SecretStore};
 pub use single_flight::SingleFlight;
