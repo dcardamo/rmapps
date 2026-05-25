@@ -1,11 +1,10 @@
+use inkapp_core::component::RenderCx;
 use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::recover_regions;
 use inkapp_core::readback::attribute;
 use inkapp_core::render::compile_to_document;
-use inkapp_core::component::RenderCx;
-use inkapp_core::widget::Widget;
 
 const TOKENS: &[&str] = &["the", "quick", "brown", "fox", "lazy", "dog"];
 

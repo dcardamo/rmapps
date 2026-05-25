@@ -1,11 +1,10 @@
 use crate::component::Component;
+use crate::component::RenderCx;
 use crate::components::esc_typst_str;
 use crate::geometry::PdfPoint;
 use crate::ink::{RegionInk, Stroke};
 use crate::manifest::Manifest;
-use crate::component::RenderCx;
 use crate::render::{is_valid_region_name, region_metadata};
-use crate::widget::Widget;
 
 /// How a checkbox region was marked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +94,11 @@ impl<M> Checkbox<M> {
             CheckState::Marked
         }
     }
+
+    /// Whether this checkbox's region was marked (any non-empty ink).
+    pub fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> bool {
+        self.read_state(ink, manifest) != CheckState::Empty
+    }
 }
 
 /// Sum of segment lengths of a polyline.
@@ -107,18 +111,6 @@ fn polyline_len(points: &[PdfPoint]) -> f64 {
             (dx * dx + dy * dy).sqrt()
         })
         .sum()
-}
-
-impl<M> Widget for Checkbox<M> {
-    type Output = bool;
-
-    fn render(&self, cx: &mut RenderCx) -> String {
-        self.render_at(cx.page, 20.0, 40.0, 16.0, 16.0)
-    }
-
-    fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> bool {
-        self.read_state(ink, manifest) != CheckState::Empty
-    }
 }
 
 impl<M: Clone> Component for Checkbox<M> {

@@ -11,10 +11,10 @@
 
 use crate::calendar::EventRow;
 use crate::component::Component;
+use crate::component::RenderCx;
 use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
-use crate::component::RenderCx;
 use crate::mode::Mode;
 
 /// A calendar/agenda component. `M` is the app message type.

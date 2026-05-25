@@ -1,8 +1,7 @@
+use crate::component::RenderCx;
 use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
-use crate::component::RenderCx;
-use crate::widget::Widget;
 
 /// A run of words, each individually highlightable. Each token is wrapped so its
 /// laid-out rect is recovered as a region named `tok-<i>`. Tokens listed in
@@ -32,11 +31,10 @@ impl HighlightableText {
     }
 }
 
-impl Widget for HighlightableText {
-    /// The set of highlighted token strings.
-    type Output = Vec<String>;
-
-    fn render(&self, _cx: &mut RenderCx) -> String {
+impl HighlightableText {
+    /// Emit per-token Typst, each token wrapped so its laid-out rect recovers as
+    /// a region named `tok-<i>` (so a highlight maps back to a specific span).
+    pub fn render(&self, _cx: &mut RenderCx) -> String {
         // Each token is laid inline inside a #box. A #context block captures the
         // token's own laid-out position via here().position() and its measured
         // size via measure(), then emits <region>-labelled metadata so
@@ -81,7 +79,9 @@ impl Widget for HighlightableText {
         s
     }
 
-    fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<String> {
+    /// The set of highlighted token strings (tokens whose region was overlapped
+    /// by a highlighter stroke).
+    pub fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<String> {
         let mut out = Vec::new();
         for (i, tok) in self.tokens.iter().enumerate() {
             let name = format!("tok-{i}");

@@ -9,8 +9,8 @@ use inkapp_core::geometry::{DevicePoint, PdfPoint, PdfRect};
 use inkapp_core::ink::Stroke;
 use inkapp_core::manifest::{recover_regions, Manifest};
 use inkapp_core::readback::attribute;
-use inkapp_core::render::{compile_to_document, document_to_pdf};
 use inkapp_core::region_metadata;
+use inkapp_core::render::{compile_to_document, document_to_pdf};
 
 use crate::fixtures::{normalize, Fit, GestureFixture, Sample, Tool};
 

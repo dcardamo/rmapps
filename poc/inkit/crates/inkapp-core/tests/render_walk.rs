@@ -1,4 +1,5 @@
 use inkapp_core::component::Component;
+use inkapp_core::component::RenderCx;
 use inkapp_core::components::checkbox::Checkbox;
 use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::crypto::Key;
@@ -8,8 +9,6 @@ use inkapp_core::flow;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
 use inkapp_core::runtime::render_document;
-use inkapp_core::component::RenderCx;
-use inkapp_core::widget::Widget;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum Msg {
@@ -22,7 +21,7 @@ struct Body(HighlightableText);
 impl Component for Body {
     type Msg = Msg;
     fn render(&self, cx: &mut RenderCx) -> String {
-        Widget::render(&self.0, cx)
+        self.0.render(cx)
     }
     fn decode(&self, _ink: &[RegionInk], _m: &Manifest) -> Vec<Msg> {
         vec![]

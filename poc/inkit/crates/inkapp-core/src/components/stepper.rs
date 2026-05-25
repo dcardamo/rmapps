@@ -1,9 +1,8 @@
 use crate::component::Component;
+use crate::component::RenderCx;
 use crate::ink::RegionInk;
 use crate::manifest::Manifest;
-use crate::component::RenderCx;
 use crate::render::region_metadata;
-use crate::widget::Widget;
 
 /// A counter whose state lives ONLY in the document (no connector). It renders
 /// its current count and an increment region; on readback it adds the number of
@@ -49,10 +48,15 @@ impl Stepper {
             .filter(|s| s.points.iter().any(|p| region.rect.contains(p.x, p.y)))
             .count() as u64
     }
+
+    /// The new count: the carried base plus the increment strokes (idle = base).
+    pub fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> u64 {
+        self.carried_base(manifest) + self.increments(ink, manifest)
+    }
 }
 
-impl Widget for Stepper {
-    type Output = u64;
+impl Component for Stepper {
+    type Msg = u64;
 
     fn render(&self, cx: &mut RenderCx) -> String {
         let name = self.region_name();
@@ -63,18 +67,6 @@ impl Widget for Stepper {
         ));
         s.push_str(&format!("#text[{}]\n", self.count));
         s
-    }
-
-    fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> u64 {
-        self.carried_base(manifest) + self.increments(ink, manifest)
-    }
-}
-
-impl Component for Stepper {
-    type Msg = u64;
-
-    fn render(&self, cx: &mut RenderCx) -> String {
-        <Self as Widget>::render(self, cx)
     }
 
     fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<u64> {

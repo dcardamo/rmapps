@@ -1,6 +1,7 @@
 //! The MVU loop runtime: the render walk (`render_document`) and the multi-cycle
 //! driver (`App`, `DocSet`, `step`).
 
+use crate::component::RenderCx;
 use crate::connector::ConnectorSet;
 use crate::crypto::Key;
 use crate::document::{DocKey, Document};
@@ -8,7 +9,6 @@ use crate::embed::embed_manifest;
 use crate::error::Result;
 use crate::manifest::{recover_regions, Manifest};
 use crate::render::document_to_pdf;
-use crate::component::RenderCx;
 
 /// Default document page geometry (points). 3:4-ish to suit e-ink; the device
 /// fits to width. Single-page only this spec.

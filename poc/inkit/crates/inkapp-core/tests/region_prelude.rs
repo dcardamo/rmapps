@@ -1,7 +1,7 @@
 use inkapp_core::manifest::recover_regions;
+use inkapp_core::region_metadata;
 use inkapp_core::render::{compile_to_document, compile_to_document_with_sources};
 use inkapp_core::runtime::REGION_PRELUDE;
-use inkapp_core::region_metadata;
 
 const PAGE: &str = "#set page(width: 200pt, height: 120pt, margin: 12pt)\n";
 

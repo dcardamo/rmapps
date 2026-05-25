@@ -3,7 +3,6 @@ use inkapp_core::components::stepper::Stepper;
 use inkapp_core::geometry::{PdfPoint, PdfRect};
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::{DocState, Manifest, Region};
-use inkapp_core::widget::Widget;
 use serde_json::json;
 
 const RECT: PdfRect = PdfRect {

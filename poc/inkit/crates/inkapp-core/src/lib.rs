@@ -20,7 +20,6 @@ pub mod render;
 pub mod runtime;
 pub mod secrets;
 pub mod single_flight;
-pub mod widget;
 pub mod world;
 
 pub use calendar::EventRow;

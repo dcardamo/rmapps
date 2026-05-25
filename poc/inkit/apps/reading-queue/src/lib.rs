@@ -5,12 +5,11 @@ pub mod serve;
 
 use inkapp::{flow, Document, Documents};
 use inkapp_core::component::Component;
+use inkapp_core::component::RenderCx;
 use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::components::notice::Notice;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
-use inkapp_core::component::RenderCx;
-use inkapp_core::widget::Widget;
 use inkapp_readwise::{Article, ArticleId, Readwise};
 use std::sync::Arc;
 
@@ -128,7 +127,7 @@ impl Component for ArticleBody {
     type Msg = Msg;
 
     fn render(&self, cx: &mut RenderCx) -> String {
-        Widget::render(&self.text, cx)
+        self.text.render(cx)
     }
 
     fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<Msg> {

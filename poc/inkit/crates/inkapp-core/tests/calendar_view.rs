@@ -1,5 +1,6 @@
 use inkapp_core::calendar::EventRow;
 use inkapp_core::component::Component;
+use inkapp_core::component::RenderCx;
 use inkapp_core::components::calendar_view::CalendarView;
 use inkapp_core::crypto::Key;
 use inkapp_core::document::Document;
@@ -8,7 +9,6 @@ use inkapp_core::geometry::{PdfPoint, PdfRect};
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::{Manifest, Region};
 use inkapp_core::runtime::render_document;
-use inkapp_core::component::RenderCx;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Msg {

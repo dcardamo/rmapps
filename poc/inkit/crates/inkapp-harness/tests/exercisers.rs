@@ -1,12 +1,11 @@
 mod common;
 use common::assert_golden;
 
+use inkapp_core::component::RenderCx;
 use inkapp_core::components::checkbox::Checkbox;
 use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::manifest::recover_regions;
 use inkapp_core::render::compile_to_document;
-use inkapp_core::component::RenderCx;
-use inkapp_core::widget::Widget;
 use inkapp_harness::simulator::{simulate, Gesture, Scenario};
 use inkapp_remarkable::Remarkable;
 
@@ -15,8 +14,8 @@ const TOKENS: &[&str] = &["the", "quick", "brown", "fox", "lazy", "dog"];
 #[test]
 fn checkbox_exerciser() {
     let cb = Checkbox::new("done");
-    // Use render_at for explicit placement (a checkbox lays out absolutely); the
-    // Widget::render default-placement path is covered by the checkbox unit tests.
+    // Use render_at for explicit placement (a checkbox lays out absolutely);
+    // Checkbox default-placement render is covered by the checkbox unit tests.
     let body = cb.render_at(0, 20.0, 40.0, 16.0, 16.0);
     let src = format!("#set page(width: 200pt, height: 200pt, margin: 0pt)\n{body}");
     let doc = compile_to_document(&src).unwrap();
@@ -53,7 +52,7 @@ fn highlight_exerciser() {
     let manifest = recover_regions(&doc).unwrap().with_version(1);
     let device = Remarkable::new();
 
-    // TOKENS[4] = "lazy", TOKENS[5] = "dog"; the widget mints region names tok-<i>
+    // TOKENS[4] = "lazy", TOKENS[5] = "dog"; HighlightableText mints region names tok-<i>
     // by token index, so swiping tok-4/tok-5 highlights exactly those two words.
     let scenario = Scenario::new()
         .mark("tok-4", Gesture::Swipe)

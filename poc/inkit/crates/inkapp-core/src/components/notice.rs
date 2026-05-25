@@ -9,9 +9,9 @@
 use std::marker::PhantomData;
 
 use crate::component::Component;
+use crate::component::RenderCx;
 use crate::components::esc_typst_str;
 use crate::ink::RegionInk;
-use crate::component::RenderCx;
 use crate::manifest::Manifest;
 
 /// A display-only notice. `M` is the app message type — `Notice` never emits one,

@@ -1,6 +1,6 @@
 //! The `Component` trait: a nestable unit of view with two halves — a Typst
 //! `render` and an ink `decode` that turns the ink on it into app messages.
-//! Mirrors `Widget`, but `decode` emits `Msg` values (not a typed read), so a
+//! Render and decode are co-located; `decode` emits `Msg` values, so a
 //! component is what a `view` flow is built from.
 
 use crate::ink::RegionInk;
