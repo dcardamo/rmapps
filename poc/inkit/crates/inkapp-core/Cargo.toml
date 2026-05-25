@@ -7,7 +7,6 @@ description = "Device-agnostic framework core for inkapp: Typst render, manifest
 
 [dependencies]
 foyer = { version = "0.22", features = ["serde"] }
-hex = "0.4"
 sha2 = "0.10"
 typst = "0.14"
 typst-pdf = "0.14"

@@ -29,8 +29,7 @@ impl Cache {
         disk_bytes: usize,
     ) -> Result<Self> {
         let dir = dir.into();
-        std::fs::create_dir_all(&dir)
-            .map_err(|e| Error::Cache(format!("create dir: {e}")))?;
+        std::fs::create_dir_all(&dir).map_err(|e| Error::Cache(format!("create dir: {e}")))?;
 
         let device = FsDeviceBuilder::new(&dir)
             .with_capacity(disk_bytes)
@@ -71,6 +70,9 @@ impl Cache {
     }
 
     /// Insert raw bytes and return their integrity digest.
+    ///
+    /// The bytes enter the memory tier immediately; disk persistence is not
+    /// synchronous — it happens on eviction, or on `close()` at the latest.
     pub async fn put_bytes(&self, key: &str, bytes: &[u8]) -> Result<Integrity> {
         let integrity = Self::integrity(bytes);
         self.inner.insert(key.to_string(), bytes.to_vec());
@@ -107,14 +109,14 @@ impl Cache {
             }
             hasher.update(part.as_bytes());
         }
-        hex::encode(hasher.finalize())
+        format!("{:x}", hasher.finalize())
     }
 
     // ── private helpers ──────────────────────────────────────────────────────
 
     fn integrity(bytes: &[u8]) -> Integrity {
         use sha2::{Digest, Sha256};
-        Integrity(hex::encode(Sha256::digest(bytes)))
+        Integrity(format!("{:x}", Sha256::digest(bytes)))
     }
 }
 
@@ -176,6 +178,10 @@ mod tests {
         {
             let c = open(dir.path()).await;
             c.put_bytes("persist", b"v").await.unwrap();
+            // close() triggers foyer's flush_on_close (default true), which writes the
+            // in-memory entry to disk. Under the default WriteOnEviction policy, a single
+            // un-evicted entry would otherwise only reach disk on eviction — so a drop
+            // without close() could lose it. Callers must close() for durability.
             c.close().await.unwrap();
         }
         let c2 = open(dir.path()).await;
