@@ -7,7 +7,9 @@
 //! never dangle and compilation never fails.
 
 use std::collections::HashMap;
+use std::io::Cursor;
 
+use image::GenericImageView;
 use sha2::{Digest, Sha256};
 
 /// Map from Typst virtual path (`/assets/{key}.png`) to PNG bytes.
@@ -45,13 +47,12 @@ pub fn asset_path(key: &str) -> String {
 /// must be PNG regardless of source format. Re-encoding is deterministic for a
 /// given input and `image`-crate version.
 pub(crate) fn normalize_to_png(bytes: &[u8]) -> Option<Vec<u8>> {
-    use image::GenericImageView;
     let img = image::load_from_memory(bytes).ok()?;
     let (w, h) = img.dimensions();
     if w <= 2 || h <= 2 {
         return None; // tracking pixel
     }
-    let mut out = std::io::Cursor::new(Vec::new());
+    let mut out = Cursor::new(Vec::new());
     img.write_to(&mut out, image::ImageFormat::Png).ok()?;
     Some(out.into_inner())
 }
