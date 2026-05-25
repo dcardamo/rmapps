@@ -107,6 +107,8 @@ pub fn render_document_in<M>(
     let src = document_source_in(doc, geom);
     let sources = collect_typst_sources(doc);
     let compiled = crate::render::compile_to_document_with_sources(&src, &sources)?;
+    // A single page_h suffices: `#set page` fixes every page of a document to the same
+    // height, so the per-page device transform uses the same height on every page.
     let page_h = compiled
         .pages
         .first()
@@ -351,7 +353,13 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut rendered_out: Vec<RenderedDoc> = Vec::new();
 
         for rd in next_rendered {
-            // Preserve prior per-page ink for this key, then append this cycle's input.
+            // Preserve prior per-page ink, then append this cycle's input per page. This only
+            // GROWS the outer vec: if a re-render paginates to fewer pages than previously
+            // inked, the extra per-page entries are retained rather than dropped — keeping the
+            // user's real annotations is safer than silently discarding them on a transient
+            // shrink. Consequence: after such a shrink, `ink.len()` may exceed `page_count`.
+            // This is harmless for decode (`attribute` range-checks pages against manifest
+            // regions); proper ink reflow across re-pagination is a separate, deferred concern.
             let mut ink: Vec<Vec<Stroke>> = set
                 .entries
                 .get(&rd.key.0)
