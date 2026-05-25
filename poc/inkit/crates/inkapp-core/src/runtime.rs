@@ -63,7 +63,9 @@ pub fn document_source<M>(doc: &Document<M>) -> String {
 /// `#import` lines for the prelude and authored sources, the `#set page` from
 /// `geom`, the `theme` styling prelude, then each component's render in flow order.
 pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom, theme: &Theme) -> String {
-    let mut cx = RenderCx::new(0);
+    // Expose the theme to components via the RenderCx (e.g. `Index` reads its tones),
+    // in addition to the document-wide styling the prelude sets below.
+    let mut cx = RenderCx::new(0).with_theme(theme.clone());
     let mut src = String::new();
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));

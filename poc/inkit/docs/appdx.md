@@ -317,6 +317,19 @@ archive it" into one `Msg`; like `Checkbox` it is a fixed-affordance Control tha
 carries no mode. *(Built — `inkapp-core::components::gesture`, proved against real
 captured gesture fixtures in the harness exerciser.)*
 
+The framework also ships an `Index` **Display** component — a typographically clean,
+paginating listing for landing/contents documents (the reader's Library and Feed
+pages). It takes a list of `IndexEntry { title, byline, reading_time, summary }`
+rows and renders each as a non-breakable region box (entries never split across a
+page break; the list flows and paginates between them); like `Notice` it decodes
+nothing and is generic over the app's `Msg`. It styles each row from the active
+`Theme` — the heading font and the grayscale `*_tone` lumas, read from the
+`RenderCx` (which now carries the `Theme` so a component can pick up per-element
+tones beyond the document-wide prelude) — so it stays device-blind. Apps map
+connector data to entries with a dumb leaf conversion in `view`:
+`inkapp-readwise-reader` provides `From<&Article> for IndexEntry` (byline = author
+or site name; `reading_time` passed through verbatim) so core stays connector-blind.
+
 ### Components never talk to connectors
 
 A component's mode and a connector's read/write capability are **separate axes**. A

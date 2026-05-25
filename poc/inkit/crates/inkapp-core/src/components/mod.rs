@@ -2,6 +2,7 @@ pub mod calendar_view;
 pub mod checkbox;
 pub mod gesture;
 pub mod highlight_text;
+pub mod index;
 pub mod notice;
 pub mod passage;
 pub mod stepper;
