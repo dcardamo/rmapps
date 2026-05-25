@@ -14,6 +14,7 @@ use crate::error::Result;
 use crate::geometry::PageGeom;
 use crate::manifest::{recover_regions, Manifest};
 use crate::render::document_to_pdf;
+use crate::theme::Theme;
 
 /// The framework Typst prelude, baked into the binary. Always registered and
 /// imported so any component (and `#region`) is in scope.
@@ -53,42 +54,44 @@ pub fn collect_typst_sources<M>(doc: &Document<M>) -> Vec<(String, String)> {
     out
 }
 
-/// Assemble a document's Typst source at the default page geometry.
+/// Assemble a document's Typst source at the default page geometry and theme.
 pub fn document_source<M>(doc: &Document<M>) -> String {
-    document_source_in(doc, PageGeom::default())
+    document_source_in(doc, PageGeom::default(), &Theme::reader())
 }
 
-/// Assemble a document's Typst source at an explicit page geometry: `#import`
-/// lines for the prelude and authored sources, the `#set page` from `geom`, then
-/// each component's render in flow order.
-pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom) -> String {
+/// Assemble a document's Typst source at an explicit page geometry and theme:
+/// `#import` lines for the prelude and authored sources, the `#set page` from
+/// `geom`, the `theme` styling prelude, then each component's render in flow order.
+pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom, theme: &Theme) -> String {
     let mut cx = RenderCx::new(0);
     let mut src = String::new();
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));
     }
     src.push_str(&format!(
-        "#set page(width: {}pt, height: {}pt, margin: {}pt)\n#set text(size: 12pt)\n",
+        "#set page(width: {}pt, height: {}pt, margin: {}pt)\n",
         geom.w, geom.h, geom.margin
     ));
+    src.push_str(&theme.prelude());
     for c in &doc.flow {
         src.push_str(&c.render(&mut cx));
     }
     src
 }
 
-/// Compile a document at the default page geometry.
+/// Compile a document at the default page geometry and theme.
 pub fn compile_document<M>(doc: &Document<M>) -> Result<typst::layout::PagedDocument> {
-    compile_document_in(doc, PageGeom::default())
+    compile_document_in(doc, PageGeom::default(), &Theme::reader())
 }
 
-/// Compile a document at an explicit page geometry, with all its Typst sources
-/// (prelude + authored components) registered.
+/// Compile a document at an explicit page geometry and theme, with all its Typst
+/// sources (prelude + authored components) registered.
 pub fn compile_document_in<M>(
     doc: &Document<M>,
     geom: PageGeom,
+    theme: &Theme,
 ) -> Result<typst::layout::PagedDocument> {
-    compile_document_in_with_assets(doc, geom, &AssetMap::new())
+    compile_document_in_with_assets(doc, geom, theme, &AssetMap::new())
 }
 
 /// Like `compile_document_in`, but also registers `assets` so the document may
@@ -96,9 +99,10 @@ pub fn compile_document_in<M>(
 pub fn compile_document_in_with_assets<M>(
     doc: &Document<M>,
     geom: PageGeom,
+    theme: &Theme,
     assets: &AssetMap,
 ) -> Result<typst::layout::PagedDocument> {
-    let src = document_source_in(doc, geom);
+    let src = document_source_in(doc, geom, theme);
     let sources = collect_typst_sources(doc);
     let asset_vec = assets_as_slice(assets);
     crate::render::compile_to_document_with_sources_and_assets(&src, &sources, &asset_vec)
@@ -113,19 +117,20 @@ fn hash_str(s: &str) -> u64 {
     h.finish()
 }
 
-/// Render one document at the default page geometry.
+/// Render one document at the default page geometry and theme.
 pub fn render_document<M>(doc: &Document<M>, version: u64, key: &Key) -> Result<RenderedDoc> {
-    render_document_in(doc, version, key, PageGeom::default())
+    render_document_in(doc, version, key, PageGeom::default(), &Theme::reader())
 }
 
-/// Render one document at an explicit page geometry, sealing its manifest with `key`.
+/// Render one document at an explicit page geometry and theme, sealing its manifest with `key`.
 pub fn render_document_in<M>(
     doc: &Document<M>,
     version: u64,
     key: &Key,
     geom: PageGeom,
+    theme: &Theme,
 ) -> Result<RenderedDoc> {
-    render_document_in_with_assets(doc, version, key, geom, &AssetMap::new())
+    render_document_in_with_assets(doc, version, key, geom, theme, &AssetMap::new())
 }
 
 /// Like `render_document_in`, but registers `assets` so the document may embed
@@ -135,9 +140,10 @@ pub fn render_document_in_with_assets<M>(
     version: u64,
     key: &Key,
     geom: PageGeom,
+    theme: &Theme,
     assets: &AssetMap,
 ) -> Result<RenderedDoc> {
-    let src = document_source_in(doc, geom);
+    let src = document_source_in(doc, geom, theme);
     let sources = collect_typst_sources(doc);
     let asset_vec = assets_as_slice(assets);
     let compiled =
@@ -249,6 +255,7 @@ pub struct App<M, Msg, Cx> {
     version: u64,
     key: Key,
     geom: PageGeom,
+    theme: Theme,
     fetcher: Arc<dyn ImageFetcher>,
     asset_cache: Option<Arc<Cache>>,
 }
@@ -265,6 +272,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         view: ViewFn<M, Msg, Cx>,
         key: Key,
         geom: PageGeom,
+        theme: Theme,
         fetcher: Arc<dyn ImageFetcher>,
         asset_cache: Option<Arc<Cache>>,
     ) -> Self {
@@ -276,6 +284,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             version: 1,
             key,
             geom,
+            theme,
             fetcher,
             asset_cache,
         }
@@ -330,8 +339,14 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut out = Vec::new();
         let mut entries = HashMap::new();
         for doc in &docs.0 {
-            let rd =
-                render_document_in_with_assets(doc, self.version, &self.key, self.geom, &assets)?;
+            let rd = render_document_in_with_assets(
+                doc,
+                self.version,
+                &self.key,
+                self.geom,
+                &self.theme,
+                &assets,
+            )?;
             entries.insert(
                 rd.key.0.clone(),
                 DocEntry {
@@ -402,6 +417,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
                 self.version,
                 &self.key,
                 self.geom,
+                &self.theme,
                 &assets,
             )?);
         }
@@ -548,6 +564,7 @@ impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
             view: self.view,
             key,
             geom: PageGeom::default(),
+            theme: Theme::reader(),
             fetcher: Arc::new(OfflineFetcher),
             asset_cache: None,
         }
@@ -561,6 +578,7 @@ pub struct BuilderReady<M, Msg, Cx> {
     view: ViewFn<M, Msg, Cx>,
     key: Key,
     geom: PageGeom,
+    theme: Theme,
     fetcher: Arc<dyn ImageFetcher>,
     asset_cache: Option<Arc<Cache>>,
 }
@@ -570,6 +588,13 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
     #[must_use]
     pub fn page(mut self, geom: PageGeom) -> Self {
         self.geom = geom;
+        self
+    }
+
+    /// Override the reading theme for this app (default: `Theme::reader()`).
+    #[must_use]
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
         self
     }
 
@@ -597,8 +622,61 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
             self.view,
             self.key,
             self.geom,
+            self.theme,
             self.fetcher,
             self.asset_cache,
         )
+    }
+}
+
+#[cfg(test)]
+mod theme_render_tests {
+    use super::*;
+    use crate::components::passage::Passage;
+    use crate::crypto::Key;
+
+    fn sample_doc() -> Document<()> {
+        Document::keyed(
+            "d",
+            crate::flow![Passage::new(
+                "p",
+                &["The quick brown fox jumps over the lazy dog."]
+            )],
+        )
+    }
+
+    #[test]
+    fn themed_document_renders_nonempty_pdf() {
+        let key = Key::from_bytes([7u8; 32]);
+        let rd = render_document(&sample_doc(), 1, &key).unwrap();
+        assert!(!rd.pdf.is_empty(), "themed render must produce a PDF");
+    }
+
+    #[test]
+    fn themed_source_is_deterministic() {
+        // The PDF carries a sealed manifest whose AEAD nonce is fresh per `seal`
+        // (an enforced crypto invariant — see `crypto::nonce_randomizes_output`),
+        // so the *embedded* bytes are intentionally non-reproducible. The
+        // determinism theming must guarantee is over the generated Typst source:
+        // identical input + theme yields identical source, hence identical layout.
+        let a = document_source(&sample_doc());
+        let b = document_source(&sample_doc());
+        assert_eq!(
+            a, b,
+            "identical input must yield byte-identical themed source"
+        );
+    }
+
+    #[test]
+    fn document_source_uses_theme_prelude() {
+        let src = document_source(&sample_doc());
+        assert!(
+            src.contains("font: \"Newsreader\""),
+            "default source carries the reader theme prelude"
+        );
+        assert!(
+            !src.contains("#set text(size: 12pt)"),
+            "the hardcoded text line is gone"
+        );
     }
 }
