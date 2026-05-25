@@ -10,7 +10,7 @@
 
 **Reference — the live Readwise Reader API (from rmreader):**
 - Auth header: `Authorization: Token <token>`.
-- List: `POST https://readwise.io/api/v3/list/?withHtmlContent=true&location=<loc>&pageCursor=<cursor>&limit=50` → `{ nextPageCursor, results: [doc] }`. Locations: `new`, `later`, `shortlist`, `archive`, `feed`.
+- List: `GET https://readwise.io/api/v3/list/?withHtmlContent=true&location=<loc>&pageCursor=<cursor>&limit=50` → `{ nextPageCursor, results: [doc] }`. Locations: `new`, `later`, `shortlist`, `archive`, `feed`. (The list endpoint is GET, rate-limited ~20/min — verified against the live API and rmreader's code.)
 - Move: `PATCH https://readwise.io/api/v3/update/<id>/` body `{ "location": "new"|"later"|"archive" }`.
 - Delete: `DELETE https://readwise.io/api/v3/delete/<id>/`.
 - Create highlight: `POST https://readwise.io/api/v2/highlights/` body `{ "highlights": [{ text, title, author, source_url, category }] }`.
@@ -1010,7 +1010,7 @@ pub struct HttpWrite {
 impl FetchTransport for HttpFetch {
     async fn list(&self, location: &str, cursor: Option<&str>) -> Result<Page, ConnectorError> {
         let url = build_list_url(location, cursor);
-        let resp = self.client.post(&url)
+        let resp = self.client.get(&url)  // Reader v3 list is GET
             .header("Authorization", format!("Token {}", self.token))
             .send().await.map_err(|e| ConnectorError::Transport(e.to_string()))?;
         if let Some(err) = status_error(resp.status().as_u16()) { return Err(err); }

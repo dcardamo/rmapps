@@ -187,9 +187,10 @@ pub struct Page { pub articles: Vec<Article>, pub next_cursor: Option<String> }
 ```
 
 - **Live impl** (`HttpFetch`): `reqwest_middleware::ClientWithMiddleware` →
-  `POST https://readwise.io/api/v3/list/?withHtmlContent=true&location=…&pageCursor=…&limit=50`,
+  `GET https://readwise.io/api/v3/list/?withHtmlContent=true&location=…&pageCursor=…&limit=50`,
   header `Authorization: Token <token>`; retry on 429/5xx with exponential backoff
-  (rmreader's 5-try policy, honoring `Retry-After`).
+  (rmreader's 5-try policy, honoring `Retry-After`). The Reader list endpoint is
+  **GET** (verified against the live API + rmreader's own code; rate-limited ~20/min).
 - **Cassette impl**: returns committed JSON. Unit tests inject canned pages.
 
 **`refresh()`**: for each configured location, page through `FetchTransport`, dedupe by
