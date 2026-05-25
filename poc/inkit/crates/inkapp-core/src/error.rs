@@ -17,6 +17,8 @@ pub enum Error {
     Crypto(String),
     #[error("secret store failed: {0}")]
     Secrets(String),
+    #[error("cache failed: {0}")]
+    Cache(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
