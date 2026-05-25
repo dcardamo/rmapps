@@ -305,6 +305,15 @@ decodes nothing — so surfacing a message (a header, a connector sync failure) 
 matter of *composing* it, not authoring Typst. It's generic over the app's `Msg`
 (which it never emits), so it drops into any `view` flow.
 
+The framework also ships a `GestureAction` **Control** component — it renders its
+target content as one region and decodes a *striking pen gesture* (a non-highlighter
+stroke whose combined bounding box spans most of the region's width — a horizontal
+strike or scribble) into a single value-message, while ignoring incidental marks,
+taps, and highlighter swipes. It is how an app turns "strike through the title to
+archive it" into one `Msg`; like `Checkbox` it is a fixed-affordance Control that
+carries no mode. *(Built — `inkapp-core::components::gesture`, proved against real
+captured gesture fixtures in the harness exerciser.)*
+
 ### Components never talk to connectors
 
 A component's mode and a connector's read/write capability are **separate axes**. A
