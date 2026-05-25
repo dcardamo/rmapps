@@ -7,6 +7,20 @@ use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryExt, World};
 
+/// Fonts vendored into the framework so a `Theme` resolves deterministically with
+/// no host font search. Curated reading set: Newsreader (body serif, incl. true
+/// italic), Fraunces (display serif), Hanken Grotesk (sans, for labels). Monospace
+/// is served by the typst-assets `DejaVu Sans Mono`, so none is vendored here.
+const VENDORED_FONTS: &[&[u8]] = &[
+    include_bytes!("../assets/fonts/Newsreader-Regular.ttf"),
+    include_bytes!("../assets/fonts/Newsreader-Italic.ttf"),
+    include_bytes!("../assets/fonts/Newsreader-SemiBold.ttf"),
+    include_bytes!("../assets/fonts/Fraunces-Regular.ttf"),
+    include_bytes!("../assets/fonts/Fraunces-SemiBold.ttf"),
+    include_bytes!("../assets/fonts/HankenGrotesk-Regular.ttf"),
+    include_bytes!("../assets/fonts/HankenGrotesk-SemiBold.ttf"),
+];
+
 /// A Typst world backed by an in-memory main source and fonts embedded from
 /// `typst-assets` (deterministic; no host font search).
 pub struct InkWorld {
@@ -41,6 +55,14 @@ impl InkWorld {
     ) -> Self {
         let mut fonts = Vec::new();
         for data in typst_assets::fonts() {
+            let bytes = Bytes::new(data.to_vec());
+            // A single TTF/OTF file may contain multiple faces.
+            for face in Font::iter(bytes) {
+                fonts.push(face);
+            }
+        }
+        // Vendored reading fonts share the same book as the typst-assets defaults.
+        for data in VENDORED_FONTS {
             let bytes = Bytes::new(data.to_vec());
             // A single TTF/OTF file may contain multiple faces.
             for face in Font::iter(bytes) {
@@ -129,6 +151,21 @@ mod tests {
 
         let missing = FileId::new(None, VirtualPath::new("/assets/zzz.png"));
         assert!(world.file(missing).is_err());
+    }
+
+    #[test]
+    fn vendored_body_font_in_book() {
+        // The framework must embed the reading fonts so `#set text(font: ...)`
+        // resolves with no host font search. Newsreader is the reader() body face.
+        let world = InkWorld::new("hello");
+        let has_newsreader = world
+            .book()
+            .families()
+            .any(|(name, _)| name.eq_ignore_ascii_case("Newsreader"));
+        assert!(
+            has_newsreader,
+            "Newsreader must be in the embedded font book"
+        );
     }
 
     #[test]
