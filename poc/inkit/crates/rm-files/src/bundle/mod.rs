@@ -137,16 +137,32 @@ pub struct Page<'a> {
 }
 
 impl Page<'_> {
+    /// The bundle-relative path of this page's `.rm` scene file.
+    fn rm_key(&self) -> String {
+        format!("{}/{}.rm", self.bundle.uuid, self.id)
+    }
+
     /// Parse the `.rm` scene for this page, if one exists.
     ///
     /// Returns `Ok(None)` when no `.rm` file is present for this page (common
     /// for pages that have never been annotated).
     pub fn scene(&self) -> Result<Option<Scene>> {
-        let key = format!("{}/{}.rm", self.bundle.uuid, self.id);
+        let key = self.rm_key();
         match self.bundle.files.get(&key) {
             Some(bytes) => Scene::parse(bytes).map(Some),
             None => Ok(None),
         }
+    }
+
+    /// Raw bytes of this page's `.rm` scene file, if present.
+    ///
+    /// Returns `None` when the page has never been annotated (no `.rm` entry),
+    /// the same condition under which [`scene`][Page::scene] returns `Ok(None)`.
+    /// Unlike `scene`, this hands back the unparsed bytes so a caller can run its
+    /// own device transform (e.g. `Remarkable::read_ink`).
+    pub fn scene_bytes(&self) -> Option<&[u8]> {
+        let key = self.rm_key();
+        self.bundle.files.get(&key).map(|v| v.as_slice())
     }
 }
 

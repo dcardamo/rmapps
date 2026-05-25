@@ -37,6 +37,7 @@ dependencies = [
  "inkapp-core",
  "inkapp-ics",
  "inkapp-localcal",
+ "rm-files",
  "tokio",
  "zip",
 ]
@@ -3320,6 +3321,7 @@ dependencies = [
  "inkapp",
  "inkapp-core",
  "inkapp-readwise-reader",
+ "rm-files",
  "tokio",
  "zip",
 ]

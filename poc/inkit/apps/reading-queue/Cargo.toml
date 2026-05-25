@@ -9,5 +9,6 @@ description = "inkapp reading-queue app (the worked example): Readwise-backed, o
 inkapp = { path = "../../crates/inkapp" }
 inkapp-core = { path = "../../crates/inkapp-core" }
 inkapp-readwise-reader = { path = "../../crates/inkapp-readwise-reader" }
+rm-files = { path = "../../crates/rm-files" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 zip = "2"

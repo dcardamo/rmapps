@@ -16,6 +16,7 @@ use std::process::{Command, Stdio};
 use inkapp::{App as Framework, DocSet, Remarkable};
 use inkapp_core::device::Device;
 use inkapp_core::ink::Stroke;
+use rm_files::Bundle;
 
 use crate::{Connectors, Msg};
 
@@ -82,27 +83,23 @@ fn find_rmdocs(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Read the first `.rm` entry's PDF-space strokes out of an `.rmdoc` zip, via the
-/// device transform. Empty if the document has no ink yet.
-fn strokes_from_rmdoc(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Stroke> {
-    use std::io::Read;
-    let Ok(file) = std::fs::File::open(path) else {
+/// Assemble per-page PDF-space strokes from an `.rmdoc` bundle, indexed by the
+/// bundle's `.content` page order: slot `p` aligns with the manifest's
+/// `region.page == p`. An un-inked page occupies its slot as an empty `Vec`, so it
+/// never shifts later pages. All pages of a document share one `page_h` (Typst
+/// `#set page` fixes every page to the same height). Empty if the bundle won't open.
+pub fn strokes_by_page(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Vec<Stroke>> {
+    let Ok(bundle) = Bundle::open(path) else {
         return Vec::new();
     };
-    let Ok(mut zip) = zip::ZipArchive::new(file) else {
-        return Vec::new();
-    };
-    let names: Vec<String> = (0..zip.len())
-        .map(|i| zip.by_index(i).unwrap().name().to_string())
-        .collect();
-    let Some(rm) = names.into_iter().find(|n| n.ends_with(".rm")) else {
-        return Vec::new();
-    };
-    let mut bytes = Vec::new();
-    if zip.by_name(&rm).unwrap().read_to_end(&mut bytes).is_err() {
-        return Vec::new();
-    }
-    device.read_ink(&bytes, page_h).unwrap_or_default()
+    bundle
+        .pages()
+        .into_iter()
+        .map(|pg| match pg.scene_bytes() {
+            Some(bytes) => device.read_ink(bytes, page_h).unwrap_or_default(),
+            None => Vec::new(),
+        })
+        .collect()
 }
 
 /// Pull the whole FOLDER once (`rmapi -ni mget`) and return per-key ink. The doc
@@ -134,10 +131,10 @@ pub fn pull_ink(
             continue;
         };
         let page_h = page_h_by_key.get(&key).copied().unwrap_or(0.0);
-        let strokes = strokes_from_rmdoc(device, &p, page_h);
-        if !strokes.is_empty() {
-            // Wrap as single-page for now; multi-page rmdoc support is a future step.
-            out.insert(key, vec![strokes]);
+        let pages = strokes_by_page(device, &p, page_h);
+        // Insert only when the document carries some ink on some page.
+        if pages.iter().any(|pg| !pg.is_empty()) {
+            out.insert(key, pages);
         }
     }
     out
