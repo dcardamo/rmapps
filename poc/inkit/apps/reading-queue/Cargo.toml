@@ -10,4 +10,3 @@ inkapp = { path = "../../crates/inkapp" }
 inkapp-core = { path = "../../crates/inkapp-core" }
 inkapp-readwise-reader = { path = "../../crates/inkapp-readwise-reader" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-zip = "2"

@@ -11,4 +11,3 @@ inkapp-core = { path = "../../crates/inkapp-core" }
 inkapp-ics = { path = "../../crates/inkapp-ics" }
 inkapp-localcal = { path = "../../crates/inkapp-localcal" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-zip = "2"

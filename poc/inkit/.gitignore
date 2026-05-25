@@ -2,6 +2,8 @@
 result
 /apps/reading-queue/.overlay.json
 /apps/agenda/.localcal.json
+/apps/reading-queue/deploy.toml
+/apps/agenda/deploy.toml
 
 # brainstorming visual companion mockups
 .superpowers/

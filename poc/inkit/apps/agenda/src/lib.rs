@@ -4,8 +4,6 @@
 //! connector's capability (ReadOnly for the feed, Editable for the local cal) —
 //! the appdx's "policy, not just capability." The components never see a connector.
 
-pub mod serve;
-
 use std::sync::Arc;
 
 use inkapp::{flow, Document, Documents};

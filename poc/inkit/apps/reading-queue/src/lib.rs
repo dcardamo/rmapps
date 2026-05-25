@@ -1,8 +1,6 @@
 //! The reading-queue app — `appdx`'s worked example, made real. Readwise is the
 //! source of truth (a cassette-backed connector here), so the Model is empty.
 
-pub mod serve;
-
 use inkapp::{flow, Document, Documents};
 use inkapp_core::component::Component;
 use inkapp_core::component::RenderCx;
