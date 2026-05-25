@@ -48,6 +48,11 @@ pub struct Index<M = ()> {
 }
 
 impl<M> Index<M> {
+    /// An index over `entries`. Region names are minted by position (`idx-0`,
+    /// `idx-1`, …) within this instance, so two `Index` instances in one document
+    /// would mint colliding names; today nothing does that (each contents doc has
+    /// one index). A second instance per document would need an instance-level
+    /// name prefix. (Mirrors the `evt-{i}` caveat on `CalendarView::editable`.)
     pub fn new(entries: Vec<IndexEntry>) -> Self {
         Self {
             entries,
@@ -165,10 +170,20 @@ mod tests {
             reading_time: Some("5 min".into()),
             summary: None,
         };
-        let src = Index::<()>::new(vec![e]).render(&mut RenderCx::new(0));
+        let src = Index::<()>::new(vec![e])
+            .render(&mut RenderCx::new(0).with_theme(Theme::indigo_tomato()));
         assert!(src.contains("#\"Ada Lovelace\""), "byline: {src}");
         assert!(src.contains("#\" · \""), "separator present: {src}");
         assert!(src.contains("#\"5 min\""), "reading_time verbatim: {src}");
+        // byline uses the byline role; reading_time uses the muted role.
+        assert!(
+            src.contains("#text(fill: rgb(\"#9C3A1B\"), size: 9pt)[#\"Ada Lovelace\"]"),
+            "byline in byline role: {src}"
+        );
+        assert!(
+            src.contains("#text(fill: rgb(\"#5E6166\"), size: 9pt)[#\"5 min\"]"),
+            "reading_time in muted role: {src}"
+        );
     }
 
     #[test]
@@ -200,6 +215,15 @@ mod tests {
     fn escapes_quotes_in_title() {
         let src = Index::<()>::new(vec![entry(r#"a "quote""#)]).render(&mut RenderCx::new(0));
         assert!(src.contains(r#"a \"quote\""#), "title escaped: {src}");
+    }
+
+    #[test]
+    fn escapes_backslash_in_title() {
+        let src = Index::<()>::new(vec![entry(r#"a \ backslash"#)]).render(&mut RenderCx::new(0));
+        assert!(
+            src.contains(r#"a \\ backslash"#),
+            "title backslash escaped: {src}"
+        );
     }
 
     #[test]
