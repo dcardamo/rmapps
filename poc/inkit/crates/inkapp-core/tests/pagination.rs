@@ -92,6 +92,17 @@ fn prelude_breakable_splits_atomic_does_not() {
         m.regions.iter().filter(|r| r.name == "p").count() >= 2,
         "breakable region splits across frames"
     );
+    // Each recovered "p" rect must span the full content column width.
+    // Page is 200pt wide with 8pt margins → content column ≈ 184pt.
+    // Before the fix, measure(body) in an unconstrained context returned ~0 for
+    // a zero-width block, so this assertion catches regressions to zero-width rects.
+    for r in m.regions.iter().filter(|r| r.name == "p") {
+        let w = r.rect.x1 - r.rect.x0;
+        assert!(
+            w > 150.0,
+            "breakable region frame should be ~column-width (~184pt), got {w}"
+        );
+    }
     assert_eq!(
         m.regions.iter().filter(|r| r.name == "c").count(),
         1,
