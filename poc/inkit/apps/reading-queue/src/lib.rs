@@ -105,20 +105,41 @@ pub fn view(_m: &App, cx: &Connectors) -> Documents<Msg> {
     Documents(docs)
 }
 
-/// A bespoke, app-specific content component: renders the article body with its
-/// existing highlights, and decodes freeform highlighter ink into `Highlighted`
-/// messages (building the Msg directly — the appdx app-specific path).
+/// A bespoke, app-specific content component. Renders real article HTML via the
+/// content pipeline when present (decoding to coalesced highlight spans), and
+/// falls back to whitespace-split plaintext for articles without `html_content`.
+enum Body {
+    Html(inkapp_content::Article<Msg>),
+    Plain(HighlightableText),
+}
+
 pub struct ArticleBody {
     article: ArticleId,
-    text: HighlightableText,
+    body: Body,
 }
 
 impl ArticleBody {
     pub fn new(a: &Article) -> Self {
-        let tokens: Vec<&str> = a.body.split_whitespace().collect();
+        let body = match a.html_content.as_deref() {
+            Some(html) if !html.trim().is_empty() => {
+                let id = a.id.clone();
+                Body::Html(inkapp_content::Article::new(
+                    html,
+                    &a.highlights,
+                    move |s| Msg::Highlighted {
+                        article: id.clone(),
+                        text: s.to_string(),
+                    },
+                ))
+            }
+            _ => {
+                let tokens: Vec<&str> = a.body.split_whitespace().collect();
+                Body::Plain(HighlightableText::with_highlights(&tokens, &a.highlights))
+            }
+        };
         Self {
             article: a.id.clone(),
-            text: HighlightableText::with_highlights(&tokens, &a.highlights),
+            body,
         }
     }
 }
@@ -127,17 +148,23 @@ impl Component for ArticleBody {
     type Msg = Msg;
 
     fn render(&self, cx: &mut RenderCx) -> String {
-        self.text.render(cx)
+        match &self.body {
+            Body::Html(a) => a.render(cx),
+            Body::Plain(h) => h.render(cx),
+        }
     }
 
     fn decode(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<Msg> {
-        self.text
-            .read(ink, manifest)
-            .into_iter()
-            .map(|text| Msg::Highlighted {
-                article: self.article.clone(),
-                text,
-            })
-            .collect()
+        match &self.body {
+            Body::Html(a) => a.decode(ink, manifest),
+            Body::Plain(h) => h
+                .read(ink, manifest)
+                .into_iter()
+                .map(|text| Msg::Highlighted {
+                    article: self.article.clone(),
+                    text,
+                })
+                .collect(),
+        }
     }
 }
