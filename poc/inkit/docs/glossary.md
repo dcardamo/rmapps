@@ -39,15 +39,16 @@ content — the input to the handler.
 
 **sync**
 The act of transferring the document bundle between the device and the cloud. inkapp's loop
-has two sync directions: pushing a newly rendered PDF to the device (via `rmapi --content-only`
-for reMarkable, which preserves existing ink), and the device syncing its annotations back to
+has two sync directions: pushing a newly rendered PDF to the device (a content-only PDF-blob
+swap for reMarkable, via the native `rm-cloud` client, which preserves existing ink), and the
+device syncing its annotations back to
 the cloud for the framework to read. The framework abstracts the device-specific sync transport
 behind a trait. See [remarkable-pdf-mechanics.md](remarkable-pdf-mechanics.md) for sync
 invariants.
 
 **device**
 The physical pen-based document device (reMarkable, Supernote, Boox, etc.) that the user
-reads and writes on. Device-specific concerns — the `.rm` annotation format, the `rmapi`
-cloud transport, page dimensions, toolbar offsets — are abstracted behind device traits in
+reads and writes on. Device-specific concerns — the `.rm` annotation format, the reMarkable
+cloud transport (`rm-cloud`), page dimensions, toolbar offsets — are abstracted behind device traits in
 the framework. Infrastructure crates that are inherently device-specific (like `rmfiles`, the
 `.rm` parser) may carry a device name; app crates must not.

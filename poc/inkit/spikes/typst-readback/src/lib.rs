@@ -1,6 +1,6 @@
+pub mod cloud;
 pub mod html;
 pub mod regions;
-pub mod rmapi;
 pub mod test_docs;
 pub mod world;
 

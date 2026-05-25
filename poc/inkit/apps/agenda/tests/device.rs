@@ -1,6 +1,7 @@
-//! Manual on-device bars for the agenda app. Requires a paired reMarkable and an
-//! authenticated `rmapi`. The transport is built here with the `remarkable`
-//! backend and the `/Agenda` folder.
+//! Manual on-device bars for the agenda app. Requires reMarkable cloud credentials
+//! in the environment (`RM_CLOUD_DEVICE_TOKEN`, or a valid `RM_CLOUD_USER_TOKEN`).
+//! The transport is built here with the `remarkable` backend and the `/Agenda`
+//! folder.
 //!
 //!   1. publish the agenda to the device:
 //!      nix develop -c cargo test -p agenda --test device -- --ignored --nocapture publish_to_device
@@ -31,7 +32,7 @@ fn build_app() -> Framework<App, Msg, Connectors> {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi"]
+#[ignore = "manual: requires reMarkable cloud creds (RM_CLOUD_*)"]
 async fn publish_to_device() {
     let mut application = build_app();
     let transport =
@@ -46,7 +47,7 @@ async fn publish_to_device() {
 }
 
 #[tokio::test]
-#[ignore = "manual: requires a paired reMarkable + rmapi; run after inking + syncing"]
+#[ignore = "manual: requires reMarkable cloud creds (RM_CLOUD_*); run after inking + syncing"]
 async fn sync_from_device() {
     let mut application = build_app();
     let transport =

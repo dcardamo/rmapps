@@ -13,15 +13,18 @@ use crate::runtime::{App, Cycle, DocSet};
 
 /// A device's sync transport: how rendered documents reach the hardware and how
 /// the user's ink comes back. Implemented once per device family (reMarkable
-/// today, in `rm-device`). Object-safe so the facade can dispatch on config.
-pub trait DeviceTransport {
+/// today, in `rm-device`). Async (the reMarkable backend talks to the cloud over
+/// the network) and object-safe so the facade can dispatch on config.
+#[async_trait::async_trait]
+pub trait DeviceTransport: Send + Sync {
     /// Push a rendered document (its key + PDF bytes) to the device.
-    fn push(&self, key: &str, pdf: &[u8]) -> Result<()>;
+    async fn push(&self, key: &str, pdf: &[u8]) -> Result<()>;
     /// Delete a document by key. Best-effort: a missing document is not an error.
-    fn delete(&self, key: &str);
+    async fn delete(&self, key: &str);
     /// Pull all device ink, keyed by document key, as PDF-space strokes.
     /// `page_h_by_key` lets the backend decode each document at its page height.
-    fn pull(&self, page_h_by_key: &HashMap<String, f64>) -> HashMap<String, Vec<Vec<Stroke>>>;
+    async fn pull(&self, page_h_by_key: &HashMap<String, f64>)
+        -> HashMap<String, Vec<Vec<Stroke>>>;
 }
 
 /// Render the app's full document set and push every document to the device.
@@ -32,7 +35,7 @@ pub async fn publish<M, Msg, Cx: ConnectorSet>(
 ) -> Result<()> {
     let rendered = app.render(set).await?;
     for rd in &rendered {
-        transport.push(&rd.key.0, &rd.pdf)?;
+        transport.push(&rd.key.0, &rd.pdf).await?;
     }
     println!("published {} document(s)", rendered.len());
     Ok(())
@@ -53,15 +56,15 @@ pub async fn sync_once<M, Msg: Clone, Cx: ConnectorSet>(
         .into_iter()
         .filter_map(|k| set.page_h(&k).map(|h| (k.0, h)))
         .collect();
-    let ink = transport.pull(&page_h);
+    let ink = transport.pull(&page_h).await;
     let cycle = app.step(set, &ink).await?;
     for op in &cycle.ops {
         if let DocOp::Delete(k) = op {
-            transport.delete(&k.0);
+            transport.delete(&k.0).await;
         }
     }
     for rd in &cycle.rendered {
-        transport.push(&rd.key.0, &rd.pdf)?;
+        transport.push(&rd.key.0, &rd.pdf).await?;
     }
     println!(
         "synced: {} message(s), {} op(s)",
@@ -116,16 +119,17 @@ mod tests {
         pushed: Mutex<Vec<(String, usize)>>,
         pulled: Mutex<usize>,
     }
+    #[async_trait::async_trait]
     impl DeviceTransport for FakeTransport {
-        fn push(&self, key: &str, pdf: &[u8]) -> Result<()> {
+        async fn push(&self, key: &str, pdf: &[u8]) -> Result<()> {
             self.pushed
                 .lock()
                 .unwrap()
                 .push((key.to_string(), pdf.len()));
             Ok(())
         }
-        fn delete(&self, _key: &str) {}
-        fn pull(&self, _p: &HashMap<String, f64>) -> HashMap<String, Vec<Vec<Stroke>>> {
+        async fn delete(&self, _key: &str) {}
+        async fn pull(&self, _p: &HashMap<String, f64>) -> HashMap<String, Vec<Vec<Stroke>>> {
             *self.pulled.lock().unwrap() += 1;
             HashMap::new()
         }

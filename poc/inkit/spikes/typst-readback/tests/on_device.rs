@@ -7,6 +7,6 @@ fn pushes_sample_doc_for_visual_check() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("inkapp-spike.pdf");
     std::fs::write(&path, &pdf).unwrap();
-    typst_readback::rmapi::push_content_only(Path::new(&path), "/inkapp-spike").unwrap();
+    typst_readback::cloud::push_content_only(Path::new(&path), "/inkapp-spike").unwrap();
     eprintln!("pushed to /inkapp-spike — inspect quality on the tablet");
 }

@@ -5,8 +5,7 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        overlays = [ (import ./nix/overlays/rmapi.nix) ];
-        pkgs = import nixpkgs { inherit system overlays; };
+        pkgs = import nixpkgs { inherit system; };
       in {
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = [
@@ -15,11 +14,11 @@
           # fontconfig + fonts: inkapp-core embeds fonts via typst-assets (deterministic, no
           # system fonts needed for rendering). The dejavu/noto packages and poppler-utils
           # below are kept for the legacy spike only (typst-readback), which still uses
-          # system-font rendering and pdftoppm for verification.
-          # rmapi: reMarkable cloud client (v4-patched), for the spike's on-device steps.
+          # system-font rendering and pdftoppm for verification. The reMarkable cloud is now
+          # spoken natively by the pure-Rust `rm-cloud` crate — no `rmapi` binary needed.
           buildInputs = [
             pkgs.libiconv pkgs.fontconfig pkgs.dejavu_fonts pkgs.noto-fonts
-            pkgs.poppler-utils pkgs.rmapi pkgs.dav1d
+            pkgs.poppler-utils pkgs.dav1d
           ];
         };
       });

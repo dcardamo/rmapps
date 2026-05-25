@@ -80,12 +80,12 @@ rationale. The pieces:
   (ink strokes, highlights) and the document bundle. No framework deps.
 
 - **`crates/rm-device`** — the reMarkable backend: the `Device` impl (PDF↔device
-  coordinate transform + `.rm` read/write) **and** the on-device transport, `RmTransport`
-  (an `inkapp-core::sync::DeviceTransport` impl) over an `RmCommand` seam that shells out to
-  `rmapi`. Two per-device seams live in core: `Device` (`device.rs`, ink coordinate
-  mapping/parsing) and the device-agnostic `DeviceTransport` (`sync.rs`, push/pull/delete);
-  this crate implements both for reMarkable. The generic publish/sync engine and the
-  `DeviceTransport` trait are framework code — transport is no longer per-app.
+  coordinate transform + `.rm` read/write) **and** the on-device transport, `CloudTransport`
+  (an `inkapp-core::sync::DeviceTransport` impl) backed natively by `rm-cloud` — no `rmapi`
+  CLI, no shelling out. Two per-device seams live in core: `Device` (`device.rs`, ink
+  coordinate mapping/parsing) and the device-agnostic `DeviceTransport` (`sync.rs`, async
+  push/pull/delete); this crate implements both for reMarkable. The generic publish/sync
+  engine and the `DeviceTransport` trait are framework code — transport is no longer per-app.
 
 - **`crates/rm-cloud`** — pure-Rust client for the current reMarkable Cloud sync protocol
   (content-addressed blob store, root ref with compare-and-swap by generation). Exposes
@@ -95,8 +95,9 @@ rationale. The pieces:
   scene format. Tested against an in-process axum fake cloud (behind the `fake` feature) and
   an env-gated live-cloud suite isolated under `rmrs-test/<run-id>` (verified end-to-end
   against the production cloud). reMarkable-specific → `rm-` prefix. No framework/app deps.
-  Intended to back a native `DeviceTransport` impl, replacing `rm-device`'s `RmTransport`
-  shelling out to the `rmapi` CLI (a later spec). See `docs/rm-cloud-protocol.md`.
+  Backs `rm-device`'s native `CloudTransport` (`DocFiles::new_pdf` + `mkdir_p` +
+  `put_content_only`), which fully replaced the old `rmapi`-CLI transport. See
+  `docs/rm-cloud-protocol.md`.
 
 - **`crates/inkapp`** — the thin app-authoring **facade**: re-exports the core surface plus
   the default `Remarkable` device, so apps read the way the docs show. Apps depend on this.
@@ -145,8 +146,8 @@ invariant, ink preservation) — consult it before touching transport.
   on a device crate (`rm-*`), and expose no reMarkable-specific types in their API. They
   depend only on the `inkapp` facade; the framework resolves the device from a `deploy.toml`
   (`backend` + `folder`, located via `INKAPP_DEPLOY_CONFIG`).
-- **reMarkable-specific crates carry an `rm-` prefix** (e.g. `rm-files`). Anything that
-  knows the reMarkable `.rm` format, coordinate space, bundle layout, or `rmapi` transport
+- **reMarkable-specific crates carry an `rm-` prefix** (e.g. `rm-files`, `rm-cloud`). Anything
+  that knows the reMarkable `.rm` format, coordinate space, bundle layout, or cloud transport
   belongs in an `rm-`-prefixed crate. Device-neutral framework code stays in `inkapp-core` /
   `inkapp`.
 - Pre-commit hook runs `cargo fmt --check`; an open task list can also block the hook

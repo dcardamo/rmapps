@@ -848,10 +848,11 @@ come from **`config.toml`** (see "Secrets & config"): the framework
 resolves them and asks the `inkapp` facade to build a transport —
 `resolve_transport(backend, folder)` — which it passes to `publish`/`sync_once`.
 The generic engine (`inkapp-core::sync`) drives any `DeviceTransport`; the
-reMarkable backend (`rm-device::RmTransport`, over an `rmapi` command seam) is
-today's only implementation. Adding a device family is a new `*-device` crate plus
-one `match` arm in `resolve_transport` — apps and the engine are untouched. The old
-per-app `serve.rs` (duplicated across reading-queue and agenda) is gone.
+reMarkable backend (`rm-device::CloudTransport`, backed natively by the pure-Rust
+`rm-cloud` client — no `rmapi` CLI) is today's only implementation. Adding a device
+family is a new `*-device` crate plus one `match` arm in `resolve_transport` — apps
+and the engine are untouched. The old per-app `serve.rs` (duplicated across
+reading-queue and agenda) is gone.
 
 ---
 

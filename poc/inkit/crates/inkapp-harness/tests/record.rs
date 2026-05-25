@@ -4,7 +4,7 @@ use std::path::Path;
 
 use inkapp_harness::recording::{catalog, render_calibration, render_template};
 
-use common::{rmapi_mget, rmapi_mkdir, rmapi_put};
+use common::{cloud_mget, cloud_mkdir, cloud_put};
 
 const FIXTURES_FOLDER: &str = "/InkAppDev/fixtures";
 
@@ -15,18 +15,18 @@ const FIXTURES_FOLDER: &str = "/InkAppDev/fixtures";
 #[ignore = "requires a paired reMarkable; run: cargo test -p inkapp-harness --test record push_templates -- --ignored --nocapture"]
 fn push_templates() {
     let key = common::test_key();
-    rmapi_mkdir("/InkAppDev");
-    rmapi_mkdir(FIXTURES_FOLDER);
+    cloud_mkdir("/InkAppDev");
+    cloud_mkdir(FIXTURES_FOLDER);
     let dir = tempfile::tempdir().unwrap();
 
     let cal = dir.path().join("calibration.pdf");
     std::fs::write(&cal, render_calibration(&key).unwrap()).unwrap();
-    rmapi_put(&cal, FIXTURES_FOLDER);
+    cloud_put(&cal, FIXTURES_FOLDER);
 
     for entry in catalog() {
         let path = dir.path().join(format!("{}.pdf", entry.name));
         std::fs::write(&path, render_template(entry, &key).unwrap()).unwrap();
-        rmapi_put(&path, FIXTURES_FOLDER);
+        cloud_put(&path, FIXTURES_FOLDER);
     }
     eprintln!(
         "pushed calibration sheet + templates to {FIXTURES_FOLDER}; tap the calibration crosses \
@@ -42,10 +42,10 @@ fn pull_recordings() {
     let dest = format!("{}/tests/fixtures/recordings", env!("CARGO_MANIFEST_DIR"));
     std::fs::create_dir_all(&dest).unwrap();
 
-    // mget into a temp dir, then flatten: regen expects recordings/<name>.rmdoc,
-    // but mget nests the pull under a subdir named after the remote basename.
+    // Pull every doc into a temp dir as `<name>.rmdoc`, then copy into the
+    // recordings dir (regen expects recordings/<name>.rmdoc).
     let tmp = tempfile::tempdir().unwrap();
-    rmapi_mget(FIXTURES_FOLDER, tmp.path());
+    cloud_mget(FIXTURES_FOLDER, tmp.path());
 
     let mut pulled = 0;
     for entry in walkdir_rmdoc(tmp.path()) {
@@ -57,7 +57,7 @@ fn pull_recordings() {
 }
 
 /// Collect every `*.rmdoc` file under `root` (recursive), so the pull is robust to
-/// however rmapi nests the download.
+/// any directory nesting under the destination.
 fn walkdir_rmdoc(root: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     let mut stack = vec![root.to_path_buf()];
