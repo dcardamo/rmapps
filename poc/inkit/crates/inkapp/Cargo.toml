@@ -8,3 +8,9 @@ description = "inkapp facade: the app-authoring surface (core + default device)"
 [dependencies]
 inkapp-core = { path = "../inkapp-core" }
 rm-device = { path = "../rm-device" }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"

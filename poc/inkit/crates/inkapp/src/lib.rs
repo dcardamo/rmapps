@@ -15,4 +15,8 @@ pub use inkapp_core::secrets::{Scope, SecretStore};
 pub use inkapp_core::single_flight::SingleFlight;
 pub use inkapp_core::{components, flow};
 
+mod deploy;
+pub use deploy::{publish, sync_once, DeployConfig};
+pub use inkapp_core::sync::DeviceTransport;
+
 pub use rm_device::Remarkable;
