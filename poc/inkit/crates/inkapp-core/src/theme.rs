@@ -69,8 +69,11 @@ mod tests {
     #[test]
     fn indigo_tomato_is_color_with_paper() {
         let t = Theme::indigo_tomato();
+        assert_eq!(t.ink, "rgb(\"#1A1A18\")");
         assert_eq!(t.heading, "rgb(\"#2A2F6B\")");
         assert_eq!(t.byline, "rgb(\"#9C3A1B\")");
+        assert_eq!(t.muted, "rgb(\"#5E6166\")");
+        assert_eq!(t.rule, "rgb(\"#E0DDD2\")");
         assert_eq!(t.paper, Some("rgb(\"#F3F1EA\")".into()));
     }
 }
