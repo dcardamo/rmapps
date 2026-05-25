@@ -29,6 +29,7 @@ pub mod world;
 pub use cache::{Cache, Integrity};
 pub use calendar::EventRow;
 pub use component::Component;
+pub use components::index::{Index, IndexEntry};
 pub use connector::{Connector, ConnectorError, ConnectorSet};
 pub use crypto::{open, seal, Key};
 pub use device::Device;
