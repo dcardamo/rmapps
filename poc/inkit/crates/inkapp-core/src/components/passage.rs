@@ -41,6 +41,13 @@ impl<M> Passage<M> {
     }
 
     /// Whether any ink landed in this passage's (stitched) region.
+    ///
+    /// Unlike `Checkbox`, this does not re-check point-in-rect against the manifest:
+    /// `attribute` already does per-frame containment when building each `RegionInk`
+    /// and stitches a split region's frames into one `RegionInk`. A Checkbox-style
+    /// `find(name)` would inspect only the first frame's rect, which is wrong for a
+    /// breakable region — so presence of any attributed, stitched ink is the correct,
+    /// split-safe signal. `_manifest` is therefore unused.
     pub fn read(&self, ink: &[RegionInk], _manifest: &Manifest) -> bool {
         ink.iter()
             .filter(|ri| ri.region == self.name)
@@ -64,8 +71,9 @@ impl<M: Clone> Component for Passage<M> {
         let body: String = self
             .lines
             .iter()
-            .map(|l| format!("#\"{}\" #linebreak() ", esc_typst_str(l)))
-            .collect();
+            .map(|l| format!("#\"{}\"", esc_typst_str(l)))
+            .collect::<Vec<_>>()
+            .join(" #linebreak() ");
         format!("#region(\"{name}\", [{body}], breakable: true)\n")
     }
 

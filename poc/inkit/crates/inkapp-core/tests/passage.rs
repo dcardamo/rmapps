@@ -35,9 +35,12 @@ fn render_emits_breakable_region() {
         src.contains("breakable: true"),
         "as a breakable region: {src}"
     );
+    assert!(src.contains("#\"a\""), "line 'a' present in body: {src}");
+    assert!(src.contains("#\"b\""), "line 'b' present in body: {src}");
 }
 
 // Integration test: render → recover → attribute → decode, single page.
+// Cross-page split-stitch is exercised in crates/inkapp-harness/tests/pagination_device_blind.rs (Task 7).
 use inkapp_core::document::Document;
 use inkapp_core::flow;
 use inkapp_core::geometry::PageGeom;
@@ -47,11 +50,6 @@ use inkapp_core::runtime::compile_document_in;
 
 #[test]
 fn passage_decodes_ink_end_to_end() {
-    let p = Passage::with_msg(
-        "notes",
-        &["the quick brown fox", "jumps over the lazy dog"],
-        M::Captured,
-    );
     let doc: Document<M> = Document::keyed(
         "d",
         flow![Passage::with_msg(
@@ -77,9 +75,10 @@ fn passage_decodes_ink_end_to_end() {
     };
     let ink = attribute_page(&[stroke], &manifest);
 
-    // Re-decode through the component (same props as in the doc).
+    // Decode through the document's own component — no duplicate construction.
+    let decoded = doc.flow[0].decode(&ink, &manifest);
     assert_eq!(
-        p.decode(&ink, &manifest),
+        decoded,
         vec![M::Captured],
         "ink in the passage decodes to one Captured"
     );
