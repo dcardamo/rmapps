@@ -101,6 +101,8 @@ fn device_pages(
     per_page
         .into_iter()
         .map(|strokes| {
+            // page_h is uniform across all pages (Typst's #set page applies globally; see
+            // render_document_in's single-page_h comment), so one height transforms every page.
             let bytes = device.write_ink(&strokes, page_h).unwrap();
             device.read_ink(&bytes, page_h).unwrap()
         })
@@ -114,6 +116,21 @@ fn run_profile(geom: PageGeom) -> (usize, BTreeSet<Msg>) {
     let d = doc();
     let rd = render_document_in(&d, 1, &key, geom).unwrap();
 
+    // The Passage must actually split across a page break on each profile, so this
+    // test genuinely exercises cross-page ink stitching (not just page distribution).
+    let notes_frames = rd
+        .manifest
+        .regions
+        .iter()
+        .filter(|r| r.name == "notes")
+        .count();
+    assert!(
+        notes_frames >= 2,
+        "the 'notes' passage must span >1 page to exercise stitching, got {notes_frames} frame(s)"
+    );
+
+    // tok-7 is the region name for token index 7; doc() builds tokens as "word{i:02}",
+    // so index 7 → region "tok-7" → decoded as Msg::Hi("word07"). These must agree.
     let targets: &[(&str, bool)] = &[("tok-7", true), ("notes", true), ("done", false)];
     let pages = device_pages(&rd.manifest, &device, rd.page_h, rd.page_count, targets);
 
