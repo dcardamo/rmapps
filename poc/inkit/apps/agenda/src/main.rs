@@ -1,6 +1,6 @@
-//! Assemble and run the agenda app. The framework owns the loop body; on-device
-//! transport (rmapi) lives in the manual device bar (`serve`). For now `main`
-//! renders the initial set and reports.
+//! Assemble and run the agenda app. The framework owns the loop body and on-device
+//! deployment (`inkapp::publish`/`sync_once`); the manual device bar exercises it. For
+//! now `main` renders the initial set and reports.
 
 use agenda::{update, view, App, Connectors};
 use inkapp::{app, DocSet, SecretStore};

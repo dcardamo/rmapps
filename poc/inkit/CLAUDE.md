@@ -79,13 +79,13 @@ rationale. The pieces:
 - **`crates/rm-files`** — pure-Rust reader/writer for the reMarkable `.rm` v6 scene format
   (ink strokes, highlights) and the document bundle. No framework deps.
 
-- **`crates/inkapp-remarkable`** — the `Device` impl for reMarkable: the PDF↔device
-  coordinate transform and `.rm` read/write. The `Device` trait (`device.rs` in core) is
-  intentionally minimal — **it covers ink coordinate mapping and parsing only, not
-  transport**. Sync/transport (shelling out to `rmapi`) lives in each app's `serve.rs`,
-  not the framework. **Naming exception:** this crate is reMarkable-specific and should
-  follow the `rm-` prefix convention below (a rename to `rm-…` is pending); until then it
-  is the one crate that violates the rule.
+- **`crates/rm-device`** — the reMarkable backend: the `Device` impl (PDF↔device
+  coordinate transform + `.rm` read/write) **and** the on-device transport, `RmTransport`
+  (an `inkapp-core::sync::DeviceTransport` impl) over an `RmCommand` seam that shells out to
+  `rmapi`. Two per-device seams live in core: `Device` (`device.rs`, ink coordinate
+  mapping/parsing) and the device-agnostic `DeviceTransport` (`sync.rs`, push/pull/delete);
+  this crate implements both for reMarkable. The generic publish/sync engine and the
+  `DeviceTransport` trait are framework code — transport is no longer per-app.
 
 - **`crates/inkapp`** — the thin app-authoring **facade**: re-exports the core surface plus
   the default `Remarkable` device, so apps read the way the docs show. Apps depend on this.
@@ -100,7 +100,9 @@ rationale. The pieces:
 
 - **`apps/reading-queue`** — the worked example from `appdx.md` (Readwise-backed).
   **`apps/agenda`** — the mode-axis example (read-only feed + editable calendar). Each app
-  is `lib.rs` (model/msg/update/view + components) + `main.rs` + `serve.rs` (rmapi transport).
+  is `lib.rs` (model/msg/update/view + components) + `main.rs`; its manual device bar
+  (`tests/device.rs`) deploys via `inkapp::publish`/`inkapp::sync_once` (config-driven, no
+  per-app transport code).
 
 - **`spikes/typst-readback`** — legacy proof-of-concept (uses system fonts + `pdftoppm`).
   Not framework runtime; don't model new code on it.
@@ -129,12 +131,13 @@ invariant, ink preservation) — consult it before touching transport.
 ## Conventions
 
 - **Apps are strictly device-agnostic.** App crates never carry a device name, never depend
-  on a device crate (`rm-*` / `inkapp-remarkable`), and expose no reMarkable-specific types
-  in their API. They depend only on the `inkapp` facade; the framework picks the device.
+  on a device crate (`rm-*`), and expose no reMarkable-specific types in their API. They
+  depend only on the `inkapp` facade; the framework resolves the device from a `deploy.toml`
+  (`backend` + `folder`, located via `INKAPP_DEPLOY_CONFIG`).
 - **reMarkable-specific crates carry an `rm-` prefix** (e.g. `rm-files`). Anything that
   knows the reMarkable `.rm` format, coordinate space, bundle layout, or `rmapi` transport
   belongs in an `rm-`-prefixed crate. Device-neutral framework code stays in `inkapp-core` /
-  `inkapp`. (Current exception: `inkapp-remarkable`, pending rename — see Architecture.)
+  `inkapp`.
 - Pre-commit hook runs `cargo fmt --check`; an open task list can also block the hook
   (commit only with tasks closed). Implementers do **not** stage `Cargo.lock` — leave it
   to a separate dependency-bump commit.

@@ -1,7 +1,6 @@
 //! Assemble and run the reading-queue app. The framework owns the loop body
-//! (`App::step`); on-device transport (rmapi push/pull) lives in the manual
-//! device bar (added in a later task). For now `main` renders the initial set
-//! and reports.
+//! (`App::step`) and on-device deployment (`inkapp::publish`/`sync_once`); the manual
+//! device bar exercises it. For now `main` renders the initial set and reports.
 
 use inkapp::{app, DocSet, SecretStore};
 use reading_queue::{update, view, App, Connectors};
