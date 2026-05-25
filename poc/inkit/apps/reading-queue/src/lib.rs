@@ -26,6 +26,19 @@ pub enum Msg {
     Archived { article: ArticleId },
 }
 
+/// The reading-queue app's own config section.
+#[derive(Debug, Clone, serde::Deserialize, inkapp_config::Config)]
+#[serde(default)]
+#[config(kind = "reading-queue", namespace = "app")]
+pub struct AppConfig {
+    /// On-device folder path for this instance's documents (device-neutral).
+    #[config(default = String::from("/ReadingQueue"))]
+    pub device_folder: String,
+    /// Which Readwise connector instance to bind ("readwise.<instance>").
+    #[config(default = inkapp_config::ConnectorRef { kind: "readwise".into(), instance: "main".into() })]
+    pub readwise: inkapp_config::ConnectorRef,
+}
+
 /// The app's connectors (one connector this slice). Held as `Arc<Readwise>` so a
 /// connector — and its cache — can be shared across apps.
 pub struct Connectors {
@@ -54,6 +67,26 @@ impl Connectors {
     /// Build from an existing shared connector (so two apps share one cache).
     pub fn from_arc(readwise: Arc<Readwise>) -> Self {
         Connectors { readwise }
+    }
+
+    /// Build connectors from config: resolve the bound Readwise instance and
+    /// construct it (token from `secrets`, durable cache under `cache_dir`).
+    pub async fn from_config(
+        store: &inkapp_config::ConfigStore,
+        app: &AppConfig,
+        secrets: &inkapp_core::secrets::SecretStore,
+        cache_dir: std::path::PathBuf,
+    ) -> Result<Self, inkapp_config::ConfigError> {
+        use inkapp_config::Namespace;
+        let rw = &app.readwise;
+        store.require_instance(Namespace::Connector, &rw.kind, &rw.instance)?;
+        let cfg: inkapp_readwise_reader::ReaderConfig = store.resolve(&rw.instance)?;
+        let conn = Readwise::from_config(cfg, secrets, cache_dir)
+            .await
+            .map_err(|e| inkapp_config::ConfigError::Connector(e.to_string()))?;
+        Ok(Connectors {
+            readwise: Arc::new(conn),
+        })
     }
 }
 
