@@ -9,6 +9,7 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 
+use async_trait::async_trait;
 use image::GenericImageView;
 use sha2::{Digest, Sha256};
 
@@ -55,6 +56,92 @@ pub(crate) fn normalize_to_png(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut out = Cursor::new(Vec::new());
     img.write_to(&mut out, image::ImageFormat::Png).ok()?;
     Some(out.into_inner())
+}
+
+// ── fetch seam ───────────────────────────────────────────────────────────────
+
+/// How the pipeline fetches image bytes for a URL. Mirrors the readwise
+/// connector's `FetchTransport` seam: a trait with a fake for tests and a real
+/// concurrent retrying HTTP implementation.
+#[async_trait]
+pub trait ImageFetcher: Send + Sync {
+    /// Fetch one URL's raw bytes, or `None` on any failure.
+    async fn fetch(&self, url: &str) -> Option<Vec<u8>>;
+
+    /// Fetch many URLs, results in input order. The default runs them
+    /// concurrently; the real HTTP fetcher shares one connection pool, so this
+    /// gives concurrent downloads for free.
+    async fn fetch_many(&self, urls: &[String]) -> Vec<Option<Vec<u8>>> {
+        futures::future::join_all(urls.iter().map(|u| self.fetch(u))).await
+    }
+}
+
+/// Test fetcher: returns canned bytes for known URLs, `None` otherwise.
+pub struct FakeFetcher {
+    responses: HashMap<String, Vec<u8>>,
+}
+
+impl FakeFetcher {
+    pub fn new(responses: HashMap<String, Vec<u8>>) -> Self {
+        Self { responses }
+    }
+}
+
+#[async_trait]
+impl ImageFetcher for FakeFetcher {
+    async fn fetch(&self, url: &str) -> Option<Vec<u8>> {
+        self.responses.get(url).cloned()
+    }
+}
+
+/// Offline fetcher: always `None`. The `App`'s default, so nothing hits the
+/// network unless a live build injects `HttpImageFetcher`.
+pub struct OfflineFetcher;
+
+#[async_trait]
+impl ImageFetcher for OfflineFetcher {
+    async fn fetch(&self, _url: &str) -> Option<Vec<u8>> {
+        None
+    }
+}
+
+/// Real HTTP fetcher with exponential-backoff retry on transient failures
+/// (429 / 5xx), mirroring the readwise connector's `retrying_http_client`. A
+/// non-2xx status or transport error yields `None`, which the resolver turns
+/// into a placeholder.
+pub struct HttpImageFetcher {
+    client: reqwest_middleware::ClientWithMiddleware,
+}
+
+impl HttpImageFetcher {
+    pub fn new() -> Self {
+        use reqwest_middleware::ClientBuilder;
+        use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(5);
+        let client = ClientBuilder::new(reqwest::Client::new())
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
+        Self { client }
+    }
+}
+
+impl Default for HttpImageFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl ImageFetcher for HttpImageFetcher {
+    async fn fetch(&self, url: &str) -> Option<Vec<u8>> {
+        let resp = self.client.get(url).send().await.ok()?;
+        if !resp.status().is_success() {
+            return None;
+        }
+        let bytes = resp.bytes().await.ok()?;
+        Some(bytes.to_vec())
+    }
 }
 
 #[cfg(test)]
@@ -140,5 +227,36 @@ mod tests {
         assert!(is_png(PLACEHOLDER_PNG));
         let img = image::load_from_memory(PLACEHOLDER_PNG).unwrap();
         assert_eq!(img.dimensions(), (1, 1));
+    }
+
+    #[tokio::test]
+    async fn fake_fetcher_hits_and_misses() {
+        let mut responses = HashMap::new();
+        responses.insert("u1".to_string(), b"one".to_vec());
+        let f = FakeFetcher::new(responses);
+        assert_eq!(f.fetch("u1").await, Some(b"one".to_vec()));
+        assert_eq!(f.fetch("missing").await, None);
+    }
+
+    #[tokio::test]
+    async fn fetch_many_preserves_order() {
+        let mut responses = HashMap::new();
+        responses.insert("a".to_string(), b"A".to_vec());
+        responses.insert("c".to_string(), b"C".to_vec());
+        let f = FakeFetcher::new(responses);
+        let urls = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let got = f.fetch_many(&urls).await;
+        assert_eq!(got, vec![Some(b"A".to_vec()), None, Some(b"C".to_vec())]);
+    }
+
+    #[tokio::test]
+    async fn offline_fetcher_is_always_none() {
+        assert_eq!(OfflineFetcher.fetch("anything").await, None);
+    }
+
+    #[test]
+    fn http_fetcher_builds() {
+        // Construction must not panic (exercises the middleware/retry wiring).
+        let _ = HttpImageFetcher::new();
     }
 }

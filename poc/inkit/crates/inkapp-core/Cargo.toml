@@ -25,6 +25,9 @@ tempfile = "3"
 futures = "0.3"
 async-trait = "0.1"
 image = { version = "0.25", features = ["avif-native"] }
+reqwest = { version = "0.12", features = ["json"] }
+reqwest-middleware = { version = "0.4", features = ["json"] }
+reqwest-retry = "0.7"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
