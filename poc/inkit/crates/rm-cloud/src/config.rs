@@ -40,11 +40,9 @@ impl Config {
     }
 
     // URL builders — used by the transport layer in later tasks.
-    #[allow(dead_code)]
     pub(crate) fn device_new(&self) -> String {
         format!("{}/token/json/2/device/new", self.auth)
     }
-    #[allow(dead_code)]
     pub(crate) fn user_new(&self) -> String {
         format!("{}/token/json/2/user/new", self.auth)
     }
