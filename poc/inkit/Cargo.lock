@@ -2370,6 +2370,7 @@ dependencies = [
  "inkapp-localcal",
  "inkapp-readwise-reader",
  "reading-queue",
+ "rm-cloud",
  "rm-device",
  "rm-files",
  "serde",
@@ -4038,9 +4039,11 @@ dependencies = [
 name = "rm-device"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "inkapp-core",
+ "rm-cloud",
  "rm-files",
- "tempfile",
+ "tokio",
  "zip",
 ]
 
