@@ -4,44 +4,44 @@
     {
       "id": 0,
       "subject": "Task 0: Theme type",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Device-neutral palette of semantic roles with grayscale default + Paper Pro color palette.\n\n**Files:** create crates/inkapp-core/src/theme.rs; modify crates/inkapp-core/src/lib.rs (pub mod theme; pub use theme::Theme;)\n\n**Verify:** nix develop -c cargo test -p inkapp-core theme::\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/theme.rs\", \"crates/inkapp-core/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core theme::\", \"acceptanceCriteria\": [\"grayscale paper None and Default==grayscale\", \"indigo_tomato Paper Pro colors + paper Some\", \"Theme is Debug+Clone+PartialEq\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: Thread theme through render driver",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Carry a Theme from App into RenderCx via RenderEnv, zero change to existing renders under default grayscale.\n\n**Files:** modify crates/inkapp-core/src/component.rs (RenderCx.theme + with_theme); modify crates/inkapp-core/src/runtime.rs (RenderEnv + From<PageGeom>; geom params -> impl Into<RenderEnv>; page fill; App.theme + .theme() builder); modify crates/inkapp-core/src/lib.rs (re-export RenderEnv); create crates/inkapp-core/tests/theme_threading.rs\n\n**Verify:** nix develop -c cargo test --workspace\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/component.rs\", \"crates/inkapp-core/src/runtime.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/theme_threading.rs\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"RenderCx theme default grayscale + with_theme\", \"page fill only when paper Some\", \"PageGeom sites still compile via From\", \"App .theme() builder + threads to render\", \"workspace green no golden drift\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Index Display component",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Device-blind Index<M = ()> rendering a clean per-entry listing using theme roles; decodes nothing.\n\n**Files:** create crates/inkapp-core/src/components/index.rs; modify crates/inkapp-core/src/components/mod.rs (pub mod index;); modify crates/inkapp-core/src/lib.rs (re-export Index, IndexEntry)\n\n**Verify:** nix develop -c cargo test -p inkapp-core index::\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/components/index.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core index::\", \"acceptanceCriteria\": [\"title/meta/summary use theme roles, omit absent\", \"region per entry + rule between\", \"reading_time verbatim, summary truncation, escaping, decode empty\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Article -> IndexEntry leaf conversion",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Readwise-side From<&Article> for IndexEntry (byline fallback, verbatim reading_time), keeping core connector-blind.\n\n**Files:** create crates/inkapp-readwise-reader/src/index_entry.rs; modify crates/inkapp-readwise-reader/src/lib.rs (mod index_entry;)\n\n**Verify:** nix develop -c cargo test -p inkapp-readwise-reader index_entry\n\n```json:metadata\n{\"files\": [\"crates/inkapp-readwise-reader/src/index_entry.rs\", \"crates/inkapp-readwise-reader/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-readwise-reader index_entry\", \"acceptanceCriteria\": [\"byline author->site->None\", \"reading_time passthrough\", \"summary empty->None, title copied\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Harness rasteriser + golden pagination test",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Overlay-free page rasteriser in harness + golden test proving a multi-entry Index renders and paginates across two pages.\n\n**Files:** modify crates/inkapp-harness/src/inspector.rs (rasterize/encode_png/render_page; inspect reuses); create crates/inkapp-harness/tests/index_render.rs; create (bootstrap then commit) crates/inkapp-harness/tests/golden/index_page0.png + index_page1.png\n\n**Verify:** nix develop -c cargo test -p inkapp-harness --test index_render\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/src/inspector.rs\", \"crates/inkapp-harness/tests/index_render.rs\", \"crates/inkapp-harness/tests/golden/index_page0.png\", \"crates/inkapp-harness/tests/golden/index_page1.png\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-harness --test index_render\", \"acceptanceCriteria\": [\"render_page clean no overlays\", \"inspect unchanged behavior\", \"pages==2 + idx regions both pages + two goldens\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Mark built in docs/appdx.md",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "**Goal:** Reconcile appdx (definition of done) with the Index component and Theme seam.\n\n**Files:** modify docs/appdx.md\n\n**Verify:** grep -n \"Index Display\\|Theme\" docs/appdx.md; nix develop -c cargo test --workspace; nix develop -c cargo clippy --all-targets -- -D warnings\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"nix develop -c cargo test --workspace && nix develop -c cargo clippy --all-targets -- -D warnings\", \"acceptanceCriteria\": [\"appdx describes Index alongside Notice\", \"appdx notes Theme/RenderCx palette seam\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-25T00:00:00Z"
+  "lastUpdated": "2026-05-25T12:00:00Z"
 }
