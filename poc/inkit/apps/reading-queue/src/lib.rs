@@ -165,4 +165,13 @@ impl Component for ArticleBody {
                 .collect(),
         }
     }
+
+    fn image_urls(&self) -> Vec<String> {
+        match &self.body {
+            // Delegate to the content Article so the framework fetches the
+            // article's images; plaintext articles reference none.
+            Body::Html(a) => a.image_urls(),
+            Body::Plain(_) => Vec::new(),
+        }
+    }
 }

@@ -82,6 +82,17 @@ impl<M> Component for Article<M> {
             .map(|s| (self.on_highlight)(s))
             .collect()
     }
+
+    /// The image URLs this article references, so the framework's asset pipeline
+    /// fetches and serves them at `/assets/{asset_key(url)}.png` (the same key the
+    /// rendered `#image` paths use). This is the discovery half of the image seam.
+    fn image_urls(&self) -> Vec<String> {
+        self.converted
+            .images
+            .iter()
+            .map(|(_key, url)| url.clone())
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -186,6 +197,25 @@ mod tests {
             s.to_string()
         });
         assert_eq!(a.images(), &[(crate::image_key(url), url.to_string())]);
+    }
+
+    #[test]
+    fn image_urls_drives_the_fetch_pipeline() {
+        // The Component::image_urls hook is how the framework discovers which
+        // images to fetch; it must return every referenced URL (deduped).
+        use inkapp_core::component::Component;
+        let a: Article<String> = Article::new(
+            "<p><img src=\"https://example.com/a.png\"><img src=\"https://example.com/b.png\"></p>",
+            &[],
+            |s| s.to_string(),
+        );
+        assert_eq!(
+            a.image_urls(),
+            vec![
+                "https://example.com/a.png".to_string(),
+                "https://example.com/b.png".to_string()
+            ]
+        );
     }
 
     #[test]
