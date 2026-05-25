@@ -19,7 +19,7 @@ use inkapp_core::single_flight::SingleFlight;
 pub const MAX_ATTEMPTS: u32 = 3;
 
 /// A Readwise article id.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ArticleId(pub String);
 
 impl ArticleId {
@@ -28,19 +28,82 @@ impl ArticleId {
     }
 }
 
-/// An article: its id, title, body text, and highlighted spans.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Where an article sits in Readwise Reader.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Location {
+    New,
+    Later,
+    Shortlist,
+    Archive,
+    Feed,
+}
+
+impl Default for Location {
+    fn default() -> Self {
+        Location::New
+    }
+}
+
+impl Location {
+    /// The Reader API location string.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Location::New => "new",
+            Location::Later => "later",
+            Location::Shortlist => "shortlist",
+            Location::Archive => "archive",
+            Location::Feed => "feed",
+        }
+    }
+}
+
+/// An article with its full metadata. All fields beyond `id` and `title` use
+/// `#[serde(default)]` so the committed cassette JSON (which only has
+/// `id/title/body/highlights`) still deserialises cleanly.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Article {
     pub id: ArticleId,
     pub title: String,
+    /// Plain-text body — the worked-example/highlight source until the content
+    /// pipeline lands. Rich source HTML rides in `html_content`.
+    #[serde(default)]
     pub body: String,
+    #[serde(default)]
     pub highlights: Vec<String>,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub source_url: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub site_name: String,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub location: Location,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub image_url: Option<String>,
+    #[serde(default)]
+    pub word_count: Option<u32>,
+    #[serde(default)]
+    pub reading_time: Option<String>,
+    #[serde(default)]
+    pub published_date: Option<String>,
+    #[serde(default)]
+    pub saved_at: String,
+    #[serde(default)]
+    pub html_content: Option<String>,
 }
 
 /// A pending outbound write — the user's intent, recorded durably until pushed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Write {
-    Archive(ArticleId),
+    Move(ArticleId, Location),
+    Delete(ArticleId),
     Highlight(ArticleId, String),
 }
 
@@ -131,6 +194,26 @@ impl WriteTransport for ScriptedTransport {
     }
 }
 
+/// Which locations make up the Library view, and per-collection caps.
+#[derive(Debug, Clone)]
+pub struct ReaderConfig {
+    pub library_locations: Vec<Location>,
+    pub library_max: usize,
+    pub feed_enabled: bool,
+    pub feed_max: usize,
+}
+
+impl Default for ReaderConfig {
+    fn default() -> Self {
+        Self {
+            library_locations: vec![Location::New, Location::Later, Location::Shortlist],
+            library_max: 100,
+            feed_enabled: true,
+            feed_max: 100,
+        }
+    }
+}
+
 /// The connector. Reads come from the `RwLock` cache (populated from `source` by
 /// `refresh`); writes mutate the overlay (optimistic) and enqueue durable writes.
 pub struct Readwise {
@@ -144,6 +227,7 @@ pub struct Readwise {
     persist_path: Option<PathBuf>,
     transport: Arc<dyn WriteTransport>,
     refresh_flight: SingleFlight<Result<(), ConnectorError>>,
+    pub config: ReaderConfig,
 }
 
 impl Readwise {
@@ -157,6 +241,7 @@ impl Readwise {
             persist_path,
             transport: Arc::new(NoopTransport),
             refresh_flight: SingleFlight::new(),
+            config: ReaderConfig::default(),
         }
     }
 
@@ -175,12 +260,14 @@ impl Readwise {
                 title: "One".into(),
                 body: "the slow web rewards patience".into(),
                 highlights: vec![],
+                ..Article::default()
             },
             Article {
                 id: ArticleId::new("a2"),
                 title: "Two".into(),
                 body: "ink survives the round trip".into(),
                 highlights: vec![],
+                ..Article::default()
             },
         ];
         Self::build(articles, Overlay::default(), None)
@@ -238,17 +325,61 @@ impl Readwise {
         }
     }
 
-    /// Record an archive: optimistic (leaves the queue now) and enqueued for push.
-    pub fn archive(&self, id: &ArticleId) {
+    /// Articles in the configured Library locations (overlay applied), capped.
+    pub fn library(&self) -> Vec<Article> {
+        let locs = &self.config.library_locations;
+        let mut v: Vec<Article> = self
+            .queue()
+            .into_iter()
+            .filter(|a| locs.contains(&a.location))
+            .collect();
+        v.truncate(self.config.library_max);
+        v
+    }
+
+    /// Feed articles (overlay applied), capped; empty if the feed is disabled.
+    pub fn feed(&self) -> Vec<Article> {
+        if !self.config.feed_enabled {
+            return Vec::new();
+        }
+        let mut v: Vec<Article> = self
+            .queue()
+            .into_iter()
+            .filter(|a| a.location == Location::Feed)
+            .collect();
+        v.truncate(self.config.feed_max);
+        v
+    }
+
+    /// Move an article to a new location (optimistic + enqueued).
+    pub fn move_to(&self, id: &ArticleId, loc: Location) {
         let mut ov = self.overlay.lock().unwrap();
         if !ov.archived.contains(id) {
-            ov.archived.push(id.clone());
+            ov.archived.push(id.clone()); // overlay "removed from current view"
             ov.pending.push(PendingWrite {
-                write: Write::Archive(id.clone()),
+                write: Write::Move(id.clone(), loc),
                 attempts: 0,
             });
         }
         self.save(&ov);
+    }
+
+    /// Delete an article (optimistic + enqueued).
+    pub fn delete(&self, id: &ArticleId) {
+        let mut ov = self.overlay.lock().unwrap();
+        if !ov.archived.contains(id) {
+            ov.archived.push(id.clone());
+            ov.pending.push(PendingWrite {
+                write: Write::Delete(id.clone()),
+                attempts: 0,
+            });
+        }
+        self.save(&ov);
+    }
+
+    /// Archive an article — delegates to `move_to(id, Location::Archive)`.
+    pub fn archive(&self, id: &ArticleId) {
+        self.move_to(id, Location::Archive);
     }
 
     /// Record a highlight (idempotent on (id, text)); enqueued for push.

@@ -76,6 +76,7 @@ fn article_body_decodes_highlight_to_msg() {
         title: "T".into(),
         body: "lazy dog".into(),
         highlights: vec![],
+        ..Article::default()
     };
     let body = ArticleBody::new(&article);
 
