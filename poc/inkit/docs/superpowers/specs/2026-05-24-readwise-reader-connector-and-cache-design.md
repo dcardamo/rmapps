@@ -77,18 +77,22 @@ to the Readwise API"*). What is missing:
 3. **A reusable cache primitive in inkapp-core (option C),** not a connector-private
    one — rmreader's cache pattern is generic enough that the framework should offer it
    so the next content-heavy app doesn't reinvent it.
-4. **Cache backend: `cacache`** — content-addressable, integrity-checked, async disk
-   cache. Content-addressing is the clean answer to "originals + derived per-device
-   renders, invalidate when the original changes": key derived entries by
-   `(original_integrity, device, params)`; a changed original yields a new integrity →
-   new key → automatic miss → re-render. Strictly better than rmreader's FNV-of-inputs
-   (verifies integrity, dedups identical content).
+4. **Cache backend: `foyer`** — an actively maintained (releases into 2026; used in
+   production by RisingWave and Chroma) hybrid in-memory + disk cache with
+   restart-durable disk storage and pluggable eviction. Chosen over `cacache`, which was
+   ~18 months stale (last release 13.1.0, Nov 2024). foyer is a *cache* — entries may be
+   evicted under capacity pressure — which is exactly the right semantics here: a lost
+   entry is always recoverable by re-fetch (rmreader's best-effort philosophy). foyer is
+   not content-addressed, so we compute a **sha256 integrity ourselves** (`sha2`) on put
+   and return it; the later image layer keys derived per-device render entries on
+   `(original_integrity, device, params)`, so a changed original → new integrity → new
+   key → automatic miss → re-render.
 5. **HTTP client: `reqwest` via `reqwest-middleware`** from day one — the Readwise
    reads gain nothing from cache middleware, but building the client through
    `reqwest-middleware` lets the image layer drop `http-cache-reqwest` in later at zero
-   cost. **Images later use `http-cache-reqwest`** (cacache backend, conditional
-   revalidation via `http-cache-semantics`): an ETag/304 *is* the "did the original
-   change?" check.
+   cost. **Images later use `http-cache-reqwest`** with its **`FoyerManager`** backend
+   (conditional revalidation via `http-cache-semantics`) — the *same* cache engine as
+   this primitive; an ETag/304 *is* the "did the original change?" check.
 6. **Crate rename, done as a pure move first:** `inkapp-readwise` →
    `inkapp-readwise-reader` (connector `name()` → `"readwise-reader"`). Rename and keep
    green, *then* build out — so the rename never tangles with new code. Cassette mode is
@@ -112,14 +116,18 @@ to the Readwise API"*). What is missing:
 
 ### B. `inkapp-core::cache` — durable keyed primitive
 
-A thin wrapper over `cacache`. Generic; knows nothing about Readwise.
+A thin wrapper over a `foyer` `HybridCache<String, Vec<u8>>`. Generic; knows nothing
+about Readwise.
 
 ```rust
-pub struct Cache { /* cacache root dir */ }
-pub struct Integrity(pub String); // cacache sha256; basis for derived keys
+pub struct Cache { /* foyer HybridCache<String, Vec<u8>> */ }
+pub struct Integrity(pub String); // sha256 of stored bytes; basis for derived keys
 
 impl Cache {
-    pub fn open(root: impl Into<PathBuf>) -> Self;
+    /// Open a hybrid (memory + disk) cache rooted at `dir`, bounded by the given
+    /// in-memory and on-disk byte capacities. Disk contents survive restart.
+    pub async fn open(dir: impl Into<PathBuf>, mem_bytes: usize, disk_bytes: usize)
+        -> Result<Self>;
 
     // typed JSON (article sets now)
     pub async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>>;
@@ -129,21 +137,19 @@ impl Cache {
     pub async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>>;
     pub async fn put_bytes(&self, key: &str, b: &[u8]) -> Result<Integrity>;
 
-    pub async fn touch(&self, key: &str) -> Result<()>;            // touch-on-hit
-    pub async fn sweep(&self, max_age: Duration) -> Result<usize>; // expiry sweep
-
     /// Stable derived key from parts — e.g. [original_integrity, device, params].
     pub fn derived_key(parts: &[&str]) -> String;
 }
 ```
 
-- `put_*` returns the content **integrity**, the derived-key basis for the later image
-  layer. `touch`/`sweep` give LRU-ish expiry (mostly for images; harmless for article
-  JSON, which `refresh` replaces).
-- **Freshness-policy-free:** the caller decides expire-vs-replace. The primitive only
-  stores, touches, and sweeps.
-- Errors fold into inkapp's existing `Error`/`Result`. Cache errors are **non-fatal for
-  reads** — a corrupt/missing entry behaves as a miss (best-effort, like rmreader).
+- foyer stores `String → Vec<u8>`: `put_json` serializes via `serde_json`, `put_bytes`
+  stores raw bytes. Both compute and return the **sha256 integrity** (`sha2`) — the
+  derived-key basis for the later image layer.
+- foyer handles **eviction internally** (capacity-bounded) and **persists to disk across
+  restarts**, giving warm-restart reads for free — no manual touch/expiry-sweep needed.
+- It is a *cache*: a miss (cold or evicted) is normal and simply triggers a re-fetch.
+  Errors fold into inkapp's existing `Error`/`Result`, and are **non-fatal for reads** —
+  a missing/unreadable entry behaves as a miss (best-effort, like rmreader).
 
 ### C. `inkapp-readwise-reader` connector
 
@@ -264,9 +270,10 @@ config)`, plus retained `from_cassette()` / `fake()`.
 
 ## New dependencies
 
-- `inkapp-core`: `cacache` (durable cache backend).
+- `inkapp-core`: `foyer` (hybrid cache backend, `serde` feature) + `sha2` (content
+  integrity).
 - `inkapp-readwise-reader`: `reqwest`, `reqwest-middleware` (live HTTP). `http-cache-reqwest`
-  is **not** added here — it lands with the image layer.
+  (with its `FoyerManager` backend) is **not** added here — it lands with the image layer.
 
 ## Definition of done
 
