@@ -79,6 +79,16 @@ rationale. The pieces:
 - **`crates/rm-files`** — pure-Rust reader/writer for the reMarkable `.rm` v6 scene format
   (ink strokes, highlights) and the document bundle. No framework deps.
 
+- **`crates/rm-cloud`** — pure-Rust client for the current reMarkable Cloud sync protocol
+  (content-addressed blob store, root ref with compare-and-swap by generation). Exposes
+  immutable `Snapshot`s + `diff`, an atomic `commit` (rebase-on-412), rmapi-style path ops
+  (`ls`/`get`/`put`/`mkdir`/`mv`/`rm`/`put_content_only`), and a declarative working-set
+  `sync` for app loops. Reuses `rm-files` for the `.rmdoc` bundle; owns nothing of the local
+  scene format. Tested against an in-process axum fake cloud (behind the `fake` feature) and
+  an env-gated live-cloud suite isolated under `rmrs-test/<run-id>`. reMarkable-specific →
+  `rm-` prefix. No framework/app deps. Intended to replace shelling out to the `rmapi` CLI
+  (the `serve.rs` migration is a later spec). See `docs/rm-cloud-protocol.md`.
+
 - **`crates/inkapp-remarkable`** — the `Device` impl for reMarkable: the PDF↔device
   coordinate transform and `.rm` read/write. The `Device` trait (`device.rs` in core) is
   intentionally minimal — **it covers ink coordinate mapping and parsing only, not
