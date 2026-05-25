@@ -20,6 +20,10 @@ const LIMIT: u32 = 50;
 pub fn build_list_url(location: &str, cursor: Option<&str>) -> String {
     let mut u = format!("{LIST}?withHtmlContent=true&limit={LIMIT}&location={location}");
     if let Some(c) = cursor {
+        // `location` is one of the five known ASCII enum strings; Readwise page
+        // cursors are opaque base64url (URL-safe) tokens. Both are safe to concatenate
+        // directly. If either could ever contain reserved chars, use proper query
+        // encoding (e.g. url::Url::query_pairs_mut).
         u.push_str("&pageCursor=");
         u.push_str(c);
     }
@@ -154,16 +158,32 @@ pub type ArticleLookup = std::sync::Arc<dyn Fn(&ArticleId) -> Option<Article> + 
 
 /// HTTP transport for fetching Reader article lists.
 pub struct HttpFetch {
-    pub client: ClientWithMiddleware,
-    pub token: String,
+    client: ClientWithMiddleware,
+    token: String,
+}
+
+impl HttpFetch {
+    pub fn new(client: ClientWithMiddleware, token: String) -> Self {
+        Self { client, token }
+    }
 }
 
 /// HTTP transport for pushing writes (move / delete / highlight) to the Reader API.
 pub struct HttpWrite {
-    pub client: ClientWithMiddleware,
-    pub token: String,
+    client: ClientWithMiddleware,
+    token: String,
     /// Article lookup: provides title/author/source_url/category for highlight POSTs.
-    pub lookup: ArticleLookup,
+    lookup: ArticleLookup,
+}
+
+impl HttpWrite {
+    pub fn new(client: ClientWithMiddleware, token: String, lookup: ArticleLookup) -> Self {
+        Self {
+            client,
+            token,
+            lookup,
+        }
+    }
 }
 
 #[async_trait::async_trait]

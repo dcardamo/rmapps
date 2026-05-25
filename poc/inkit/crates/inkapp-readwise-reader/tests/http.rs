@@ -8,6 +8,8 @@ fn list_url_has_expected_query() {
     assert!(u.contains("withHtmlContent=true"), "{u}");
     assert!(u.contains("pageCursor=CUR"), "{u}");
     assert!(u.contains("limit="), "{u}");
+    let u2 = build_list_url("new", None);
+    assert!(!u2.contains("pageCursor"), "no cursor param when None");
 }
 
 #[test]
@@ -34,6 +36,12 @@ fn parses_reader_list_json() {
     assert_eq!(a.location, Location::Later);
     assert_eq!(a.html_content.as_deref(), Some("<p>hi</p>"));
     assert_eq!(a.source_url, "https://example.com/x");
+    assert_eq!(a.title, "T");
+    assert_eq!(a.author, "A");
+    assert_eq!(a.site_name, "Site");
+    assert_eq!(a.summary, "S");
+    assert_eq!(a.word_count, Some(1200));
+    assert_eq!(a.category, "article");
 }
 
 #[test]
@@ -50,6 +58,8 @@ fn highlight_body_matches_v2_shape() {
     assert_eq!(h["text"], "the text");
     assert_eq!(h["source_url"], "https://example.com/x");
     assert_eq!(h["category"], "articles");
+    assert_eq!(h["title"], "Title");
+    assert_eq!(h["author"], "Author");
 }
 
 #[test]
