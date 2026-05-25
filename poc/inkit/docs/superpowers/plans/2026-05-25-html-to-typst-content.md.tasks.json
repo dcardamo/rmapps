@@ -4,47 +4,47 @@
     {
       "id": 1,
       "subject": "Task 1: Shared per-token region helpers in inkapp-core",
-      "status": "pending",
+      "status": "completed",
       "description": "Factor token_region + highlighted_token_indices + pub esc_typst_str into inkapp-core; refactor HighlightableText byte-identically.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/src/components/highlight_text.rs\", \"crates/inkapp-core/tests/highlight_text.rs\"], \"verifyCommand\": \"cargo test -p inkapp-core && cargo test -p inkapp-harness --test exercisers\", \"acceptanceCriteria\": [\"helpers are pub\", \"byte-identical HighlightableText output\", \"goldens pass\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Scaffold inkapp-content crate + image_key",
-      "status": "pending",
+      "status": "completed",
       "description": "Create crate, register in workspace, implement image_key (sha256(url)[..16]). Do NOT git add Cargo.lock.\n\n```json:metadata\n{\"files\": [\"Cargo.toml\", \"crates/inkapp-content/Cargo.toml\", \"crates/inkapp-content/src/lib.rs\", \"crates/inkapp-content/src/convert.rs\"], \"verifyCommand\": \"cargo test -p inkapp-content\", \"acceptanceCriteria\": [\"crate builds\", \"image_key correct\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: The converter — sanitize + structured HTML→Typst",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "convert(html,&highlights)->Converted: whitelist DOM walk; all constructs; drop dangerous subtrees; image contract.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-content/src/convert.rs\", \"crates/inkapp-content/src/lib.rs\"], \"verifyCommand\": \"cargo test -p inkapp-content\", \"acceptanceCriteria\": [\"all constructs convert\", \"sanitizer strips dangerous content\", \"image contract honored\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Article component + coalescing decode",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "Article<M> render/decode with block-aware contiguous coalescing; images() seam; region recovery through nesting.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-content/src/article.rs\", \"crates/inkapp-content/src/lib.rs\"], \"verifyCommand\": \"cargo test -p inkapp-content\", \"acceptanceCriteria\": [\"coalescing correct\", \"Component impl\", \"region recovery through nesting\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Harness exerciser — render→recover→decode",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "Article end-to-end through inkapp-harness simulator; add inkapp-content dev-dep; no dep cycle.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/Cargo.toml\", \"crates/inkapp-harness/tests/article_exerciser.rs\"], \"verifyCommand\": \"cargo test -p inkapp-harness --test article_exerciser\", \"acceptanceCriteria\": [\"end-to-end swipe decodes\", \"no dep cycle\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Rewire reading-queue onto Article",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "ArticleBody HTML-or-plaintext; per-span Msg::Highlighted on HTML path; --workspace green.\n\n```json:metadata\n{\"files\": [\"apps/reading-queue/Cargo.toml\", \"apps/reading-queue/src/lib.rs\", \"apps/reading-queue/tests/app.rs\"], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"HTML path + plaintext fallback\", \"workspace green\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Mark built in appdx + final gate + lockfile sweep",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6],
       "description": "Update docs/appdx.md; cargo test --workspace; commit Cargo.lock once; cargo build --workspace --locked.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\", \"Cargo.lock\"], \"verifyCommand\": \"cargo test --workspace && cargo build --workspace --locked\", \"acceptanceCriteria\": [\"appdx updated\", \"workspace green\", \"locked build passes\"]}\n```"
     }

@@ -272,6 +272,12 @@ impl<'a> Conv<'a> {
 }
 
 /// First descendant element named `name` (depth-first), if any.
+///
+/// This intentionally walks the raw subtree (not DROP-filtered): its only callers
+/// pull out a `<figure>`'s `img`/`figcaption`, and both outputs are independently
+/// safe — an `img`'s `src` is re-validated as http(s) by [`Conv::push_image`], and
+/// figcaption text flows through [`collect_text`], which *does* honor the DROP set.
+/// So nothing dangerous reaches the output via this finder.
 fn descend_find<'a>(node: NodeRef<'a, Node>, name: &str) -> Option<NodeRef<'a, Node>> {
     node.descendants().find(|n| match n.value() {
         Node::Element(el) => el.name() == name,
@@ -377,6 +383,21 @@ mod tests {
         assert!(ul.typst.contains("#list("));
         let ol = convert("<ol><li>a</li><li>b</li></ol>", &[]);
         assert!(ol.typst.contains("#enum("));
+    }
+
+    #[test]
+    fn nested_list_recurses_into_inner_list() {
+        // An inner <ul> inside an <li> is reached via walk_children → element → list,
+        // producing a nested #list(...) inside the outer item body, and all leaf
+        // words still tokenize.
+        let c = convert("<ul><li>outer<ul><li>inner</li></ul></li></ul>", &[]);
+        assert_eq!(
+            c.typst.matches("#list(").count(),
+            2,
+            "outer and inner lists both emit"
+        );
+        let texts: Vec<&str> = c.tokens.iter().map(|t| t.text.as_str()).collect();
+        assert!(texts.contains(&"outer") && texts.contains(&"inner"));
     }
 
     #[test]

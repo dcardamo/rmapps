@@ -116,7 +116,7 @@ Every prose token stays an individually highlightable region regardless of styli
 | HTML                       | Typst emitted                                          | Highlightable    |
 |----------------------------|--------------------------------------------------------|------------------|
 | `<h1>`–`<h6>`              | `#heading(level: n)[ …token boxes… ]` (n clamped 1–6) | yes (tokens)     |
-| `<p>`                      | token boxes; blocks separated by `#parbreak()`         | yes              |
+| `<p>`                      | token boxes; blocks separated by a blank line (`\n\n`) | yes              |
 | `<strong>/<b>`, `<em>/<i>` | inline style folded into each token's `t`              | yes              |
 | `<a>`                      | `underline("…")` tokens — **no href, no nav**          | yes              |
 | `<ul>` / `<ol>`            | `#list(…)` / `#enum(…)`, each item = token boxes       | yes              |
