@@ -26,3 +26,28 @@ async fn wires_readwise_from_config() {
     // readwise connector's shutdown contract).
     conn.readwise.close().await.unwrap();
 }
+
+#[tokio::test]
+async fn missing_readwise_instance_errors() {
+    // The app binds readwise.main but no such connector section exists →
+    // require_instance must surface NoSuchInstance (before any resolve).
+    let dir = tempfile::tempdir().unwrap();
+    let cfg_path = dir.path().join("config.toml");
+    std::fs::write(
+        &cfg_path,
+        "[app.reading-queue.default]\ndevice_folder = \"/RQ\"\nreadwise = \"readwise.nope\"\n",
+    )
+    .unwrap();
+    let secrets = SecretStore::open(dir.path().join("secrets.json")).unwrap();
+    let store = ConfigStore::open(&cfg_path).unwrap();
+    let app_cfg: AppConfig = store.resolve("default").unwrap();
+    let err = Connectors::from_config(&store, &app_cfg, &secrets, dir.path().join("cache"))
+        .await
+        .err()
+        .expect("missing bound instance must error");
+    assert!(
+        matches!(err, inkapp::ConfigError::NoSuchInstance { ref kind, ref instance, .. }
+            if kind == "readwise" && instance == "nope"),
+        "expected NoSuchInstance for readwise.nope, got: {err}"
+    );
+}
