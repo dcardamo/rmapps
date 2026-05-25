@@ -145,7 +145,7 @@ fn pull_assembles_per_page_ink_with_empty_middle_page() {
         h: 240.0,
         margin: 16.0,
     };
-    let rd = render_document_in(&d, 1, &key, geom).unwrap();
+    let rd = render_document_in(&d, 1, &key, geom, &inkapp_core::Theme::reader()).unwrap();
 
     // Pages the `notes` passage occupies (one frame per page it flows through).
     let mut notes_pages: Vec<usize> = rd

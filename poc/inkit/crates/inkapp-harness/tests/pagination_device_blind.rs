@@ -48,7 +48,10 @@ fn doc() -> inkapp_core::document::Document<Msg> {
         text: HighlightableText::new(&tok_refs),
     };
 
-    let lines: Vec<String> = (0..30)
+    // Sized so the passage overflows even the tall (560pt) default page under the
+    // reader theme's compact 11pt/0.75em typography — the `notes >= 2 frames`
+    // invariant below depends on it spanning a page break on every profile.
+    let lines: Vec<String> = (0..80)
         .map(|i| format!("passage line number {i}"))
         .collect();
     let line_refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();
@@ -112,7 +115,7 @@ fn run_profile(geom: PageGeom) -> (usize, BTreeSet<Msg>) {
     let key = common::test_key();
     let device = Remarkable::new();
     let d = doc();
-    let rd = render_document_in(&d, 1, &key, geom).unwrap();
+    let rd = render_document_in(&d, 1, &key, geom, &inkapp_core::Theme::reader()).unwrap();
 
     // The Passage must actually split across a page break on each profile, so this
     // test genuinely exercises cross-page ink stitching (not just page distribution).

@@ -23,6 +23,7 @@ pub mod runtime;
 pub mod secrets;
 pub mod single_flight;
 pub mod sync;
+pub mod theme;
 pub mod world;
 
 pub use cache::{Cache, Integrity};
@@ -46,3 +47,4 @@ pub use runtime::{
 pub use secrets::{Scope, SecretStore};
 pub use single_flight::SingleFlight;
 pub use sync::DeviceTransport;
+pub use theme::Theme;
