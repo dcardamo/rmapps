@@ -7,13 +7,9 @@ use crate::crypto::Key;
 use crate::document::{DocKey, Document};
 use crate::embed::embed_manifest;
 use crate::error::Result;
+use crate::geometry::PageGeom;
 use crate::manifest::{recover_regions, Manifest};
 use crate::render::document_to_pdf;
-
-/// Default document page geometry (points). 3:4-ish to suit e-ink; the device
-/// fits to width. Single-page only this spec.
-pub const DOC_PAGE_W: f64 = 420.0;
-pub const DOC_PAGE_H: f64 = 560.0;
 
 /// The framework Typst prelude, baked into the binary. Always registered and
 /// imported so any component (and `#region`) is in scope.
@@ -45,17 +41,23 @@ pub fn collect_typst_sources<M>(doc: &Document<M>) -> Vec<(String, String)> {
     out
 }
 
-/// Assemble a document's Typst source: `#import` lines for the prelude and every
-/// authored component source, then a page header, then each component's render in
-/// flow order.
+/// Assemble a document's Typst source at the default page geometry.
 pub fn document_source<M>(doc: &Document<M>) -> String {
+    document_source_in(doc, PageGeom::default())
+}
+
+/// Assemble a document's Typst source at an explicit page geometry: `#import`
+/// lines for the prelude and authored sources, the `#set page` from `geom`, then
+/// each component's render in flow order.
+pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom) -> String {
     let mut cx = RenderCx::new(0);
     let mut src = String::new();
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));
     }
     src.push_str(&format!(
-        "#set page(width: {DOC_PAGE_W}pt, height: {DOC_PAGE_H}pt, margin: 16pt)\n#set text(size: 12pt)\n"
+        "#set page(width: {}pt, height: {}pt, margin: {}pt)\n#set text(size: 12pt)\n",
+        geom.w, geom.h, geom.margin
     ));
     for c in &doc.flow {
         src.push_str(&c.render(&mut cx));
@@ -63,10 +65,18 @@ pub fn document_source<M>(doc: &Document<M>) -> String {
     src
 }
 
-/// Compile a document through the sources-aware path with all its Typst sources
-/// (prelude + authored components) registered. Shared by `render_document` and tests.
+/// Compile a document at the default page geometry.
 pub fn compile_document<M>(doc: &Document<M>) -> Result<typst::layout::PagedDocument> {
-    let src = document_source(doc);
+    compile_document_in(doc, PageGeom::default())
+}
+
+/// Compile a document at an explicit page geometry, with all its Typst sources
+/// (prelude + authored components) registered.
+pub fn compile_document_in<M>(
+    doc: &Document<M>,
+    geom: PageGeom,
+) -> Result<typst::layout::PagedDocument> {
+    let src = document_source_in(doc, geom);
     let sources = collect_typst_sources(doc);
     crate::render::compile_to_document_with_sources(&src, &sources)
 }
@@ -80,16 +90,25 @@ fn hash_str(s: &str) -> u64 {
     h.finish()
 }
 
-/// Render one document to a [`RenderedDoc`] at `version`, sealing its manifest
-/// with `key`.
+/// Render one document at the default page geometry.
 pub fn render_document<M>(doc: &Document<M>, version: u64, key: &Key) -> Result<RenderedDoc> {
-    let src = document_source(doc);
-    let compiled = compile_document(doc)?;
+    render_document_in(doc, version, key, PageGeom::default())
+}
+
+/// Render one document at an explicit page geometry, sealing its manifest with `key`.
+pub fn render_document_in<M>(
+    doc: &Document<M>,
+    version: u64,
+    key: &Key,
+    geom: PageGeom,
+) -> Result<RenderedDoc> {
+    let src = document_source_in(doc, geom);
+    let compiled = compile_document_in(doc, geom)?;
     let page_h = compiled
         .pages
         .first()
         .map(|p| p.frame.height().to_pt())
-        .unwrap_or(0.0);
+        .unwrap_or(geom.h);
     let mut manifest = recover_regions(&compiled)?.with_version(version);
     // Collect app-defined state into the manifest before sealing: the document's
     // own blob, then each stateful component's slice keyed by state_key().
@@ -182,6 +201,7 @@ pub struct App<M, Msg, Cx> {
     view: ViewFn<M, Msg, Cx>,
     version: u64,
     key: Key,
+    geom: PageGeom,
 }
 
 impl<M, Msg, Cx> App<M, Msg, Cx> {
@@ -191,6 +211,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         update: UpdateFn<M, Msg, Cx>,
         view: ViewFn<M, Msg, Cx>,
         key: Key,
+        geom: PageGeom,
     ) -> Self {
         Self {
             model,
@@ -199,6 +220,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             view,
             version: 1,
             key,
+            geom,
         }
     }
 }
@@ -226,7 +248,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut out = Vec::new();
         let mut entries = HashMap::new();
         for doc in &docs.0 {
-            let rd = render_document(doc, self.version, &self.key)?;
+            let rd = render_document_in(doc, self.version, &self.key, self.geom)?;
             entries.insert(
                 rd.key.0.clone(),
                 DocEntry {
@@ -290,7 +312,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let next = (self.view)(&self.model, &self.connectors);
         let mut next_rendered: Vec<RenderedDoc> = Vec::new();
         for doc in &next.0 {
-            next_rendered.push(render_document(doc, self.version, &self.key)?);
+            next_rendered.push(render_document_in(doc, self.version, &self.key, self.geom)?);
         }
 
         // 4. Reconcile by key against the prior set.
@@ -422,6 +444,7 @@ impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
             update: self.update,
             view: self.view,
             key,
+            geom: PageGeom::default(),
         }
     }
 }
@@ -432,9 +455,17 @@ pub struct BuilderReady<M, Msg, Cx> {
     update: UpdateFn<M, Msg, Cx>,
     view: ViewFn<M, Msg, Cx>,
     key: Key,
+    geom: PageGeom,
 }
 
 impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
+    /// Override the page geometry for this app (default: 420×560pt with 16pt margin).
+    #[must_use]
+    pub fn page(mut self, geom: PageGeom) -> Self {
+        self.geom = geom;
+        self
+    }
+
     pub fn build(self) -> App<M, Msg, Cx> {
         App::new(
             self.model,
@@ -442,6 +473,7 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
             self.update,
             self.view,
             self.key,
+            self.geom,
         )
     }
 }

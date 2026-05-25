@@ -55,6 +55,34 @@ pub struct DevicePoint {
     pub y: f64,
 }
 
+/// A document's page geometry, in points. Drives Typst `#set page` and lets the
+/// content column width be computed for full-width regions. A *device profile* in
+/// inkapp is a `PageGeom` paired with a `Device`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PageGeom {
+    pub w: f64,
+    pub h: f64,
+    pub margin: f64,
+}
+
+impl Default for PageGeom {
+    /// The standard 3:4-ish e-ink profile (the former DOC_PAGE_W/H + 16pt margin).
+    fn default() -> Self {
+        Self {
+            w: 420.0,
+            h: 560.0,
+            margin: 16.0,
+        }
+    }
+}
+
+impl PageGeom {
+    /// The content column width (page width minus both margins).
+    pub fn content_w(&self) -> f64 {
+        self.w - 2.0 * self.margin
+    }
+}
+
 /// Convert a Typst top-left-origin rect to a PDF bottom-left-origin rect using
 /// the height of the rect's own page.
 pub fn typst_to_pdf_rect(x: f64, y: f64, w: f64, h: f64, page_height_pt: f64) -> PdfRect {
