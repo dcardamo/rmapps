@@ -1,10 +1,15 @@
 use inkapp_core::component::Component;
 use inkapp_core::components::notice::Notice;
+use inkapp_core::crypto::Key;
 use inkapp_core::document::Document;
 use inkapp_core::geometry::PageGeom;
 use inkapp_core::manifest::recover_regions;
 use inkapp_core::render::{compile_to_document, compile_to_document_with_sources};
-use inkapp_core::runtime::{compile_document_in, REGION_PRELUDE};
+use inkapp_core::runtime::{compile_document_in, render_document_in, REGION_PRELUDE};
+
+fn test_key_32() -> Key {
+    Key::from_bytes([0u8; 32])
+}
 
 /// A tall flow: 40 notice lines. Fits in few pages at the default geometry and
 /// more pages on a short page — pagination is purely a function of PageGeom.
@@ -107,5 +112,27 @@ fn prelude_breakable_splits_atomic_does_not() {
         m.regions.iter().filter(|r| r.name == "c").count(),
         1,
         "atomic region stays a single rect"
+    );
+}
+
+#[test]
+fn rendered_doc_reports_multiple_pages() {
+    let doc = tall_doc();
+    let key = test_key_32();
+    let rd = render_document_in(
+        &doc,
+        1,
+        &key,
+        PageGeom {
+            w: 420.0,
+            h: 180.0,
+            margin: 16.0,
+        },
+    )
+    .unwrap();
+    assert!(
+        rd.page_count > 1,
+        "tall doc on a short page is multi-page, got {}",
+        rd.page_count
     );
 }

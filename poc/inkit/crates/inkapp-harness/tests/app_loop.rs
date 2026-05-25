@@ -70,14 +70,19 @@ async fn reading_queue_loop_highlight_archive_preserve() {
     let swipe = fixture("highlight-swipe");
     let check = fixture("checkmark");
 
-    let mut ink: HashMap<String, Vec<Stroke>> = HashMap::new();
+    let mut ink: HashMap<String, Vec<Vec<Stroke>>> = HashMap::new();
     ink.insert(
         x.0.clone(),
-        device_ink(&device, &swipe, union_rect(&mx, &["tok-0", "tok-1"]), ph_x),
+        vec![device_ink(
+            &device,
+            &swipe,
+            union_rect(&mx, &["tok-0", "tok-1"]),
+            ph_x,
+        )],
     );
     ink.insert(
         y.0.clone(),
-        device_ink(&device, &check, region_rect(&my, "done"), ph_y),
+        vec![device_ink(&device, &check, region_rect(&my, "done"), ph_y)],
     );
 
     // Cycle 1: step.

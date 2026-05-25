@@ -23,6 +23,8 @@ pub struct RenderedDoc {
     pub pdf: Vec<u8>,
     pub manifest: Manifest,
     pub page_h: f64,
+    /// Number of pages this document paginated to under its render geometry.
+    pub page_count: usize,
     pub hash: u64,
 }
 
@@ -110,6 +112,7 @@ pub fn render_document_in<M>(
         .first()
         .map(|p| p.frame.height().to_pt())
         .unwrap_or(geom.h);
+    let page_count = compiled.pages.len();
     let mut manifest = recover_regions(&compiled)?.with_version(version);
     // Collect app-defined state into the manifest before sealing: the document's
     // own blob, then each stateful component's slice keyed by state_key().
@@ -125,6 +128,7 @@ pub fn render_document_in<M>(
         pdf,
         manifest,
         page_h,
+        page_count,
         hash: hash_str(&src),
     })
 }
@@ -135,18 +139,18 @@ use std::collections::HashMap;
 
 use crate::document::Documents;
 use crate::ink::Stroke;
-use crate::readback::{attribute_page, guard_version};
+use crate::readback::{attribute, guard_version};
 use crate::reconcile::{reconcile, DocOp};
 
 /// Per-key state the framework carries between cycles.
 struct DocEntry {
     manifest: Manifest,
     page_h: f64,
+    page_count: usize,
     hash: u64,
     version: u64,
-    /// Accumulated user ink (PDF space) on this document — preserved across
-    /// re-renders by key.
-    ink: Vec<Stroke>,
+    /// Accumulated user ink (PDF space) per page — preserved across re-renders by key.
+    ink: Vec<Vec<Stroke>>,
 }
 
 /// The framework's view of the device's document set, keyed by `DocKey`.
@@ -166,12 +170,17 @@ impl DocSet {
         self.entries.get(&key.0).map(|e| e.page_h)
     }
 
-    /// The preserved ink on `key` (empty if none / unknown).
-    pub fn ink(&self, key: &DocKey) -> &[Stroke] {
+    /// The preserved per-page ink on `key` (empty slice if none / unknown).
+    pub fn ink(&self, key: &DocKey) -> &[Vec<Stroke>] {
         self.entries
             .get(&key.0)
             .map(|e| e.ink.as_slice())
             .unwrap_or(&[])
+    }
+
+    /// The page count last rendered for `key`.
+    pub fn page_count(&self, key: &DocKey) -> Option<usize> {
+        self.entries.get(&key.0).map(|e| e.page_count)
     }
 
     /// All keys currently in the set.
@@ -255,6 +264,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
                 DocEntry {
                     manifest: rd.manifest.clone(),
                     page_h: rd.page_h,
+                    page_count: rd.page_count,
                     hash: rd.hash,
                     version: self.version,
                     ink: Vec::new(),
@@ -272,7 +282,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
     pub async fn step(
         &mut self,
         set: &mut DocSet,
-        ink_by_key: &HashMap<String, Vec<Stroke>>,
+        ink_by_key: &HashMap<String, Vec<Vec<Stroke>>>,
     ) -> Result<Cycle<Msg>>
     where
         Msg: Clone,
@@ -283,7 +293,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let pre = (self.view)(&self.model, &self.connectors);
         let mut decoded: Vec<Msg> = Vec::new();
         for doc in &pre.0 {
-            let Some(strokes) = ink_by_key.get(&doc.key.0) else {
+            let Some(pages) = ink_by_key.get(&doc.key.0) else {
                 continue;
             };
             let Some(entry) = set.entries.get(&doc.key.0) else {
@@ -294,9 +304,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
             // construction). It reserves the call site for the future path where
             // ink carries its own base version (multi-device / vector clock).
             guard_version(entry.version, &entry.manifest)?;
-            // Task 5 will convert this to per-page attribute(); for now use
-            // attribute_page to keep the single-page strokes path compiling.
-            let region_ink = attribute_page(strokes, &entry.manifest);
+            let region_ink = attribute(pages, &entry.manifest);
             for c in &doc.flow {
                 decoded.extend(c.decode(&region_ink, &entry.manifest));
             }
@@ -343,14 +351,19 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut rendered_out: Vec<RenderedDoc> = Vec::new();
 
         for rd in next_rendered {
-            // Preserve prior ink for this key, then append this cycle's input.
-            let mut ink = set
+            // Preserve prior per-page ink for this key, then append this cycle's input.
+            let mut ink: Vec<Vec<Stroke>> = set
                 .entries
                 .get(&rd.key.0)
                 .map(|e| e.ink.clone())
                 .unwrap_or_default();
-            if let Some(new_ink) = ink_by_key.get(&rd.key.0) {
-                ink.extend(new_ink.iter().cloned());
+            if let Some(new_pages) = ink_by_key.get(&rd.key.0) {
+                if ink.len() < new_pages.len() {
+                    ink.resize(new_pages.len(), Vec::new());
+                }
+                for (p, strokes) in new_pages.iter().enumerate() {
+                    ink[p].extend(strokes.iter().cloned());
+                }
             }
             let is_changed = changed.contains_key(rd.key.0.as_str());
             new_entries.insert(
@@ -358,6 +371,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
                 DocEntry {
                     manifest: rd.manifest.clone(),
                     page_h: rd.page_h,
+                    page_count: rd.page_count,
                     hash: rd.hash,
                     version: self.version,
                     ink,
