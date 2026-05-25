@@ -7,13 +7,9 @@ use crate::crypto::Key;
 use crate::document::{DocKey, Document};
 use crate::embed::embed_manifest;
 use crate::error::Result;
+use crate::geometry::PageGeom;
 use crate::manifest::{recover_regions, Manifest};
 use crate::render::document_to_pdf;
-
-/// Default document page geometry (points). 3:4-ish to suit e-ink; the device
-/// fits to width. Single-page only this spec.
-pub const DOC_PAGE_W: f64 = 420.0;
-pub const DOC_PAGE_H: f64 = 560.0;
 
 /// The framework Typst prelude, baked into the binary. Always registered and
 /// imported so any component (and `#region`) is in scope.
@@ -27,6 +23,8 @@ pub struct RenderedDoc {
     pub pdf: Vec<u8>,
     pub manifest: Manifest,
     pub page_h: f64,
+    /// Number of pages this document paginated to under its render geometry.
+    pub page_count: usize,
     pub hash: u64,
 }
 
@@ -45,17 +43,23 @@ pub fn collect_typst_sources<M>(doc: &Document<M>) -> Vec<(String, String)> {
     out
 }
 
-/// Assemble a document's Typst source: `#import` lines for the prelude and every
-/// authored component source, then a page header, then each component's render in
-/// flow order.
+/// Assemble a document's Typst source at the default page geometry.
 pub fn document_source<M>(doc: &Document<M>) -> String {
+    document_source_in(doc, PageGeom::default())
+}
+
+/// Assemble a document's Typst source at an explicit page geometry: `#import`
+/// lines for the prelude and authored sources, the `#set page` from `geom`, then
+/// each component's render in flow order.
+pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom) -> String {
     let mut cx = RenderCx::new(0);
     let mut src = String::new();
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));
     }
     src.push_str(&format!(
-        "#set page(width: {DOC_PAGE_W}pt, height: {DOC_PAGE_H}pt, margin: 16pt)\n#set text(size: 12pt)\n"
+        "#set page(width: {}pt, height: {}pt, margin: {}pt)\n#set text(size: 12pt)\n",
+        geom.w, geom.h, geom.margin
     ));
     for c in &doc.flow {
         src.push_str(&c.render(&mut cx));
@@ -63,10 +67,18 @@ pub fn document_source<M>(doc: &Document<M>) -> String {
     src
 }
 
-/// Compile a document through the sources-aware path with all its Typst sources
-/// (prelude + authored components) registered. Shared by `render_document` and tests.
+/// Compile a document at the default page geometry.
 pub fn compile_document<M>(doc: &Document<M>) -> Result<typst::layout::PagedDocument> {
-    let src = document_source(doc);
+    compile_document_in(doc, PageGeom::default())
+}
+
+/// Compile a document at an explicit page geometry, with all its Typst sources
+/// (prelude + authored components) registered.
+pub fn compile_document_in<M>(
+    doc: &Document<M>,
+    geom: PageGeom,
+) -> Result<typst::layout::PagedDocument> {
+    let src = document_source_in(doc, geom);
     let sources = collect_typst_sources(doc);
     crate::render::compile_to_document_with_sources(&src, &sources)
 }
@@ -80,16 +92,29 @@ fn hash_str(s: &str) -> u64 {
     h.finish()
 }
 
-/// Render one document to a [`RenderedDoc`] at `version`, sealing its manifest
-/// with `key`.
+/// Render one document at the default page geometry.
 pub fn render_document<M>(doc: &Document<M>, version: u64, key: &Key) -> Result<RenderedDoc> {
-    let src = document_source(doc);
-    let compiled = compile_document(doc)?;
+    render_document_in(doc, version, key, PageGeom::default())
+}
+
+/// Render one document at an explicit page geometry, sealing its manifest with `key`.
+pub fn render_document_in<M>(
+    doc: &Document<M>,
+    version: u64,
+    key: &Key,
+    geom: PageGeom,
+) -> Result<RenderedDoc> {
+    let src = document_source_in(doc, geom);
+    let sources = collect_typst_sources(doc);
+    let compiled = crate::render::compile_to_document_with_sources(&src, &sources)?;
+    // A single page_h suffices: `#set page` fixes every page of a document to the same
+    // height, so the per-page device transform uses the same height on every page.
     let page_h = compiled
         .pages
         .first()
         .map(|p| p.frame.height().to_pt())
-        .unwrap_or(0.0);
+        .unwrap_or(geom.h);
+    let page_count = compiled.pages.len();
     let mut manifest = recover_regions(&compiled)?.with_version(version);
     // Collect app-defined state into the manifest before sealing: the document's
     // own blob, then each stateful component's slice keyed by state_key().
@@ -105,6 +130,7 @@ pub fn render_document<M>(doc: &Document<M>, version: u64, key: &Key) -> Result<
         pdf,
         manifest,
         page_h,
+        page_count,
         hash: hash_str(&src),
     })
 }
@@ -122,11 +148,11 @@ use crate::reconcile::{reconcile, DocOp};
 struct DocEntry {
     manifest: Manifest,
     page_h: f64,
+    page_count: usize,
     hash: u64,
     version: u64,
-    /// Accumulated user ink (PDF space) on this document — preserved across
-    /// re-renders by key.
-    ink: Vec<Stroke>,
+    /// Accumulated user ink (PDF space) per page — preserved across re-renders by key.
+    ink: Vec<Vec<Stroke>>,
 }
 
 /// The framework's view of the device's document set, keyed by `DocKey`.
@@ -146,12 +172,17 @@ impl DocSet {
         self.entries.get(&key.0).map(|e| e.page_h)
     }
 
-    /// The preserved ink on `key` (empty if none / unknown).
-    pub fn ink(&self, key: &DocKey) -> &[Stroke] {
+    /// The preserved per-page ink on `key` (empty slice if none / unknown).
+    pub fn ink(&self, key: &DocKey) -> &[Vec<Stroke>] {
         self.entries
             .get(&key.0)
             .map(|e| e.ink.as_slice())
             .unwrap_or(&[])
+    }
+
+    /// The page count last rendered for `key`.
+    pub fn page_count(&self, key: &DocKey) -> Option<usize> {
+        self.entries.get(&key.0).map(|e| e.page_count)
     }
 
     /// All keys currently in the set.
@@ -182,6 +213,7 @@ pub struct App<M, Msg, Cx> {
     view: ViewFn<M, Msg, Cx>,
     version: u64,
     key: Key,
+    geom: PageGeom,
 }
 
 impl<M, Msg, Cx> App<M, Msg, Cx> {
@@ -191,6 +223,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         update: UpdateFn<M, Msg, Cx>,
         view: ViewFn<M, Msg, Cx>,
         key: Key,
+        geom: PageGeom,
     ) -> Self {
         Self {
             model,
@@ -199,6 +232,7 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             view,
             version: 1,
             key,
+            geom,
         }
     }
 }
@@ -226,12 +260,13 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut out = Vec::new();
         let mut entries = HashMap::new();
         for doc in &docs.0 {
-            let rd = render_document(doc, self.version, &self.key)?;
+            let rd = render_document_in(doc, self.version, &self.key, self.geom)?;
             entries.insert(
                 rd.key.0.clone(),
                 DocEntry {
                     manifest: rd.manifest.clone(),
                     page_h: rd.page_h,
+                    page_count: rd.page_count,
                     hash: rd.hash,
                     version: self.version,
                     ink: Vec::new(),
@@ -249,7 +284,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
     pub async fn step(
         &mut self,
         set: &mut DocSet,
-        ink_by_key: &HashMap<String, Vec<Stroke>>,
+        ink_by_key: &HashMap<String, Vec<Vec<Stroke>>>,
     ) -> Result<Cycle<Msg>>
     where
         Msg: Clone,
@@ -260,7 +295,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let pre = (self.view)(&self.model, &self.connectors);
         let mut decoded: Vec<Msg> = Vec::new();
         for doc in &pre.0 {
-            let Some(strokes) = ink_by_key.get(&doc.key.0) else {
+            let Some(pages) = ink_by_key.get(&doc.key.0) else {
                 continue;
             };
             let Some(entry) = set.entries.get(&doc.key.0) else {
@@ -271,7 +306,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
             // construction). It reserves the call site for the future path where
             // ink carries its own base version (multi-device / vector clock).
             guard_version(entry.version, &entry.manifest)?;
-            let region_ink = attribute(strokes, &entry.manifest);
+            let region_ink = attribute(pages, &entry.manifest);
             for c in &doc.flow {
                 decoded.extend(c.decode(&region_ink, &entry.manifest));
             }
@@ -290,7 +325,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let next = (self.view)(&self.model, &self.connectors);
         let mut next_rendered: Vec<RenderedDoc> = Vec::new();
         for doc in &next.0 {
-            next_rendered.push(render_document(doc, self.version, &self.key)?);
+            next_rendered.push(render_document_in(doc, self.version, &self.key, self.geom)?);
         }
 
         // 4. Reconcile by key against the prior set.
@@ -318,14 +353,25 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         let mut rendered_out: Vec<RenderedDoc> = Vec::new();
 
         for rd in next_rendered {
-            // Preserve prior ink for this key, then append this cycle's input.
-            let mut ink = set
+            // Preserve prior per-page ink, then append this cycle's input per page. This only
+            // GROWS the outer vec: if a re-render paginates to fewer pages than previously
+            // inked, the extra per-page entries are retained rather than dropped — keeping the
+            // user's real annotations is safer than silently discarding them on a transient
+            // shrink. Consequence: after such a shrink, `ink.len()` may exceed `page_count`.
+            // This is harmless for decode (`attribute` range-checks pages against manifest
+            // regions); proper ink reflow across re-pagination is a separate, deferred concern.
+            let mut ink: Vec<Vec<Stroke>> = set
                 .entries
                 .get(&rd.key.0)
                 .map(|e| e.ink.clone())
                 .unwrap_or_default();
-            if let Some(new_ink) = ink_by_key.get(&rd.key.0) {
-                ink.extend(new_ink.iter().cloned());
+            if let Some(new_pages) = ink_by_key.get(&rd.key.0) {
+                if ink.len() < new_pages.len() {
+                    ink.resize(new_pages.len(), Vec::new());
+                }
+                for (p, strokes) in new_pages.iter().enumerate() {
+                    ink[p].extend(strokes.iter().cloned());
+                }
             }
             let is_changed = changed.contains_key(rd.key.0.as_str());
             new_entries.insert(
@@ -333,6 +379,7 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
                 DocEntry {
                     manifest: rd.manifest.clone(),
                     page_h: rd.page_h,
+                    page_count: rd.page_count,
                     hash: rd.hash,
                     version: self.version,
                     ink,
@@ -422,6 +469,7 @@ impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
             update: self.update,
             view: self.view,
             key,
+            geom: PageGeom::default(),
         }
     }
 }
@@ -432,9 +480,17 @@ pub struct BuilderReady<M, Msg, Cx> {
     update: UpdateFn<M, Msg, Cx>,
     view: ViewFn<M, Msg, Cx>,
     key: Key,
+    geom: PageGeom,
 }
 
 impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
+    /// Override the page geometry for this app (default: 420×560pt with 16pt margin).
+    #[must_use]
+    pub fn page(mut self, geom: PageGeom) -> Self {
+        self.geom = geom;
+        self
+    }
+
     pub fn build(self) -> App<M, Msg, Cx> {
         App::new(
             self.model,
@@ -442,6 +498,7 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
             self.update,
             self.view,
             self.key,
+            self.geom,
         )
     }
 }

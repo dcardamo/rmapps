@@ -112,7 +112,7 @@ fn strokes_from_rmdoc(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Stro
 pub fn pull_ink(
     device: &Remarkable,
     page_h_by_key: &HashMap<String, f64>,
-) -> HashMap<String, Vec<Stroke>> {
+) -> HashMap<String, Vec<Vec<Stroke>>> {
     let dir = std::env::temp_dir().join("agenda-pull");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("mk pull dir");
@@ -136,7 +136,8 @@ pub fn pull_ink(
         let page_h = page_h_by_key.get(&key).copied().unwrap_or(0.0);
         let strokes = strokes_from_rmdoc(device, &p, page_h);
         if !strokes.is_empty() {
-            out.insert(key, strokes);
+            // Wrap as single-page for now; multi-page rmdoc support is a future step.
+            out.insert(key, vec![strokes]);
         }
     }
     out

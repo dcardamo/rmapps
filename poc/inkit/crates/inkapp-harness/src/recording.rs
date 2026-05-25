@@ -8,7 +8,7 @@ use inkapp_core::error::Result;
 use inkapp_core::geometry::{DevicePoint, PdfPoint, PdfRect};
 use inkapp_core::ink::Stroke;
 use inkapp_core::manifest::{recover_regions, Manifest};
-use inkapp_core::readback::attribute;
+use inkapp_core::readback::attribute_page;
 use inkapp_core::region_metadata;
 use inkapp_core::render::{compile_to_document, document_to_pdf};
 
@@ -275,7 +275,7 @@ pub fn render_calibration(key: &Key) -> Result<Vec<u8>> {
 /// boxes after it. Callers that use `default: 0` therefore assume box 0 was
 /// drawn (the recording templates instruct drawing in every box).
 pub fn extract_samples(strokes_pdf: &[Stroke], manifest: &Manifest, name: &str) -> Vec<Sample> {
-    let region_ink = attribute(strokes_pdf, manifest);
+    let region_ink = attribute_page(strokes_pdf, manifest);
     let mut samples = Vec::new();
     for i in 0..BOXES_PER_GESTURE {
         let region_name = format!("box:{name}:{i}");

@@ -61,8 +61,8 @@ async fn decode_uses_carried_base_through_loop() {
     app.model = 9;
 
     // The user inks one increment on the stale (base-5) document.
-    let mut ink: HashMap<String, Vec<Stroke>> = HashMap::new();
-    ink.insert("c".into(), tick(&set, "c"));
+    let mut ink: HashMap<String, Vec<Vec<Stroke>>> = HashMap::new();
+    ink.insert("c".into(), vec![tick(&set, "c")]);
 
     let cycle = app.step(&mut set, &ink).await.unwrap();
 

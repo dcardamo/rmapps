@@ -31,14 +31,15 @@ pub use crypto::{open, seal, Key};
 pub use device::Device;
 pub use document::{DocKey, Document, Documents};
 pub use error::{Error, Result};
-pub use geometry::{DevicePoint, PdfPoint, PdfRect};
+pub use geometry::{DevicePoint, PageGeom, PdfPoint, PdfRect};
 pub use manifest::{Manifest, Region};
 pub use mode::Mode;
 pub use reconcile::{reconcile, DocOp};
 pub use render::region_metadata;
 pub use runtime::{
-    app, collect_typst_sources, compile_document, document_source, render_document, App, Cycle,
-    DocSet, RenderedDoc, REGION_PRELUDE,
+    app, collect_typst_sources, compile_document, compile_document_in, document_source,
+    document_source_in, render_document, render_document_in, App, Cycle, DocSet, RenderedDoc,
+    REGION_PRELUDE,
 };
 pub use secrets::{Scope, SecretStore};
 pub use single_flight::SingleFlight;

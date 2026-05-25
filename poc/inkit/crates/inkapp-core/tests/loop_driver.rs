@@ -101,9 +101,9 @@ async fn two_cycle_archive_and_delete() {
     assert_eq!(rendered.len(), 3);
 
     // Draw: archive "b" and "c" (mark their checkboxes).
-    let mut ink: HashMap<String, Vec<Stroke>> = HashMap::new();
-    ink.insert("b".into(), ink_for(&set, "b"));
-    ink.insert("c".into(), ink_for(&set, "c"));
+    let mut ink: HashMap<String, Vec<Vec<Stroke>>> = HashMap::new();
+    ink.insert("b".into(), vec![ink_for(&set, "b")]);
+    ink.insert("c".into(), vec![ink_for(&set, "c")]);
 
     // Cycle 1: step.
     let cycle = app.step(&mut set, &ink).await.unwrap();
@@ -134,8 +134,8 @@ async fn surviving_key_entry_retained() {
     app.render(&mut set).await.unwrap();
 
     // Mark only "b"; a and c survive.
-    let mut ink: HashMap<String, Vec<Stroke>> = HashMap::new();
-    ink.insert("b".into(), ink_for(&set, "b"));
+    let mut ink: HashMap<String, Vec<Vec<Stroke>>> = HashMap::new();
+    ink.insert("b".into(), vec![ink_for(&set, "b")]);
     app.step(&mut set, &ink).await.unwrap();
 
     assert!(set.manifest(&DocKey::new("a")).is_some());

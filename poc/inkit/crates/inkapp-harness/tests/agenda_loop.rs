@@ -41,10 +41,15 @@ async fn agenda_cancel_marks_editable_event_only() {
 
     // Mark the first editable event (evt-0 -> localcal uid "mine-1").
     let check = fixture("checkmark");
-    let mut ink: HashMap<String, Vec<Stroke>> = HashMap::new();
+    let mut ink: HashMap<String, Vec<Vec<Stroke>>> = HashMap::new();
     ink.insert(
         key.0.clone(),
-        device_ink(&device, &check, region_rect(&manifest, "evt-0"), page_h),
+        vec![device_ink(
+            &device,
+            &check,
+            region_rect(&manifest, "evt-0"),
+            page_h,
+        )],
     );
 
     // Cycle 1: step.

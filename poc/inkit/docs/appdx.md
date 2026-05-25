@@ -5,12 +5,15 @@
 > store + embedded-manifest encryption**, the **connector plugin trait + async
 > loop**, the **mode axis** (a `Mode { ReadOnly, Editable }` field carried by
 > components, with a `CalendarView` spanning Display↔Control and the read-only ICS
-> feed + writable local-calendar connectors behind it), and now **Typst component
+> feed + writable local-calendar connectors behind it), **Typst component
 > authoring** (a multi-file Typst world + a framework `#region` prelude, with
-> `Checkbox`'s render half authored in `checkbox.typ`) are all implemented and
-> tested, and the **document- & component-level state field** now rides the sealed
-> manifest. What remains is only the explicitly-future material — event sourcing/CRDT,
-> multi-user/cloud — not the spine. Open questions are marked **(open)** inline.
+> `Checkbox`'s render half authored in `checkbox.typ`), the **document- &
+> component-level state field** riding the sealed manifest, and now **multi-page
+> pagination** (one content flow → N-page, device-parametric render with
+> split-region recovery and per-page ink stitching) are all implemented and tested.
+> What remains is only the explicitly-future material — simultaneous *(doc ×
+> device)* fan-out, event sourcing/CRDT, multi-user/cloud — not the spine. Open
+> questions are marked **(open)** inline.
 >
 > **Beyond the spine — the first real app (`reader`).** The proof-point reading app
 > is now underway. Its data foundation is built: a **live `inkapp-readwise-reader`
@@ -23,8 +26,8 @@
 >
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
 > **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
-> state field *(all done)*. Event sourcing/CRDT and multi-user/cloud stay future (see
-> [FUTURE.md](FUTURE.md)).
+> state field → **pagination** *(all done)*. Simultaneous per-device fan-out,
+> event sourcing/CRDT, and multi-user/cloud stay future (see [FUTURE.md](FUTURE.md)).
 
 The touchstone example throughout is a reading-queue app in the spirit of
 `rmreader`: articles flow in from a service, render as PDFs on the device, the
@@ -192,6 +195,19 @@ frames, and inkapp recovers regions from those frames.
       components decode region ink → Msgs
       (page-blind, device-blind)
 ```
+
+*(Built.)* The framework paginates a content flow to N pages per device profile
+(`PageGeom` — page geometry — is a render input), recovers each region from **every
+frame** it touches (a region split across a page break recovers as one rect per
+frame via `split_rects`), and lifts per-page ink back into content-relative regions,
+**stitching** a split region's ink into one logical `RegionInk` before the component
+decodes it. Components stay page- and device-blind: the same content on two device
+profiles paginates to different page counts and decodes to identical messages —
+proved by the harness `pagination_device_blind` test, where a `Passage` component
+splits across a page break on both profiles and decodes identically regardless.
+Simultaneous *(logical doc × multiple devices)* fan-out in one run — per-device ink
+streams in one set — remains future (it overlaps the threat model's "multi-device
+per user").
 
 ---
 
@@ -727,6 +743,11 @@ management and tenant-isolation mechanics are undesigned.
 - The exact shape of the event log / merge-type declaration (which CRDT types are
   built in, how an app declares them, where the log lives).
 - Cross-device reconciliation specifics (one user, two devices, two ink streams).
+- **Simultaneous *(doc × device)* fan-out** — running one content flow through
+  multiple device profiles in one pass, yielding per-device ink streams in one
+  `DocSet`. Additive: per-device render is already parametric on `PageGeom`; what
+  remains is fanning out and collecting. Overlaps the threat-model's "multi-device
+  per user" axis.
 - Lossy input: should `decode` be able to emit "I couldn't tell," so `update` can
   re-ask on the next render?
 - The shape of the `Msg` batch handed from decode to update: flat stream vs a tree
