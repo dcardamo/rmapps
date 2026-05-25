@@ -94,7 +94,7 @@ pub fn strokes_by_page(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Vec
     };
     bundle
         .pages()
-        .iter()
+        .into_iter()
         .map(|pg| match pg.scene_bytes() {
             Some(bytes) => device.read_ink(bytes, page_h).unwrap_or_default(),
             None => Vec::new(),
