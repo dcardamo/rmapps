@@ -11,6 +11,8 @@ members = [
     "crates/inkapp-localcal",
     "crates/inkapp",
     "crates/inkapp-content",
+    "crates/inkapp-config",
+    "crates/inkapp-config-derive",
     "spikes/typst-readback",
     "apps/reading-queue",
     "apps/agenda",
