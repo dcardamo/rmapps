@@ -37,6 +37,7 @@ dependencies = [
  "inkapp-core",
  "inkapp-ics",
  "inkapp-localcal",
+ "rm-files",
  "tokio",
  "zip",
 ]
