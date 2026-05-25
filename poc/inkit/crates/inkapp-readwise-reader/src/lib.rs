@@ -501,6 +501,82 @@ impl Readwise {
     pub fn failed_writes(&self) -> Vec<Write> {
         self.overlay.lock().unwrap().failed.clone()
     }
+
+    /// Test accessor: the refresh locations currently configured on this connector.
+    #[doc(hidden)]
+    pub fn locations_for_test(&self) -> Vec<String> {
+        self.locations.clone()
+    }
+
+    /// Refresh locations derived from config: library locations + "feed" when enabled.
+    fn locations_from(config: &ReaderConfig) -> Vec<String> {
+        let mut v: Vec<String> = config
+            .library_locations
+            .iter()
+            .map(|l| l.as_str().to_string())
+            .collect();
+        if config.feed_enabled {
+            v.push("feed".to_string());
+        }
+        v
+    }
+
+    /// Assemble a live connector: token from the secret store, durable cache,
+    /// retrying HTTP read+write transports.
+    ///
+    /// Returns `ConnectorError::Auth` when the `readwise-reader` token is absent.
+    pub async fn live(
+        secrets: &inkapp_core::secrets::SecretStore,
+        cache_dir: impl Into<PathBuf>,
+        config: ReaderConfig,
+    ) -> Result<Self, ConnectorError> {
+        use inkapp_core::secrets::Scope;
+
+        let raw_token = secrets
+            .get(Scope::ConnectorCred, "readwise-reader")
+            .map_err(|e| ConnectorError::Auth(e.to_string()))?
+            .ok_or_else(|| {
+                ConnectorError::Auth("no readwise-reader token in secret store".into())
+            })?;
+        let token =
+            String::from_utf8(raw_token).map_err(|e| ConnectorError::Auth(e.to_string()))?;
+
+        let cache = Arc::new(
+            inkapp_core::cache::Cache::open(cache_dir.into(), 16 << 20, 512 << 20)
+                .await
+                .map_err(|e| ConnectorError::Transport(e.to_string()))?,
+        );
+
+        let client = Self::retrying_http_client();
+        let fetch = Arc::new(crate::http::HttpFetch::new(client.clone(), token.clone()));
+
+        let mut me = Readwise::build(Vec::new(), Overlay::default(), None);
+        me.config = config.clone();
+        me.locations = Self::locations_from(&config);
+        me.fetch = fetch;
+
+        // Write transport needs to look up cached articles for highlight metadata.
+        let warm = Arc::clone(&me.cache_articles);
+        let lookup: crate::http::ArticleLookup = Arc::new(move |id: &ArticleId| {
+            warm.read().unwrap().iter().find(|a| &a.id == id).cloned()
+        });
+        me.transport = Arc::new(crate::http::HttpWrite::new(client, token, lookup));
+
+        Ok(me.with_cache_hydrated(cache).await)
+    }
+
+    /// Build a `reqwest-middleware` client with exponential-backoff retry on transient
+    /// failures (429 / 5xx). Wraps a plain `reqwest::Client` so all live transports
+    /// share one connection pool.
+    fn retrying_http_client() -> reqwest_middleware::ClientWithMiddleware {
+        use reqwest_middleware::ClientBuilder;
+        use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(5);
+        ClientBuilder::new(reqwest::Client::new())
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build()
+    }
 }
 
 #[async_trait::async_trait]
