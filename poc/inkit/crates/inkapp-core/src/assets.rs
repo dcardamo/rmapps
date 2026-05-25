@@ -12,6 +12,8 @@ use std::io::Cursor;
 use image::GenericImageView;
 use sha2::{Digest, Sha256};
 
+use crate::cache::Cache;
+
 /// Map from Typst virtual path (`/assets/{key}.png`) to PNG bytes.
 pub type AssetMap = HashMap<String, Vec<u8>>;
 
@@ -143,6 +145,69 @@ impl ImageFetcher for HttpImageFetcher {
     }
 }
 
+// ── resolver ─────────────────────────────────────────────────────────────────
+
+/// The cache key under which an asset's PNG bytes are stored.
+fn cache_key(key: &str) -> String {
+    format!("assets/{key}")
+}
+
+/// Resolve `(key, url)` pairs into an `AssetMap` (`/assets/{key}.png` -> PNG).
+///
+/// For each unique key: a cache hit short-circuits; otherwise the URL is fetched
+/// (all misses concurrently), normalized to PNG, and — on ANY failure (fetch
+/// `None`, decode error, or tracking-pixel drop) — replaced by `PLACEHOLDER_PNG`.
+/// Every key always yields an entry, so an emitted `#image()` can never dangle.
+/// Results are written back to `cache` (when present) so the next run is
+/// warm/offline. The cache is NOT closed here (that would shut the foyer engine
+/// mid-app); durability flush happens once at app shutdown via `App::close`.
+pub async fn resolve_assets(
+    pairs: &[(String, String)],
+    cache: Option<&Cache>,
+    fetcher: &dyn ImageFetcher,
+) -> AssetMap {
+    // Dedup by key (first occurrence wins), preserving order.
+    let mut seen = std::collections::HashSet::new();
+    let mut unique: Vec<(String, String)> = Vec::new();
+    for (k, u) in pairs {
+        if seen.insert(k.clone()) {
+            unique.push((k.clone(), u.clone()));
+        }
+    }
+
+    let mut map = AssetMap::new();
+    let mut miss_slots: Vec<usize> = Vec::new();
+    let mut miss_urls: Vec<String> = Vec::new();
+
+    // Cache pass.
+    for (i, (key, url)) in unique.iter().enumerate() {
+        if let Some(c) = cache {
+            if let Ok(Some(bytes)) = c.get_bytes(&cache_key(key)).await {
+                map.insert(asset_path(key), bytes);
+                continue;
+            }
+        }
+        miss_slots.push(i);
+        miss_urls.push(url.clone());
+    }
+
+    // Fetch all misses concurrently, normalize, fall back to placeholder.
+    let fetched = fetcher.fetch_many(&miss_urls).await;
+    for (slot, body) in miss_slots.into_iter().zip(fetched) {
+        let key = &unique[slot].0;
+        let png = body
+            .as_deref()
+            .and_then(normalize_to_png)
+            .unwrap_or_else(|| PLACEHOLDER_PNG.to_vec());
+        if let Some(c) = cache {
+            let _ = c.put_bytes(&cache_key(key), &png).await;
+        }
+        map.insert(asset_path(key), png);
+    }
+
+    map
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -257,5 +322,71 @@ mod tests {
     fn http_fetcher_builds() {
         // Construction must not panic (exercises the middleware/retry wiring).
         let _ = HttpImageFetcher::new();
+    }
+
+    fn fetcher_for(url: &str, bytes: Vec<u8>) -> FakeFetcher {
+        let mut responses = HashMap::new();
+        responses.insert(url.to_string(), bytes);
+        FakeFetcher::new(responses)
+    }
+
+    #[tokio::test]
+    async fn resolve_fetches_normalizes_and_caches() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Cache::open(dir.path(), 1 << 20, 8 << 20).await.unwrap();
+        let url = "https://example.com/pic.webp";
+        let key = asset_key(url);
+        let fetcher = fetcher_for(url, b64(WEBP_16));
+
+        let map = resolve_assets(&[(key.clone(), url.to_string())], Some(&cache), &fetcher).await;
+
+        let bytes = map.get(&asset_path(&key)).expect("asset present");
+        assert!(is_png(bytes), "fetched webp normalized to png");
+        // Written back to the cache under the bare key.
+        let cached = cache.get_bytes(&cache_key(&key)).await.unwrap().unwrap();
+        assert_eq!(&cached, bytes);
+    }
+
+    #[tokio::test]
+    async fn resolve_serves_warm_cache_offline() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Cache::open(dir.path(), 1 << 20, 8 << 20).await.unwrap();
+        let url = "https://example.com/pic.webp";
+        let key = asset_key(url);
+
+        // Warm the cache via a real fetch.
+        let online = fetcher_for(url, b64(WEBP_16));
+        let first = resolve_assets(&[(key.clone(), url.to_string())], Some(&cache), &online).await;
+        let warm_bytes = first.get(&asset_path(&key)).unwrap().clone();
+
+        // Second pass with an OfflineFetcher still returns the bytes from cache.
+        let offline = OfflineFetcher;
+        let second =
+            resolve_assets(&[(key.clone(), url.to_string())], Some(&cache), &offline).await;
+        assert_eq!(second.get(&asset_path(&key)).unwrap(), &warm_bytes);
+    }
+
+    #[tokio::test]
+    async fn resolve_falls_back_to_placeholder_on_failure() {
+        // No cache, and the fetcher has nothing for this url -> placeholder.
+        let url = "https://example.com/missing.png";
+        let key = asset_key(url);
+        let fetcher = FakeFetcher::new(HashMap::new());
+        let map = resolve_assets(&[(key.clone(), url.to_string())], None, &fetcher).await;
+        assert_eq!(map.get(&asset_path(&key)).unwrap(), PLACEHOLDER_PNG);
+    }
+
+    #[tokio::test]
+    async fn resolve_dedups_repeated_keys() {
+        let url = "https://example.com/pic.webp";
+        let key = asset_key(url);
+        let fetcher = fetcher_for(url, b64(WEBP_16));
+        let pairs = vec![
+            (key.clone(), url.to_string()),
+            (key.clone(), url.to_string()),
+        ];
+        let map = resolve_assets(&pairs, None, &fetcher).await;
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(&asset_path(&key)));
     }
 }
