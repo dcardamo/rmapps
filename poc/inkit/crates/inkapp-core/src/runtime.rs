@@ -135,7 +135,7 @@ use std::collections::HashMap;
 
 use crate::document::Documents;
 use crate::ink::Stroke;
-use crate::readback::{attribute, guard_version};
+use crate::readback::{attribute_page, guard_version};
 use crate::reconcile::{reconcile, DocOp};
 
 /// Per-key state the framework carries between cycles.
@@ -294,7 +294,9 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
             // construction). It reserves the call site for the future path where
             // ink carries its own base version (multi-device / vector clock).
             guard_version(entry.version, &entry.manifest)?;
-            let region_ink = attribute(strokes, &entry.manifest);
+            // Task 5 will convert this to per-page attribute(); for now use
+            // attribute_page to keep the single-page strokes path compiling.
+            let region_ink = attribute_page(strokes, &entry.manifest);
             for c in &doc.flow {
                 decoded.extend(c.decode(&region_ink, &entry.manifest));
             }

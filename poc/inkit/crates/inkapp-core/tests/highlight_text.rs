@@ -3,7 +3,7 @@ use inkapp_core::components::highlight_text::HighlightableText;
 use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::recover_regions;
-use inkapp_core::readback::attribute;
+use inkapp_core::readback::attribute_page;
 use inkapp_core::render::compile_to_document;
 
 const TOKENS: &[&str] = &["the", "quick", "brown", "fox", "lazy", "dog"];
@@ -96,7 +96,7 @@ fn swipe_highlights_only_covered_tokens_via_real_attribution() {
     };
 
     // Real attribution decides which token regions the swipe falls in.
-    let ink = attribute(&[swipe], &m);
+    let ink = attribute_page(&[swipe], &m);
     let mut got = w.read(&ink, &m);
     got.sort();
     assert_eq!(

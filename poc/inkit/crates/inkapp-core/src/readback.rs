@@ -1,34 +1,51 @@
+use std::collections::HashMap;
+
 use crate::error::{Error, Result};
 use crate::ink::{RegionInk, Stroke};
 use crate::manifest::Manifest;
 
-/// Group strokes by the region that contains them. A stroke is attributed to a
-/// region if any of its points falls inside that region's rect. A stroke may
-/// match multiple regions; it is added to each. Strokes matching no region are
-/// dropped. Output preserves manifest region order and only includes regions
-/// that received at least one stroke.
-///
-/// This does NOT filter by [`crate::manifest::Region::page`]: callers must pass
-/// only strokes from the page(s) the manifest covers (the harness processes one
-/// page per cycle), otherwise a stroke could be attributed to a same-rect region
-/// on a different page.
-pub fn attribute(strokes: &[Stroke], manifest: &Manifest) -> Vec<RegionInk> {
-    let mut out: Vec<RegionInk> = Vec::new();
+/// Attribute per-page strokes to regions, then stitch each logical region's ink
+/// across the pages it spans into one `RegionInk`. `pages[p]` holds page p's
+/// strokes (that page's PDF space). A stroke on page p is tested ONLY against
+/// regions with `region.page == p`, so same-rect regions on different pages never
+/// cross-attribute. A stroke matches a region if any of its points lies in the
+/// region's rect; a stroke may match (and be added to) multiple regions on its
+/// page. Output order is the first-seen order of region names.
+pub fn attribute(pages: &[Vec<Stroke>], manifest: &Manifest) -> Vec<RegionInk> {
+    let mut order: Vec<String> = Vec::new();
+    let mut by_name: HashMap<String, Vec<Stroke>> = HashMap::new();
     for region in &manifest.regions {
-        let mut matched = Vec::new();
+        let Some(strokes) = pages.get(region.page) else {
+            continue;
+        };
         for s in strokes {
             if s.points.iter().any(|p| region.rect.contains(p.x, p.y)) {
-                matched.push(s.clone());
+                if !by_name.contains_key(&region.name) {
+                    order.push(region.name.clone());
+                }
+                by_name
+                    .entry(region.name.clone())
+                    .or_default()
+                    .push(s.clone());
             }
         }
-        if !matched.is_empty() {
-            out.push(RegionInk {
-                region: region.name.clone(),
-                strokes: matched,
-            });
-        }
     }
-    out
+    order
+        .into_iter()
+        .map(|name| {
+            let strokes = by_name.remove(&name).unwrap_or_default();
+            RegionInk {
+                region: name,
+                strokes,
+            }
+        })
+        .collect()
+}
+
+/// Single-page convenience: attribute one page's strokes (the common case for
+/// single-page tests and the harness `simulate`).
+pub fn attribute_page(strokes: &[Stroke], manifest: &Manifest) -> Vec<RegionInk> {
+    attribute(&[strokes.to_vec()], manifest)
 }
 
 /// Return strokes present in `current` that are not in `prev` (by value).

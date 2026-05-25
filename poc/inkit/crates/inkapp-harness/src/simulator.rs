@@ -3,7 +3,7 @@ use inkapp_core::error::Result;
 use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::Manifest;
-use inkapp_core::readback::attribute;
+use inkapp_core::readback::attribute_page;
 use inkapp_core::render::compile_to_document;
 
 use crate::inspector::inspect;
@@ -116,7 +116,7 @@ pub fn simulate(
     let bytes = device.write_ink(&synthesized, page_h_pt)?;
     let strokes = device.read_ink(&bytes, page_h_pt)?;
 
-    let readback = attribute(&strokes, manifest);
+    let readback = attribute_page(&strokes, manifest);
     let inspector_png = inspect(&doc, manifest, &strokes)?;
 
     Ok(StepTrace {
