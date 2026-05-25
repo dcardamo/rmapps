@@ -18,6 +18,9 @@ use inkapp_core::single_flight::SingleFlight;
 /// failed and moved to `failed_writes()`.
 pub const MAX_ATTEMPTS: u32 = 3;
 
+/// Durable-cache key for the refreshed article set.
+const ARTICLES_KEY: &str = "articles/v1";
+
 /// A Readwise article id.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ArticleId(pub String);
@@ -127,6 +130,41 @@ struct Overlay {
     failed: Vec<Write>,
 }
 
+/// One page of a Reader list response.
+pub struct Page {
+    pub articles: Vec<Article>,
+    pub next_cursor: Option<String>,
+}
+
+/// The read seam: how the connector fetches a location's articles. Mirrors
+/// `WriteTransport`. Default is a cassette fetch; a live build injects HTTP;
+/// tests inject canned pages. (Connectors may bring their own — escape hatch.)
+#[async_trait::async_trait]
+pub trait FetchTransport: Send + Sync {
+    async fn list(&self, location: &str, cursor: Option<&str>) -> Result<Page, ConnectorError>;
+}
+
+/// Cassette fetch: returns the committed source as a single page per location.
+struct CassetteFetch {
+    source: Vec<Article>,
+}
+
+#[async_trait::async_trait]
+impl FetchTransport for CassetteFetch {
+    async fn list(&self, location: &str, _cursor: Option<&str>) -> Result<Page, ConnectorError> {
+        let articles = self
+            .source
+            .iter()
+            .filter(|a| a.location.as_str() == location)
+            .cloned()
+            .collect();
+        Ok(Page {
+            articles,
+            next_cursor: None,
+        })
+    }
+}
+
 /// How a write reaches the remote. The default is a no-op (cassette mode); tests
 /// inject a scripted transport; a live build pushes to the Readwise API.
 #[async_trait::async_trait]
@@ -209,29 +247,42 @@ impl Default for ReaderConfig {
     }
 }
 
-/// The connector. Reads come from the `RwLock` cache (populated from `source` by
-/// `refresh`); writes mutate the overlay (optimistic) and enqueue durable writes.
+/// The connector. Reads come from the warm `RwLock` cache (populated by
+/// `refresh` through the read seam); writes mutate the overlay (optimistic) and
+/// enqueue durable writes.
 pub struct Readwise {
-    /// Immutable fetch source (the committed cassette). A live build would fetch
-    /// from the network instead.
-    source: Vec<Article>,
-    /// Warm cache read by `queue()`. Shared as `Arc` so the single-flighted
-    /// refresh closure can own a handle without borrowing `self`.
-    cache: Arc<RwLock<Vec<Article>>>,
+    /// Warm (in-memory) cache read by `queue()`. Shared as `Arc` so the
+    /// single-flighted refresh closure can own a handle without borrowing `self`.
+    cache_articles: Arc<RwLock<Vec<Article>>>,
     overlay: Mutex<Overlay>,
     persist_path: Option<PathBuf>,
     transport: Arc<dyn WriteTransport>,
+    /// The read seam. Defaults to a cassette fetch over `source`.
+    fetch: Arc<dyn FetchTransport>,
+    /// Optional durable cache: persists the refreshed set so a restart can serve
+    /// reads before the first refresh.
+    cache: Option<Arc<inkapp_core::cache::Cache>>,
+    /// Reader locations to page through on refresh (in order).
+    locations: Vec<String>,
     refresh_flight: SingleFlight<Result<(), ConnectorError>>,
     pub(crate) config: ReaderConfig,
 }
 
 impl Readwise {
-    /// Shared constructor: pre-populate the cache from `source` so `queue()`
-    /// works before the first explicit `refresh`.
+    /// Shared constructor: pre-populate the warm cache from `source` so `queue()`
+    /// works before the first explicit `refresh`, and seed the default cassette
+    /// fetch over the same source.
     fn build(source: Vec<Article>, overlay: Overlay, persist_path: Option<PathBuf>) -> Self {
         Self {
-            cache: Arc::new(RwLock::new(source.clone())),
-            source,
+            cache_articles: Arc::new(RwLock::new(source.clone())),
+            fetch: Arc::new(CassetteFetch { source }),
+            cache: None,
+            locations: vec![
+                "new".into(),
+                "later".into(),
+                "shortlist".into(),
+                "feed".into(),
+            ],
             overlay: Mutex::new(overlay),
             persist_path,
             transport: Arc::new(NoopTransport),
@@ -291,11 +342,43 @@ impl Readwise {
         self
     }
 
+    /// Replace the read transport (builder). Tests inject canned pages; a live
+    /// build injects the Readwise-API fetch.
+    #[must_use]
+    pub fn with_fetch(mut self, fetch: Arc<dyn FetchTransport>) -> Self {
+        self.fetch = fetch;
+        self
+    }
+
+    /// Set the Reader locations to page through on refresh, in order.
+    #[must_use]
+    pub fn with_locations(mut self, locations: Vec<String>) -> Self {
+        self.locations = locations;
+        self
+    }
+
+    /// Attach a durable cache. `refresh()` persists the refreshed set to it.
+    #[must_use]
+    pub fn with_cache(mut self, cache: Arc<inkapp_core::cache::Cache>) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+
+    /// Build over an existing durable cache, hydrating the warm cache from it so
+    /// reads work before the first refresh (warm restart / offline).
+    pub async fn with_cache_hydrated(mut self, cache: Arc<inkapp_core::cache::Cache>) -> Self {
+        if let Ok(Some(stored)) = cache.get_json::<Vec<Article>>(ARTICLES_KEY).await {
+            *self.cache_articles.write().unwrap() = stored;
+        }
+        self.cache = Some(cache);
+        self
+    }
+
     /// The current queue: cached articles minus archived, with overlay highlights
     /// merged in. Reads the warm cache under a read lock.
     pub fn queue(&self) -> Vec<Article> {
         let ov = self.overlay.lock().unwrap();
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache_articles.read().unwrap();
         cache
             .iter()
             .filter(|a| !ov.archived.contains(&a.id))
@@ -423,18 +506,64 @@ impl Connector for Readwise {
     }
 
     async fn refresh(&self) -> Result<(), ConnectorError> {
-        // Cassette mode: the "fetch" is the committed data. A live build would
-        // await the network inside this closure, outside any lock. Single-flight
-        // collapses a refresh stampede into one execution.
-        let source = self.source.clone();
-        let cache = Arc::clone(&self.cache);
+        // Page through every configured location via the read seam, dedupe by id,
+        // sort newest-first, persist to the durable cache (best effort) and swap
+        // into the warm cache. A live build awaits the network inside the closure,
+        // outside any lock. Single-flight collapses a refresh stampede into one
+        // execution. The closure is `'static` — it must not borrow `self`, so
+        // overlay reconciliation happens after the flight on `&self`.
+        let fetch = Arc::clone(&self.fetch);
+        let locations = self.locations.clone();
+        let cache = self.cache.clone();
+        let warm = Arc::clone(&self.cache_articles);
         self.refresh_flight
             .run(move || async move {
-                // Brief write lock, no await held across it (the doc's rule).
-                *cache.write().unwrap() = source;
+                let mut all: Vec<Article> = Vec::new();
+                let mut seen = std::collections::HashSet::new();
+                for loc in &locations {
+                    let mut cursor: Option<String> = None;
+                    loop {
+                        let page = fetch.list(loc, cursor.as_deref()).await?;
+                        for a in page.articles {
+                            if seen.insert(a.id.0.clone()) {
+                                all.push(a);
+                            }
+                        }
+                        match page.next_cursor {
+                            Some(c) => cursor = Some(c),
+                            None => break,
+                        }
+                    }
+                }
+                all.sort_by(|a, b| b.saved_at.cmp(&a.saved_at)); // newest first
+                if let Some(cache) = &cache {
+                    let _ = cache.put_json(ARTICLES_KEY, &all).await; // best-effort
+                }
+                // Brief write lock, no await held across it (the doc's rule). On a
+                // fetch error the `?` above returns Err before this, so the prior
+                // warm cache is preserved.
+                *warm.write().unwrap() = all;
                 Ok(())
             })
-            .await
+            .await?;
+
+        // Reconcile the optimistic overlay against new server truth: keep a
+        // "hidden" id only while it's still present server-side (move/delete not
+        // yet applied); drop added highlights the server now reflects.
+        {
+            let warm = self.cache_articles.read().unwrap();
+            let present: std::collections::HashSet<String> =
+                warm.iter().map(|a| a.id.0.clone()).collect();
+            let mut ov = self.overlay.lock().unwrap();
+            ov.archived.retain(|id| present.contains(&id.0));
+            ov.added.retain(|(id, text)| {
+                warm.iter()
+                    .find(|a| &a.id == id)
+                    .is_none_or(|a| !a.highlights.contains(text))
+            });
+            self.save(&ov);
+        }
+        Ok(())
     }
 
     async fn flush(&self) {
