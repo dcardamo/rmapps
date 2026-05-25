@@ -20,7 +20,13 @@
       "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Ensure no doc implies a single-page device pull and the whole workspace tests green.\n\n**Files:**\n- Inspect/Modify only if needed: `docs/appdx.md`, `docs/how-it-works.md`, `docs/remarkable-pdf-mechanics.md`\n\n**Verify:** `cargo test --workspace`\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\", \"docs/how-it-works.md\", \"docs/remarkable-pdf-mechanics.md\"], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"no single-page-pull implication in docs\", \"cargo test --workspace green\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Port multi-page device pull to apps/agenda",
+      "status": "completed",
+      "description": "**Goal:** Apply the same per-page ink assembly to the agenda app's device pull (identical pre-fix code as reading-queue had). Added post-implementation after the final review found apps/agenda carried the same single-page bug.\n\n**Files:**\n- Modify: `apps/agenda/Cargo.toml`, `apps/agenda/src/serve.rs`\n- Create: `apps/agenda/tests/multipage.rs`\n- Stage: `Cargo.lock`\n\n**Verify:** `cargo test -p agenda --test multipage && cargo test -p agenda`\n\n```json:metadata\n{\"files\": [\"apps/agenda/Cargo.toml\", \"apps/agenda/src/serve.rs\", \"apps/agenda/tests/multipage.rs\", \"Cargo.lock\"], \"verifyCommand\": \"cargo test -p agenda --test multipage && cargo test -p agenda\", \"acceptanceCriteria\": [\"strokes_by_page in agenda mirrors reading-queue\", \"pull_ink uses it skip-empty\", \"caveat removed\", \"e2e multipage test passes\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-25T03:00:00Z"
+  "lastUpdated": "2026-05-25T04:00:00Z"
 }
