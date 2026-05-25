@@ -119,23 +119,11 @@ async fn pages_dedupes_and_sorts() {
 
 #[tokio::test]
 async fn fetch_error_preserves_prior_warm_cache() {
-    struct OneThenError {
-        called: std::sync::atomic::AtomicUsize,
-    }
+    struct AlwaysError;
     #[async_trait::async_trait]
-    impl FetchTransport for OneThenError {
-        async fn list(&self, location: &str, _c: Option<&str>) -> Result<Page, ConnectorError> {
-            let n = self
-                .called
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            if n == 0 && location == "new" {
-                Ok(Page {
-                    articles: vec![art("a", "2024-01-02")],
-                    next_cursor: None,
-                })
-            } else {
-                Err(ConnectorError::Transport("boom".into()))
-            }
+    impl FetchTransport for AlwaysError {
+        async fn list(&self, _location: &str, _c: Option<&str>) -> Result<Page, ConnectorError> {
+            Err(ConnectorError::Transport("boom".into()))
         }
     }
 
@@ -148,9 +136,7 @@ async fn fetch_error_preserves_prior_warm_cache() {
     assert_eq!(before, vec!["b".to_string(), "a".to_string()]);
 
     // A failing fetch must return Err and leave the warm cache untouched.
-    let rw = rw.with_fetch(Arc::new(OneThenError {
-        called: std::sync::atomic::AtomicUsize::new(1), // first call already errors
-    }));
+    let rw = rw.with_fetch(Arc::new(AlwaysError));
     assert!(rw.refresh().await.is_err(), "fetch error surfaces as Err");
     let after: Vec<String> = rw.queue().iter().map(|a| a.id.0.clone()).collect();
     assert_eq!(after, before, "prior warm cache preserved on fetch error");

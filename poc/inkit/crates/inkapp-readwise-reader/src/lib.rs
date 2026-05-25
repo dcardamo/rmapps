@@ -1,9 +1,11 @@
-//! Cassette-backed Readwise connector, as an inkapp `Connector` plugin. Reads
-//! come from an `RwLock` cache (populated from the committed cassette by a
-//! single-flighted `refresh`); writes (archive / add highlight) update an
-//! optimistic overlay AND enqueue a durable write that `flush` pushes through a
-//! `WriteTransport` with retry. The default transport is a no-op (cassette mode,
-//! no live account); the live transport is a manual `#[ignore]` bar.
+//! Readwise Reader connector, as an inkapp `Connector` plugin. Reads come from a
+//! warm `RwLock` cache that a single-flighted `refresh` fills via a pluggable
+//! `FetchTransport` (the default is a cassette; a live build injects HTTP) and
+//! optionally persists to a durable `inkapp_core::cache::Cache` for warm restart.
+//! Writes (move / delete / add highlight) update an optimistic overlay AND
+//! enqueue a durable write that `flush` pushes through a `WriteTransport` with
+//! retry. The default transports are cassette/no-op (no live account); live
+//! transports are wired by `live()` and exercised by a manual `#[ignore]` bar.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
@@ -550,6 +552,13 @@ impl Connector for Readwise {
         // Reconcile the optimistic overlay against new server truth: keep a
         // "hidden" id only while it's still present server-side (move/delete not
         // yet applied); drop added highlights the server now reflects.
+        //
+        // Load-bearing assumption: an applied move/archive/delete makes the item
+        // absent from this refresh set — moves/archives land in `archive`, which
+        // is NOT among the configured `locations`, and deletes remove the item
+        // entirely. If `archive` were ever added to `locations`, an archived item
+        // would still appear here and its overlay entry would never be pruned;
+        // the reconciliation would then need to compare locations, not presence.
         {
             let warm = self.cache_articles.read().unwrap();
             let present: std::collections::HashSet<String> =
