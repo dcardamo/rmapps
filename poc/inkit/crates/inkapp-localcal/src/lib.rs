@@ -65,6 +65,18 @@ impl LocalCal {
         Self::build(sample_events(), store, Some(path))
     }
 
+    /// Build from typed config: persist cancels to `cfg.store_path`. Errors if the
+    /// path is empty (a present-but-incomplete `[connector.localcal.*]` section),
+    /// rather than silently accepting cancels that would never persist.
+    pub fn from_config(cfg: &LocalCalConfig) -> Result<Self, inkapp_config::ConfigError> {
+        if cfg.store_path.is_empty() {
+            return Err(inkapp_config::ConfigError::Missing(
+                "localcal.store_path".into(),
+            ));
+        }
+        Ok(Self::persisted(cfg.store_path.clone()))
+    }
+
     /// The current events (warm read under the read lock).
     pub fn events(&self) -> Vec<EventRow> {
         self.cache.read().unwrap().clone()
@@ -134,6 +146,16 @@ fn sample_events() -> Vec<EventRow> {
     ]
 }
 
+/// The local calendar config section.
+#[derive(Debug, Clone, serde::Deserialize, inkapp_config::Config)]
+#[serde(default)]
+#[config(kind = "localcal", namespace = "connector")]
+pub struct LocalCalConfig {
+    /// Path to the JSON store of cancelled-event uids.
+    #[config(default = String::new())]
+    pub store_path: String,
+}
+
 #[async_trait::async_trait]
 impl Connector for LocalCal {
     fn name(&self) -> &str {
@@ -165,5 +187,33 @@ impl Connector for LocalCal {
         self.store.lock().unwrap().cancelled.extend(pending);
         self.save();
         self.recompute();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_config_uses_store_path() {
+        use inkapp_config::{Config, Namespace, Registry};
+        assert_eq!(LocalCalConfig::KIND, "localcal");
+        assert!(Registry::find(Namespace::Connector, "localcal").is_some());
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cal.json");
+        let cfg = LocalCalConfig {
+            store_path: path.to_string_lossy().into_owned(),
+        };
+        let cal = LocalCal::from_config(&cfg).expect("non-empty store_path");
+        assert!(!cal.events().is_empty()); // sample events present
+    }
+
+    #[test]
+    fn from_config_errors_on_empty_store_path() {
+        let cfg = LocalCalConfig::default(); // store_path == ""
+        assert!(matches!(
+            LocalCal::from_config(&cfg),
+            Err(inkapp_config::ConfigError::Missing(_))
+        ));
     }
 }
