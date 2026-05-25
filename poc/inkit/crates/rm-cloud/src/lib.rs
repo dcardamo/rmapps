@@ -12,6 +12,7 @@ mod client;
 mod config;
 mod error;
 pub mod plumbing;
+pub mod porcelain;
 mod transport;
 
 #[cfg(feature = "fake")]
@@ -27,3 +28,5 @@ pub use plumbing::index::{
     serialize_root_index, sha256_hex, DocEntry, FileEntry,
 };
 pub use plumbing::snapshot::{DocRef, Snapshot, TreeDiff};
+pub use porcelain::docfiles::{DocFiles, Metadata};
+pub use porcelain::fs::Entry;
