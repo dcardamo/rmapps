@@ -7,6 +7,8 @@
 //! retry. The default transports are cassette/no-op (no live account); live
 //! transports are wired by `live()` and exercised by a manual `#[ignore]` bar.
 
+pub mod http;
+
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};

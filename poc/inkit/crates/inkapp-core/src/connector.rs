@@ -15,6 +15,10 @@ use std::sync::Arc;
 pub enum ConnectorError {
     #[error("connector transport failed: {0}")]
     Transport(String),
+    #[error("connector auth failed: {0}")]
+    Auth(String),
+    #[error("connector rate limited")]
+    RateLimited,
 }
 
 /// A connector plugin. Shared as `Arc<dyn Connector>`; methods take `&self` and
