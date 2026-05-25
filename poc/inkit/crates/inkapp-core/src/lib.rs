@@ -1,6 +1,7 @@
 //! inkapp-core — the device-agnostic framework: render, manifest, components,
 //! readback, and the minimal `Device` seam.
 
+pub mod assets;
 pub mod cache;
 pub mod calendar;
 pub mod component;

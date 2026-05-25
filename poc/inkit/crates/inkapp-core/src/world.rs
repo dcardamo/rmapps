@@ -15,6 +15,7 @@ pub struct InkWorld {
     fonts: Vec<Font>,
     main: Source,
     sources: HashMap<FileId, Source>,
+    assets: HashMap<FileId, Bytes>,
 }
 
 impl InkWorld {
@@ -27,6 +28,17 @@ impl InkWorld {
     /// `(virtual_path, source_text)`; paths are root-absolute (leading `/`) to
     /// match `#import "/path.typ"`.
     pub fn with_sources(src: &str, sources: &[(String, String)]) -> Self {
+        Self::with_sources_and_assets(src, sources, &[])
+    }
+
+    /// Like `with_sources`, but also registers image assets served by `file()`.
+    /// `assets` is a list of `(virtual_path, bytes)`; paths are root-absolute
+    /// (e.g. `/assets/{key}.png`) to match `#image("/assets/{key}.png")`.
+    pub fn with_sources_and_assets(
+        src: &str,
+        sources: &[(String, String)],
+        assets: &[(String, Vec<u8>)],
+    ) -> Self {
         let mut fonts = Vec::new();
         for data in typst_assets::fonts() {
             let bytes = Bytes::new(data.to_vec());
@@ -45,12 +57,20 @@ impl InkWorld {
                 (id, Source::new(id, text.clone()))
             })
             .collect();
+        let assets = assets
+            .iter()
+            .map(|(path, bytes)| {
+                let id = FileId::new(None, VirtualPath::new(path));
+                (id, Bytes::new(bytes.clone()))
+            })
+            .collect();
         Self {
             library: LazyHash::new(Library::default()),
             book: LazyHash::new(book),
             fonts,
             main,
             sources,
+            assets,
         }
     }
 }
@@ -77,9 +97,12 @@ impl World for InkWorld {
         }
     }
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        Err(FileError::NotFound(
-            id.vpath().as_rootless_path().to_owned(),
-        ))
+        match self.assets.get(&id) {
+            Some(bytes) => Ok(bytes.clone()),
+            None => Err(FileError::NotFound(
+                id.vpath().as_rootless_path().to_owned(),
+            )),
+        }
     }
     fn font(&self, index: usize) -> Option<Font> {
         self.fonts.get(index).cloned()
@@ -89,5 +112,29 @@ impl World for InkWorld {
         // the harness must never embed wall-clock time in compiled documents or
         // PDF bytes, which would break determinism (and the no-secrets rule).
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_serves_registered_assets() {
+        let assets = vec![("/assets/abc.png".to_string(), vec![1u8, 2, 3, 4])];
+        let world = InkWorld::with_sources_and_assets("hello", &[], &assets);
+
+        let id = FileId::new(None, VirtualPath::new("/assets/abc.png"));
+        assert_eq!(world.file(id).unwrap().as_ref(), &[1u8, 2, 3, 4]);
+
+        let missing = FileId::new(None, VirtualPath::new("/assets/zzz.png"));
+        assert!(world.file(missing).is_err());
+    }
+
+    #[test]
+    fn plain_world_serves_no_files() {
+        let world = InkWorld::new("hello");
+        let id = FileId::new(None, VirtualPath::new("/assets/abc.png"));
+        assert!(world.file(id).is_err());
     }
 }

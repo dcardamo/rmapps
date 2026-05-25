@@ -63,4 +63,13 @@ pub trait Component {
     fn render_state(&self) -> Option<serde_json::Value> {
         None
     }
+
+    /// URLs whose images this component's `render` references via
+    /// `#image("/assets/{asset_key(url)}.png")`. The framework collects these,
+    /// resolves them through the image pipeline (fetch + normalize + cache, with
+    /// a placeholder on failure), and registers the bytes before compiling — so
+    /// the emitted `#image` always resolves. Default: none.
+    fn image_urls(&self) -> Vec<String> {
+        Vec::new()
+    }
 }

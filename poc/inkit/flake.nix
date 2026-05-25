@@ -19,7 +19,7 @@
           # rmapi: reMarkable cloud client (v4-patched), for the spike's on-device steps.
           buildInputs = [
             pkgs.libiconv pkgs.fontconfig pkgs.dejavu_fonts pkgs.noto-fonts
-            pkgs.poppler-utils pkgs.rmapi
+            pkgs.poppler-utils pkgs.rmapi pkgs.dav1d
           ];
         };
       });

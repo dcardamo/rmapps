@@ -15,7 +15,18 @@ pub fn compile_to_document_with_sources(
     src: &str,
     sources: &[(String, String)],
 ) -> Result<PagedDocument> {
-    let world = InkWorld::with_sources(src, sources);
+    compile_to_document_with_sources_and_assets(src, sources, &[])
+}
+
+/// Like `compile_to_document_with_sources`, but also registers image assets
+/// (`(virtual_path "/assets/{key}.png", bytes)`) served via `World::file()`, so
+/// the document may embed `#image("/assets/{key}.png")`.
+pub fn compile_to_document_with_sources_and_assets(
+    src: &str,
+    sources: &[(String, String)],
+    assets: &[(String, Vec<u8>)],
+) -> Result<PagedDocument> {
+    let world = InkWorld::with_sources_and_assets(src, sources, assets);
     typst::compile::<PagedDocument>(&world)
         .output
         .map_err(|d| Error::Compile(format!("{d:?}")))

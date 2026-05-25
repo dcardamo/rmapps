@@ -1,6 +1,10 @@
 //! inkapp — the app-authoring facade. Re-exports the framework surface from
 //! `inkapp-core` plus the default reMarkable device, so apps read as in the docs.
 
+pub use inkapp_core::assets::{
+    asset_key, asset_path, resolve_assets, AssetMap, FakeFetcher, HttpImageFetcher, ImageFetcher,
+    OfflineFetcher, PLACEHOLDER_PNG,
+};
 pub use inkapp_core::component::Component;
 pub use inkapp_core::connector::{Connector, ConnectorError, ConnectorSet};
 pub use inkapp_core::crypto::Key;

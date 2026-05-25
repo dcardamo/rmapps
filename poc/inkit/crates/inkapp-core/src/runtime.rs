@@ -1,6 +1,10 @@
 //! The MVU loop runtime: the render walk (`render_document`) and the multi-cycle
 //! driver (`App`, `DocSet`, `step`).
 
+use std::sync::Arc;
+
+use crate::assets::{asset_key, resolve_assets, AssetMap, ImageFetcher, OfflineFetcher};
+use crate::cache::Cache;
 use crate::component::RenderCx;
 use crate::connector::ConnectorSet;
 use crate::crypto::Key;
@@ -26,6 +30,12 @@ pub struct RenderedDoc {
     /// Number of pages this document paginated to under its render geometry.
     pub page_count: usize,
     pub hash: u64,
+}
+
+/// Flatten an `AssetMap` into the `(path, bytes)` slice form the compile
+/// functions take.
+fn assets_as_slice(assets: &AssetMap) -> Vec<(String, Vec<u8>)> {
+    assets.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
 }
 
 /// Collect the Typst sources to register for this document: the prelude plus each
@@ -78,9 +88,20 @@ pub fn compile_document_in<M>(
     doc: &Document<M>,
     geom: PageGeom,
 ) -> Result<typst::layout::PagedDocument> {
+    compile_document_in_with_assets(doc, geom, &AssetMap::new())
+}
+
+/// Like `compile_document_in`, but also registers `assets` so the document may
+/// embed `#image("/assets/{key}.png")`.
+pub fn compile_document_in_with_assets<M>(
+    doc: &Document<M>,
+    geom: PageGeom,
+    assets: &AssetMap,
+) -> Result<typst::layout::PagedDocument> {
     let src = document_source_in(doc, geom);
     let sources = collect_typst_sources(doc);
-    crate::render::compile_to_document_with_sources(&src, &sources)
+    let asset_vec = assets_as_slice(assets);
+    crate::render::compile_to_document_with_sources_and_assets(&src, &sources, &asset_vec)
 }
 
 /// Stable hash of a string (std DefaultHasher is deterministic within a build,
@@ -104,9 +125,23 @@ pub fn render_document_in<M>(
     key: &Key,
     geom: PageGeom,
 ) -> Result<RenderedDoc> {
+    render_document_in_with_assets(doc, version, key, geom, &AssetMap::new())
+}
+
+/// Like `render_document_in`, but registers `assets` so the document may embed
+/// `#image("/assets/{key}.png")`.
+pub fn render_document_in_with_assets<M>(
+    doc: &Document<M>,
+    version: u64,
+    key: &Key,
+    geom: PageGeom,
+    assets: &AssetMap,
+) -> Result<RenderedDoc> {
     let src = document_source_in(doc, geom);
     let sources = collect_typst_sources(doc);
-    let compiled = crate::render::compile_to_document_with_sources(&src, &sources)?;
+    let asset_vec = assets_as_slice(assets);
+    let compiled =
+        crate::render::compile_to_document_with_sources_and_assets(&src, &sources, &asset_vec)?;
     // A single page_h suffices: `#set page` fixes every page of a document to the same
     // height, so the per-page device transform uses the same height on every page.
     let page_h = compiled
@@ -214,9 +249,15 @@ pub struct App<M, Msg, Cx> {
     version: u64,
     key: Key,
     geom: PageGeom,
+    fetcher: Arc<dyn ImageFetcher>,
+    asset_cache: Option<Arc<Cache>>,
 }
 
 impl<M, Msg, Cx> App<M, Msg, Cx> {
+    // The App genuinely has this many independent collaborators; the builder
+    // (`app(..).connector(..).update(..).view(..).key(..)`) is the ergonomic
+    // construction path, so the wide `new` is acceptable.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         model: M,
         connectors: Cx,
@@ -224,6 +265,8 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         view: ViewFn<M, Msg, Cx>,
         key: Key,
         geom: PageGeom,
+        fetcher: Arc<dyn ImageFetcher>,
+        asset_cache: Option<Arc<Cache>>,
     ) -> Self {
         Self {
             model,
@@ -233,7 +276,18 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             version: 1,
             key,
             geom,
+            fetcher,
+            asset_cache,
         }
+    }
+
+    /// Flush the asset cache (if any) so resolved images survive a restart.
+    /// Live binaries call this on shutdown. Does not require connectors.
+    pub async fn close(&self) -> Result<()> {
+        if let Some(c) = &self.asset_cache {
+            c.close().await?;
+        }
+        Ok(())
     }
 }
 
@@ -252,15 +306,32 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         futures::future::join_all(cs.iter().map(|c| c.flush())).await;
     }
 
+    /// Collect every component's declared image URLs across the doc set, map each
+    /// to its `(asset_key, url)` pair, and resolve them through the pipeline into
+    /// an `AssetMap` (fetch + normalize + cache, placeholder on failure).
+    async fn resolve_doc_assets(&self, docs: &Documents<Msg>) -> AssetMap {
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for doc in &docs.0 {
+            for c in &doc.flow {
+                for url in c.image_urls() {
+                    pairs.push((asset_key(&url), url));
+                }
+            }
+        }
+        resolve_assets(&pairs, self.asset_cache.as_deref(), &*self.fetcher).await
+    }
+
     /// Render the full document set from current state, (re)populating `set`.
     /// Refreshes connectors first so `view` reads warm caches.
     pub async fn render(&mut self, set: &mut DocSet) -> Result<Vec<RenderedDoc>> {
         self.refresh_all().await;
         let docs = (self.view)(&self.model, &self.connectors);
+        let assets = self.resolve_doc_assets(&docs).await;
         let mut out = Vec::new();
         let mut entries = HashMap::new();
         for doc in &docs.0 {
-            let rd = render_document_in(doc, self.version, &self.key, self.geom)?;
+            let rd =
+                render_document_in_with_assets(doc, self.version, &self.key, self.geom, &assets)?;
             entries.insert(
                 rd.key.0.clone(),
                 DocEntry {
@@ -323,9 +394,16 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
 
         // 3. Re-render the post-fold view.
         let next = (self.view)(&self.model, &self.connectors);
+        let assets = self.resolve_doc_assets(&next).await;
         let mut next_rendered: Vec<RenderedDoc> = Vec::new();
         for doc in &next.0 {
-            next_rendered.push(render_document_in(doc, self.version, &self.key, self.geom)?);
+            next_rendered.push(render_document_in_with_assets(
+                doc,
+                self.version,
+                &self.key,
+                self.geom,
+                &assets,
+            )?);
         }
 
         // 4. Reconcile by key against the prior set.
@@ -470,6 +548,8 @@ impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
             view: self.view,
             key,
             geom: PageGeom::default(),
+            fetcher: Arc::new(OfflineFetcher),
+            asset_cache: None,
         }
     }
 }
@@ -481,6 +561,8 @@ pub struct BuilderReady<M, Msg, Cx> {
     view: ViewFn<M, Msg, Cx>,
     key: Key,
     geom: PageGeom,
+    fetcher: Arc<dyn ImageFetcher>,
+    asset_cache: Option<Arc<Cache>>,
 }
 
 impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
@@ -488,6 +570,22 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
     #[must_use]
     pub fn page(mut self, geom: PageGeom) -> Self {
         self.geom = geom;
+        self
+    }
+
+    /// Inject the image fetcher (default: `OfflineFetcher`, i.e. no network).
+    #[must_use]
+    pub fn fetcher(mut self, fetcher: Arc<dyn ImageFetcher>) -> Self {
+        self.fetcher = fetcher;
+        self
+    }
+
+    /// Inject the durable asset cache used for warm-restart / offline image serving.
+    /// Asset bytes occupy the `assets/*` key namespace; a cache shared with a
+    /// connector must keep its own keys clear of that prefix.
+    #[must_use]
+    pub fn asset_cache(mut self, cache: Arc<Cache>) -> Self {
+        self.asset_cache = Some(cache);
         self
     }
 
@@ -499,6 +597,8 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
             self.view,
             self.key,
             self.geom,
+            self.fetcher,
+            self.asset_cache,
         )
     }
 }
