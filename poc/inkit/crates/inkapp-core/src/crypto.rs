@@ -33,9 +33,11 @@ impl Key {
         Key(bytes)
     }
 
-    /// The raw key bytes. Crate-internal (used by the secrets store and tests);
+    /// The raw key bytes. Test-only (used by the secrets-store unit tests);
     /// deliberately not part of the public API so release builds expose no
-    /// key-exfiltration method.
+    /// key-exfiltration method. Gated to `cfg(test)` since no non-test caller
+    /// needs it — otherwise it trips `dead_code` in the lib build.
+    #[cfg(test)]
     pub(crate) fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
