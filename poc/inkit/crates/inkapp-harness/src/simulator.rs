@@ -4,7 +4,7 @@ use inkapp_core::geometry::PdfPoint;
 use inkapp_core::ink::{RegionInk, Stroke};
 use inkapp_core::manifest::Manifest;
 use inkapp_core::readback::attribute_page;
-use inkapp_core::render::compile_to_document;
+use inkapp_core::render::compile_to_document_with_sources;
 
 use crate::inspector::inspect;
 
@@ -97,13 +97,28 @@ fn synthesize(manifest: &Manifest, scenario: &Scenario) -> Vec<Stroke> {
 /// recompiled here to obtain page geometry for the device transform and the
 /// inspector). Passing a manifest from a different source would mismatch the
 /// page height. The exercisers build both in one chain.
+///
+/// For sources that require additional Typst files (e.g. the framework prelude),
+/// use [`simulate_with_sources`] instead.
 pub fn simulate(
     render_src: &str,
     manifest: &Manifest,
     device: &dyn Device,
     scenario: &Scenario,
 ) -> Result<StepTrace> {
-    let doc = compile_to_document(render_src)?;
+    simulate_with_sources(render_src, &[], manifest, device, scenario)
+}
+
+/// Like [`simulate`], but also registers additional Typst sources the main source
+/// may `#import` (e.g. the framework prelude for components that emit `#region`).
+pub fn simulate_with_sources(
+    render_src: &str,
+    sources: &[(String, String)],
+    manifest: &Manifest,
+    device: &dyn Device,
+    scenario: &Scenario,
+) -> Result<StepTrace> {
+    let doc = compile_to_document_with_sources(render_src, sources)?;
     let page_h_pt = doc
         .pages
         .first()
