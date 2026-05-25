@@ -4,51 +4,51 @@
     {
       "id": 0,
       "subject": "Task 0: Rename inkapp-remarkable -> rm-device",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Apply the rm- crate-naming convention to the reMarkable crate, no behavior change.\n\n**Files:** git mv crates/inkapp-remarkable -> crates/rm-device; update root Cargo.toml members, crates/rm-device/Cargo.toml name, crates/inkapp/Cargo.toml dep + lib.rs re-export, crates/inkapp-harness/Cargo.toml dep; sed inkapp_remarkable->rm_device / inkapp-remarkable->rm-device across crates/inkapp-harness/tests and crates/rm-device/tests.\n\n**Verify:** nix develop -c cargo test --workspace green; no inkapp.remarkable refs outside docs/Cargo.lock.\n\n```json:metadata\n{\"files\": [\"crates/rm-device\", \"Cargo.toml\", \"crates/inkapp/Cargo.toml\", \"crates/inkapp/src/lib.rs\", \"crates/inkapp-harness/Cargo.toml\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"no inkapp-remarkable references remain outside docs\", \"cargo test --workspace passes unchanged\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: DeviceTransport seam + generic sync engine",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Add device-agnostic publish/sync_once + DeviceTransport trait to inkapp-core, proven by a FakeTransport test (no device).\n\n**Files:** Modify crates/inkapp-core/src/error.rs (Config, Transport variants); create crates/inkapp-core/src/sync.rs; modify crates/inkapp-core/src/lib.rs (pub mod sync; pub use sync::DeviceTransport).\n\n**Verify:** nix develop -c cargo test -p inkapp-core sync.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/sync.rs\", \"crates/inkapp-core/src/error.rs\", \"crates/inkapp-core/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core sync\", \"acceptanceCriteria\": [\"DeviceTransport + publish + sync_once exist\", \"FakeTransport test proves publish pushes rendered docs and sync_once consults the transport\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: reMarkable pure helpers + RmCommand seam",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Add RmCommand trait + pure find_rmdocs/discover helpers to rm-device, unit-tested against a temp dir (no device).\n\n**Files:** create crates/rm-device/src/transport.rs (helpers + trait + tests); modify crates/rm-device/src/lib.rs (mod transport; pub use transport::RmCommand); modify crates/rm-device/Cargo.toml (add zip, tempfile).\n\n**Verify:** nix develop -c cargo test -p rm-device transport.\n\n```json:metadata\n{\"files\": [\"crates/rm-device/src/transport.rs\", \"crates/rm-device/src/lib.rs\", \"crates/rm-device/Cargo.toml\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-device transport\", \"acceptanceCriteria\": [\"find_rmdocs recurses and ignores non-rmdoc\", \"discover maps stem->key with per-key page height (0.0 if unknown)\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: RmTransport + real Rmapi seam + DeviceTransport impl",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** Implement RmTransport over the seam (real Rmapi), prove push/delete/pull with FakeRm (no rmapi, no device).\n\n**Files:** modify crates/rm-device/src/transport.rs (Rmapi, RmTransport, strokes_from_rmdoc, DeviceTransport impl, FakeRm tests); modify crates/rm-device/src/lib.rs (pub use transport::{Rmapi, RmCommand, RmTransport}).\n\n**Verify:** nix develop -c cargo test -p rm-device.\n\n```json:metadata\n{\"files\": [\"crates/rm-device/src/transport.rs\", \"crates/rm-device/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-device\", \"acceptanceCriteria\": [\"push writes <key>.pdf under folder; delete targets folder/key\", \"pull decodes .rm ink back to its key at the right page height\", \"Rmapi reproduces documented rmapi invocations verbatim\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Facade config resolution + app-facing publish/sync_once",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** Add DeployConfig (TOML, env-pointed) + config-driven inkapp::publish/sync_once resolving the only named backend.\n\n**Files:** create crates/inkapp/src/deploy.rs; modify crates/inkapp/src/lib.rs, crates/inkapp/Cargo.toml (add serde, toml; dev tokio, tempfile); create crates/inkapp/tests/deploy.rs.\n\n**Verify:** nix develop -c cargo test -p inkapp.\n\n```json:metadata\n{\"files\": [\"crates/inkapp/src/deploy.rs\", \"crates/inkapp/src/lib.rs\", \"crates/inkapp/Cargo.toml\", \"crates/inkapp/tests/deploy.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp\", \"acceptanceCriteria\": [\"from_toml parses backend+folder, defaults backend to remarkable, errors on missing folder\", \"resolve returns transport for remarkable, errors otherwise\", \"inkapp::publish/sync_once read INKAPP_DEPLOY_CONFIG\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Migrate reading-queue and agenda to the framework surface",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Delete both serve.rs copies; rewrite manual device bars to call inkapp::publish/sync_once; workspace green.\n\n**Files:** git rm apps/{reading-queue,agenda}/src/serve.rs; drop pub mod serve; from both lib.rs; rewrite apps/{reading-queue,agenda}/tests/device.rs; drop zip from both Cargo.toml; add per-app deploy.toml to .gitignore.\n\n**Verify:** nix develop -c cargo test --workspace; find apps -name serve.rs empty.\n\n```json:metadata\n{\"files\": [\"apps/reading-queue/src/lib.rs\", \"apps/reading-queue/tests/device.rs\", \"apps/reading-queue/Cargo.toml\", \"apps/agenda/src/lib.rs\", \"apps/agenda/tests/device.rs\", \"apps/agenda/Cargo.toml\", \".gitignore\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"no serve.rs and no pub mod serve remain\", \"both #[ignore] device bars compile and call the facade\", \"cargo test --workspace green\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Record the capability in docs/appdx.md",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** Note that on-device deployment is now framework-provided, config-driven, device-agnostic.\n\n**Files:** modify docs/appdx.md (insert section before '## Open questions parking lot').\n\n**Verify:** grep -n 'framework-provided' docs/appdx.md.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -n framework-provided docs/appdx.md\", \"acceptanceCriteria\": [\"appdx documents the new deployment capability and serve.rs removal\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-25"
+  "lastUpdated": "2026-05-25T12:00:00Z"
 }
