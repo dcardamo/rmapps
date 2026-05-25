@@ -80,7 +80,7 @@
     {
       "id": 11,
       "subject": "Task 11: Docs reconciliation + dependency-lock commit",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "**Goal:** Make docs true; land Cargo.lock bump in its own commit.\n\n```json:metadata\n{\"files\":[\"docs/rm-cloud-protocol.md\",\"CLAUDE.md\",\"docs/FUTURE.md\",\"Cargo.lock\"],\"verifyCommand\":\"nix develop -c cargo clippy --all-targets -- -D warnings && nix develop -c cargo fmt --check && nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"protocol doc\",\"CLAUDE.md entry\",\"FUTURE note\",\"workspace gates green\",\"lockfile separate commit\"]}\n```"
     }
