@@ -29,20 +29,15 @@ impl ArticleId {
 }
 
 /// Where an article sits in Readwise Reader.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Location {
+    #[default]
     New,
     Later,
     Shortlist,
     Archive,
     Feed,
-}
-
-impl Default for Location {
-    fn default() -> Self {
-        Location::New
-    }
 }
 
 impl Location {
@@ -227,7 +222,7 @@ pub struct Readwise {
     persist_path: Option<PathBuf>,
     transport: Arc<dyn WriteTransport>,
     refresh_flight: SingleFlight<Result<(), ConnectorError>>,
-    pub config: ReaderConfig,
+    pub(crate) config: ReaderConfig,
 }
 
 impl Readwise {
@@ -395,7 +390,9 @@ impl Readwise {
         self.save(&ov);
     }
 
-    /// The archived ids (for assertions / surfacing).
+    /// Ids currently hidden from the queue by an optimistic write — moved,
+    /// deleted, or archived (the overlay field is named `archived` for serde
+    /// back-compat with overlays persisted before move/delete existed).
     pub fn archived(&self) -> Vec<ArticleId> {
         self.overlay.lock().unwrap().archived.clone()
     }

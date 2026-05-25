@@ -6,6 +6,14 @@ fn cassette_still_loads_with_defaults() {
     let all = rw.queue();
     assert!(!all.is_empty());
     assert!(all.iter().all(|a| !a.title.is_empty()));
+    // Verify serde defaults applied for fields absent in the cassette JSON.
+    let first = &all[0];
+    assert_eq!(
+        first.location,
+        Location::New,
+        "location should default to New"
+    );
+    assert!(first.url.is_empty(), "url should default to empty string");
 }
 
 #[test]
