@@ -17,3 +17,4 @@ pub use plumbing::index::{
     doc_hash, doc_size, parse_doc_index, parse_root_index, root_hash, serialize_doc_index,
     serialize_root_index, sha256_hex, DocEntry, FileEntry,
 };
+pub use plumbing::snapshot::{DocRef, Snapshot, TreeDiff};
