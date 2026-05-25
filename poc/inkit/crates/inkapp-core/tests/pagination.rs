@@ -6,6 +6,7 @@ use inkapp_core::geometry::PageGeom;
 use inkapp_core::manifest::recover_regions;
 use inkapp_core::render::{compile_to_document, compile_to_document_with_sources};
 use inkapp_core::runtime::{compile_document_in, render_document_in, REGION_PRELUDE};
+use inkapp_core::Theme;
 
 fn test_key_32() -> Key {
     Key::from_bytes([0u8; 32])
@@ -24,7 +25,7 @@ fn tall_doc() -> Document<()> {
 #[test]
 fn short_page_paginates_to_more_pages() {
     let doc = tall_doc();
-    let default_pages = compile_document_in(&doc, PageGeom::default())
+    let default_pages = compile_document_in(&doc, PageGeom::default(), &Theme::reader())
         .unwrap()
         .pages
         .len();
@@ -35,6 +36,7 @@ fn short_page_paginates_to_more_pages() {
             h: 180.0,
             margin: 16.0,
         },
+        &Theme::reader(),
     )
     .unwrap()
     .pages
@@ -128,6 +130,7 @@ fn rendered_doc_reports_multiple_pages() {
             h: 180.0,
             margin: 16.0,
         },
+        &Theme::reader(),
     )
     .unwrap();
     assert!(

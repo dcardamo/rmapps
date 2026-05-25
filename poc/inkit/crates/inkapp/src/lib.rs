@@ -17,6 +17,7 @@ pub use inkapp_core::runtime::{
 };
 pub use inkapp_core::secrets::{Scope, SecretStore};
 pub use inkapp_core::single_flight::SingleFlight;
+pub use inkapp_core::Theme;
 pub use inkapp_core::{components, flow};
 
 mod deploy;

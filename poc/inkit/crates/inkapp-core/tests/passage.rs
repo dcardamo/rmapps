@@ -47,6 +47,7 @@ use inkapp_core::geometry::PageGeom;
 use inkapp_core::manifest::recover_regions;
 use inkapp_core::readback::attribute_page;
 use inkapp_core::runtime::compile_document_in;
+use inkapp_core::Theme;
 
 #[test]
 fn passage_decodes_ink_end_to_end() {
@@ -58,7 +59,7 @@ fn passage_decodes_ink_end_to_end() {
             M::Captured
         )],
     );
-    let compiled = compile_document_in(&doc, PageGeom::default()).unwrap();
+    let compiled = compile_document_in(&doc, PageGeom::default(), &Theme::reader()).unwrap();
     let manifest = recover_regions(&compiled).unwrap();
 
     // Find the passage region and drop a stroke at its center.
