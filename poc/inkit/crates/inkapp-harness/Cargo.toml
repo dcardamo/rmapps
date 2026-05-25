@@ -27,4 +27,5 @@ inkapp-readwise-reader = { path = "../inkapp-readwise-reader" }
 agenda = { path = "../../apps/agenda" }
 inkapp-ics = { path = "../inkapp-ics" }
 inkapp-localcal = { path = "../inkapp-localcal" }
+inkapp-content = { path = "../inkapp-content" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
