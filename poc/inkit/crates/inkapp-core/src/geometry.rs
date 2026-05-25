@@ -83,6 +83,32 @@ impl PageGeom {
     }
 }
 
+/// The `[page]` config section. Converts to `PageGeom` (the runtime type).
+#[derive(Debug, Clone, Copy, serde::Deserialize, inkapp_config::Config)]
+#[serde(default)]
+#[config(kind = "page", namespace = "framework")]
+pub struct PageConfig {
+    /// Page width in points.
+    #[config(default = 420.0)]
+    pub width: f64,
+    /// Page height in points.
+    #[config(default = 560.0)]
+    pub height: f64,
+    /// Uniform margin in points.
+    #[config(default = 16.0)]
+    pub margin: f64,
+}
+
+impl From<PageConfig> for PageGeom {
+    fn from(c: PageConfig) -> Self {
+        PageGeom {
+            w: c.width,
+            h: c.height,
+            margin: c.margin,
+        }
+    }
+}
+
 /// Convert a Typst top-left-origin rect to a PDF bottom-left-origin rect using
 /// the height of the rect's own page.
 pub fn typst_to_pdf_rect(x: f64, y: f64, w: f64, h: f64, page_height_pt: f64) -> PdfRect {
@@ -151,5 +177,22 @@ mod tests {
             x1: 30.0,
             y1: 40.0
         }));
+    }
+
+    #[test]
+    fn page_config_defaults_match_pagegeom_default() {
+        let c = PageConfig::default();
+        assert_eq!(PageGeom::from(c), PageGeom::default());
+    }
+
+    #[test]
+    fn page_config_overrides_map_through() {
+        let c = PageConfig {
+            width: 300.0,
+            height: 400.0,
+            margin: 8.0,
+        };
+        let g = PageGeom::from(c);
+        assert_eq!((g.w, g.h, g.margin), (300.0, 400.0, 8.0));
     }
 }

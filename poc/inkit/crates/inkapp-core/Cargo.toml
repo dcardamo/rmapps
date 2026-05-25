@@ -6,6 +6,7 @@ license = "MIT"
 description = "Device-agnostic framework core for inkapp: Typst render, manifest, components, readback"
 
 [dependencies]
+inkapp-config = { path = "../inkapp-config" }
 foyer = { version = "0.22", features = ["serde"] }
 sha2 = "0.10"
 typst = "0.14"
