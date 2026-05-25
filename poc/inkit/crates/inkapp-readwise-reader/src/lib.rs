@@ -502,6 +502,18 @@ impl Readwise {
         self.overlay.lock().unwrap().failed.clone()
     }
 
+    /// Flush and close the durable cache (if any). Call on shutdown so in-memory
+    /// cache entries are persisted to disk.
+    pub async fn close(&self) -> Result<(), ConnectorError> {
+        if let Some(cache) = &self.cache {
+            cache
+                .close()
+                .await
+                .map_err(|e| ConnectorError::Transport(e.to_string()))?;
+        }
+        Ok(())
+    }
+
     /// Test accessor: the refresh locations currently configured on this connector.
     #[doc(hidden)]
     pub fn locations_for_test(&self) -> Vec<String> {
