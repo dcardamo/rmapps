@@ -4,23 +4,23 @@
     {
       "id": 1,
       "subject": "Task 1: rm_files::Page::scene_bytes()",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Expose raw per-page `.rm` bytes (None when un-inked) so the device-pull can feed them to `read_ink` in `.content` order.\n\n**Files:**\n- Modify: `crates/rm-files/src/bundle/mod.rs`\n- Test: `crates/rm-files/tests/bundle.rs`\n\n**Verify:** `cargo test -p rm-files --test bundle scene_bytes`\n\n```json:metadata\n{\"files\": [\"crates/rm-files/src/bundle/mod.rs\", \"crates/rm-files/tests/bundle.rs\"], \"verifyCommand\": \"cargo test -p rm-files --test bundle scene_bytes\", \"acceptanceCriteria\": [\"scene_bytes returns Some raw bytes for inked page\", \"returns None for un-inked page\", \"pages in .content order\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: serve::strokes_by_page + multi-page pull_ink (with e2e test)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Assemble per-page ink in `.content` order on the device-pull path and prove it end-to-end without a device.\n\n**Files:**\n- Modify: `apps/reading-queue/Cargo.toml`\n- Modify: `apps/reading-queue/src/serve.rs`\n- Create: `apps/reading-queue/tests/multipage.rs`\n- Stage: `Cargo.lock`\n\n**Verify:** `cargo test -p reading-queue --test multipage && cargo test -p reading-queue`\n\n```json:metadata\n{\"files\": [\"apps/reading-queue/Cargo.toml\", \"apps/reading-queue/src/serve.rs\", \"apps/reading-queue/tests/multipage.rs\", \"Cargo.lock\"], \"verifyCommand\": \"cargo test -p reading-queue --test multipage && cargo test -p reading-queue\", \"acceptanceCriteria\": [\"strokes_by_page returns per-page vec sized to bundle pages in .content order\", \"pull_ink uses it, skip-empty preserved\", \"caveat removed\", \"e2e: per-page alignment, split stitching, empty-middle no-shift\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Docs sweep + workspace-green gate",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Ensure no doc implies a single-page device pull and the whole workspace tests green.\n\n**Files:**\n- Inspect/Modify only if needed: `docs/appdx.md`, `docs/how-it-works.md`, `docs/remarkable-pdf-mechanics.md`\n\n**Verify:** `cargo test --workspace`\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\", \"docs/how-it-works.md\", \"docs/remarkable-pdf-mechanics.md\"], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"no single-page-pull implication in docs\", \"cargo test --workspace green\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-25T00:00:00Z"
+  "lastUpdated": "2026-05-25T03:00:00Z"
 }
