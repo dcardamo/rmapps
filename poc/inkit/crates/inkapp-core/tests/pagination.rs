@@ -3,8 +3,8 @@ use inkapp_core::components::notice::Notice;
 use inkapp_core::document::Document;
 use inkapp_core::geometry::PageGeom;
 use inkapp_core::manifest::recover_regions;
-use inkapp_core::render::compile_to_document;
-use inkapp_core::runtime::compile_document_in;
+use inkapp_core::render::{compile_to_document, compile_to_document_with_sources};
+use inkapp_core::runtime::{compile_document_in, REGION_PRELUDE};
 
 /// A tall flow: 40 notice lines. Fits in few pages at the default geometry and
 /// more pages on a short page — pagination is purely a function of PageGeom.
@@ -75,5 +75,26 @@ fn orphaned_flow_end_errors() {
     assert!(
         inkapp_core::manifest::recover_regions(&doc).is_err(),
         "orphaned flow-end must error"
+    );
+}
+
+#[test]
+fn prelude_breakable_splits_atomic_does_not() {
+    let src = r#"#import "/inkapp/region.typ": *
+#set page(width: 200pt, height: 100pt, margin: 8pt)
+#region("p", [#block(height: 300pt, fill: luma(230))[]], breakable: true)
+#region("c", box(width: 14pt, height: 14pt, stroke: 0.5pt))
+"#;
+    let sources = vec![(REGION_PRELUDE.0.to_string(), REGION_PRELUDE.1.to_string())];
+    let doc = compile_to_document_with_sources(src, &sources).unwrap();
+    let m = recover_regions(&doc).unwrap();
+    assert!(
+        m.regions.iter().filter(|r| r.name == "p").count() >= 2,
+        "breakable region splits across frames"
+    );
+    assert_eq!(
+        m.regions.iter().filter(|r| r.name == "c").count(),
+        1,
+        "atomic region stays a single rect"
     );
 }
