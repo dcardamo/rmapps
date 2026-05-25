@@ -6,7 +6,7 @@
 //! placeholder, so an already-emitted `#image("/assets/{key}.png")` call can
 //! never dangle and compilation never fails.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 
 use image::GenericImageView;
@@ -166,11 +166,12 @@ pub async fn resolve_assets(
     cache: Option<&Cache>,
     fetcher: &dyn ImageFetcher,
 ) -> AssetMap {
-    // Dedup by key (first occurrence wins), preserving order.
-    let mut seen = std::collections::HashSet::new();
+    // Dedup by key (first occurrence wins), preserving order. `seen` borrows the
+    // keys, so only first-occurrence pairs are cloned into `unique`.
+    let mut seen: HashSet<&str> = HashSet::new();
     let mut unique: Vec<(String, String)> = Vec::new();
     for (k, u) in pairs {
-        if seen.insert(k.clone()) {
+        if seen.insert(k.as_str()) {
             unique.push((k.clone(), u.clone()));
         }
     }
