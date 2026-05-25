@@ -12,7 +12,7 @@ use inkapp_core::ink::Stroke;
 use rm_files::{Pen, PenColor, Point, Scene, SceneItem};
 
 mod transport;
-pub use transport::RmCommand;
+pub use transport::{RmCommand, RmTransport, Rmapi};
 
 /// reMarkable Paper Pro Move `.rm` stroke coordinate space (width/height).
 ///

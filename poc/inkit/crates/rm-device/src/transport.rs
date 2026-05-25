@@ -10,6 +10,14 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+use inkapp_core::device::Device;
+use inkapp_core::error::{Error, Result};
+use inkapp_core::ink::Stroke;
+use inkapp_core::sync::DeviceTransport;
+
+use crate::Remarkable;
 
 /// The `rmapi` surface the transport needs — the seam that makes the transport
 /// testable without `rmapi` or a device.
@@ -72,6 +80,133 @@ pub(crate) fn discover(dir: &Path, page_h_by_key: &HashMap<String, f64>) -> Vec<
     out
 }
 
+/// The real seam: shells out to the `rmapi` CLI.
+pub struct Rmapi;
+
+impl RmCommand for Rmapi {
+    fn mkdir(&self, folder: &str) {
+        let _ = Command::new("rmapi")
+            .args(["-ni", "mkdir", folder])
+            .stdin(Stdio::null())
+            .status();
+    }
+
+    fn put_content_only(&self, local_pdf: &Path, folder: &str) -> Result<()> {
+        let path = local_pdf
+            .to_str()
+            .ok_or_else(|| Error::Transport("non-utf8 pdf path".into()))?;
+        let ok = Command::new("rmapi")
+            .args(["-ni", "put", "--content-only", path, folder])
+            .stdin(Stdio::null())
+            .status()
+            .map_err(|e| Error::Transport(format!("rmapi put: {e}")))?
+            .success();
+        if ok {
+            Ok(())
+        } else {
+            Err(Error::Transport(format!("rmapi put failed for {path}")))
+        }
+    }
+
+    fn rm(&self, remote_path: &str) {
+        let _ = Command::new("rmapi")
+            .args(["-ni", "rm", remote_path])
+            .stdin(Stdio::null())
+            .status();
+    }
+
+    fn mget(&self, folder: &str, into_dir: &Path) -> bool {
+        Command::new("rmapi")
+            .args(["-ni", "mget", folder])
+            .current_dir(into_dir)
+            .stdin(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+}
+
+/// Read the first `.rm` entry's PDF-space strokes out of an `.rmdoc` zip, via the
+/// device transform. Empty if the document has no ink yet.
+fn strokes_from_rmdoc(device: &Remarkable, path: &Path, page_h: f64) -> Vec<Stroke> {
+    use std::io::Read;
+    let Ok(file) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
+    let Ok(mut zip) = zip::ZipArchive::new(file) else {
+        return Vec::new();
+    };
+    let names: Vec<String> = (0..zip.len())
+        .map(|i| zip.by_index(i).unwrap().name().to_string())
+        .collect();
+    let Some(rm) = names.into_iter().find(|n| n.ends_with(".rm")) else {
+        return Vec::new();
+    };
+    let mut bytes = Vec::new();
+    if zip.by_name(&rm).unwrap().read_to_end(&mut bytes).is_err() {
+        return Vec::new();
+    }
+    device.read_ink(&bytes, page_h).unwrap_or_default()
+}
+
+/// reMarkable transport: maps the framework's key/PDF/ink model onto `rmapi` and
+/// the `.rmdoc` zip format. Generic over the command seam so tests inject a fake.
+pub struct RmTransport<C: RmCommand = Rmapi> {
+    folder: String,
+    device: Remarkable,
+    cmd: C,
+}
+
+impl RmTransport<Rmapi> {
+    /// A transport that shells out to the real `rmapi`, deploying under `folder`.
+    pub fn new(folder: impl Into<String>) -> Self {
+        Self::with_command(Rmapi, folder)
+    }
+}
+
+impl<C: RmCommand> RmTransport<C> {
+    /// A transport over an explicit command seam (tests pass a fake).
+    pub fn with_command(cmd: C, folder: impl Into<String>) -> Self {
+        Self {
+            folder: folder.into(),
+            device: Remarkable::new(),
+            cmd,
+        }
+    }
+}
+
+impl<C: RmCommand> DeviceTransport for RmTransport<C> {
+    fn push(&self, key: &str, pdf: &[u8]) -> Result<()> {
+        self.cmd.mkdir(&self.folder);
+        // The on-device visibleName is the file stem, so name the temp file <key>.pdf.
+        let tmp = std::env::temp_dir().join(format!("{key}.pdf"));
+        std::fs::write(&tmp, pdf).map_err(|e| Error::Transport(format!("write {key}.pdf: {e}")))?;
+        self.cmd.put_content_only(&tmp, &self.folder)
+    }
+
+    fn delete(&self, key: &str) {
+        self.cmd.rm(&format!("{}/{}", self.folder, key));
+    }
+
+    fn pull(&self, page_h_by_key: &HashMap<String, f64>) -> HashMap<String, Vec<Vec<Stroke>>> {
+        let mut out = HashMap::new();
+        let Ok(dir) = tempfile::tempdir() else {
+            return out;
+        };
+        if !self.cmd.mget(&self.folder, dir.path()) {
+            return out;
+        }
+        for d in discover(dir.path(), page_h_by_key) {
+            let strokes = strokes_from_rmdoc(&self.device, &d.path, d.page_h);
+            if !strokes.is_empty() {
+                // Single-page for now; multi-page rmdoc support is a future step.
+                out.insert(d.key, vec![strokes]);
+            }
+        }
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,5 +240,100 @@ mod tests {
         let by_key: HashMap<&str, f64> = got.iter().map(|d| (d.key.as_str(), d.page_h)).collect();
         assert_eq!(by_key.get("article-7"), Some(&560.0));
         assert_eq!(by_key.get("orphan"), Some(&0.0));
+    }
+
+    use super::RmTransport;
+    use inkapp_core::geometry::PdfPoint;
+    use inkapp_core::ink::Stroke;
+    use std::path::Path;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct FakeRm {
+        puts: Mutex<Vec<(String, String)>>, // (file_name, folder)
+        rms: Mutex<Vec<String>>,
+        mget_doc: Option<(String, Vec<u8>)>, // (key, .rm bytes) materialized on mget
+    }
+
+    impl RmCommand for FakeRm {
+        fn mkdir(&self, _folder: &str) {}
+        fn put_content_only(
+            &self,
+            local_pdf: &Path,
+            folder: &str,
+        ) -> inkapp_core::error::Result<()> {
+            let name = local_pdf.file_name().unwrap().to_str().unwrap().to_string();
+            self.puts.lock().unwrap().push((name, folder.to_string()));
+            Ok(())
+        }
+        fn rm(&self, remote_path: &str) {
+            self.rms.lock().unwrap().push(remote_path.to_string());
+        }
+        fn mget(&self, _folder: &str, into_dir: &Path) -> bool {
+            if let Some((key, rm_bytes)) = &self.mget_doc {
+                // Mimic mget's nested layout: <into_dir>/<remote-folder>/<key>.rmdoc
+                let nested = into_dir.join("RemoteFolder");
+                std::fs::create_dir_all(&nested).unwrap();
+                let f = std::fs::File::create(nested.join(format!("{key}.rmdoc"))).unwrap();
+                let mut zw = zip::ZipWriter::new(f);
+                zw.start_file("page0.rm", zip::write::SimpleFileOptions::default())
+                    .unwrap();
+                use std::io::Write;
+                zw.write_all(rm_bytes).unwrap();
+                zw.finish().unwrap();
+            }
+            true
+        }
+    }
+
+    #[test]
+    fn push_maps_key_to_pdf_named_under_folder() {
+        let t = RmTransport::with_command(FakeRm::default(), "/ReadingQueue");
+        t.push("article-7", b"%PDF fake bytes").unwrap();
+        let puts = t.cmd.puts.lock().unwrap();
+        assert_eq!(puts.len(), 1);
+        assert_eq!(puts[0].0, "article-7.pdf");
+        assert_eq!(puts[0].1, "/ReadingQueue");
+    }
+
+    #[test]
+    fn delete_targets_folder_slash_key() {
+        let t = RmTransport::with_command(FakeRm::default(), "/Agenda");
+        t.delete("event-3");
+        assert_eq!(
+            *t.cmd.rms.lock().unwrap(),
+            vec!["/Agenda/event-3".to_string()]
+        );
+    }
+
+    #[test]
+    fn pull_decodes_ink_under_the_right_key() {
+        // Build real .rm bytes for one stroke via the transform's inverse. We do
+        // not assert coordinates (the harness already proves the transform); we
+        // assert the ink maps back to its key at the requested page height.
+        let device = Remarkable::new();
+        let page_h = 560.0;
+        let strokes = vec![Stroke {
+            points: vec![
+                PdfPoint { x: 100.0, y: 200.0 },
+                PdfPoint { x: 150.0, y: 220.0 },
+            ],
+            highlighter: false,
+        }];
+        let rm_bytes = device.write_ink(&strokes, page_h).unwrap();
+
+        let fake = FakeRm {
+            mget_doc: Some(("article-7".to_string(), rm_bytes)),
+            ..FakeRm::default()
+        };
+        let t = RmTransport::with_command(fake, "/ReadingQueue");
+
+        let mut page_h_by_key = HashMap::new();
+        page_h_by_key.insert("article-7".to_string(), page_h);
+        let ink = t.pull(&page_h_by_key);
+
+        assert!(ink.contains_key("article-7"), "ink mapped back to its key");
+        assert_eq!(ink["article-7"].len(), 1, "single page");
+        assert_eq!(ink["article-7"][0].len(), 1, "one stroke round-tripped");
     }
 }
