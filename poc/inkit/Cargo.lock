@@ -38,7 +38,6 @@ dependencies = [
  "inkapp-ics",
  "inkapp-localcal",
  "tokio",
- "zip",
 ]
 
 [[package]]
@@ -2004,7 +2003,11 @@ name = "inkapp"
 version = "0.1.0"
 dependencies = [
  "inkapp-core",
- "inkapp-remarkable",
+ "rm-device",
+ "serde",
+ "tempfile",
+ "tokio",
+ "toml",
 ]
 
 [[package]]
@@ -2042,8 +2045,8 @@ dependencies = [
  "inkapp-ics",
  "inkapp-localcal",
  "inkapp-readwise-reader",
- "inkapp-remarkable",
  "reading-queue",
+ "rm-device",
  "rm-files",
  "serde",
  "serde_json",
@@ -2089,14 +2092,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
-]
-
-[[package]]
-name = "inkapp-remarkable"
-version = "0.1.0"
-dependencies = [
- "inkapp-core",
- "rm-files",
 ]
 
 [[package]]
@@ -3321,7 +3316,6 @@ dependencies = [
  "inkapp-core",
  "inkapp-readwise-reader",
  "tokio",
- "zip",
 ]
 
 [[package]]
@@ -3506,6 +3500,16 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rm-device"
+version = "0.1.0"
+dependencies = [
+ "inkapp-core",
+ "rm-files",
+ "tempfile",
+ "zip",
 ]
 
 [[package]]
