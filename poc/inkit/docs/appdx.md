@@ -724,7 +724,3 @@ management and tenant-isolation mechanics are undesigned.
   connectors and renders touching a subset — neither true yet — so it's a later
   refinement, not a rewrite: the set is already `Arc<dyn Connector>` and the loop
   already brackets `view` with refresh/flush, so adding a `depends_on` is additive.
-- **`Widget`/`Component` two-layer consolidation.** `Widget` (`render` + typed
-  `read`) is a lower-level primitive distinct from `Component` (`render` +
-  `decode` → `Msg`); the module is now named `components`, but whether the typed-
-  `read` layer should fold into `Component` is an open tidy.
