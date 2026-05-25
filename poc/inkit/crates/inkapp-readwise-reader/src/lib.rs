@@ -8,6 +8,7 @@
 //! transports are wired by `live()` and exercised by a manual `#[ignore]` bar.
 
 pub mod http;
+mod index_entry;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
