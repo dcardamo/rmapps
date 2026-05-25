@@ -3,13 +3,15 @@
 
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use crate::auth::{refresh_user_token, Credentials};
 use crate::config::Config;
 use crate::error::{Error, Result};
 use crate::plumbing::blob::{get_blob, put_blob};
+use crate::plumbing::commit::{apply, prepare_doc, root_blob, Mutation};
+use crate::plumbing::index::serialize_root_index;
 use crate::plumbing::snapshot::Snapshot;
 
 /// A client for one reMarkable cloud account. Construct multiple clients for multiple
@@ -24,6 +26,18 @@ pub struct Client {
 #[derive(Deserialize)]
 struct RootResp {
     hash: String,
+    generation: i64,
+}
+
+#[derive(Serialize)]
+struct RootPutReq<'a> {
+    broadcast: bool,
+    hash: &'a str,
+    generation: i64,
+}
+
+#[derive(Deserialize)]
+struct RootPutResp {
     generation: i64,
 }
 
@@ -129,10 +143,56 @@ impl Client {
     }
 
     /// PUT a blob under `hash` with the given logical filename.
-    // used by commit/porcelain in later tasks
-    #[allow(dead_code)]
     pub(crate) async fn put_blob(&self, hash: &str, name: &str, bytes: Vec<u8>) -> Result<()> {
         let token = self.user_token().await?;
         put_blob(&self.http, &self.config.blob(hash), &token, name, bytes).await
+    }
+
+    /// Apply `mutation` atomically: upload new blobs, then CAS-put the root, rebasing on
+    /// a stale generation. Returns the post-commit snapshot.
+    pub async fn commit(&self, mutation: Mutation) -> Result<Snapshot> {
+        // Prepare + upload doc blobs once (content-addressed → safe across retries).
+        let prepared: Vec<_> = mutation.upserts.iter().map(prepare_doc).collect();
+        for p in &prepared {
+            for (hash, name, bytes) in &p.blobs {
+                self.put_blob(hash, name, bytes.clone()).await?;
+            }
+        }
+
+        const MAX_ATTEMPTS: u32 = 10;
+        for _ in 0..MAX_ATTEMPTS {
+            let snap = self.snapshot().await?;
+            let current: Vec<_> = snap.docs().cloned().collect();
+            let new_docs = apply(&current, &mutation, &prepared);
+            let (rhash, rbytes) = root_blob(&new_docs);
+            self.put_blob(&rhash, "root.docSchema", rbytes).await?;
+
+            let token = self.user_token().await?;
+            let resp = self
+                .http
+                .put(self.config.root_put())
+                .bearer_auth(&token)
+                .header(crate::plumbing::blob::RM_FILENAME, "roothash")
+                .json(&RootPutReq {
+                    broadcast: false,
+                    hash: &rhash,
+                    generation: snap.generation,
+                })
+                .send()
+                .await?;
+            match resp.status() {
+                s if s.is_success() => {
+                    let gen = resp.json::<RootPutResp>().await?.generation;
+                    return Snapshot::from_root_index(gen, rhash, &serialize_root_index(&new_docs));
+                }
+                reqwest::StatusCode::PRECONDITION_FAILED => continue, // rebase: loop re-snapshots
+                reqwest::StatusCode::UNAUTHORIZED => {
+                    self.force_refresh().await?;
+                    continue;
+                }
+                s => return Err(Error::Http(format!("root put failed: {s}"))),
+            }
+        }
+        Err(Error::CommitExhausted(MAX_ATTEMPTS))
     }
 }

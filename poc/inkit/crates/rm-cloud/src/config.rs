@@ -49,7 +49,6 @@ impl Config {
     pub(crate) fn root_get(&self) -> String {
         format!("{}/sync/v4/root", self.sync)
     }
-    #[allow(dead_code)] // used by commit in Task 6
     pub(crate) fn root_put(&self) -> String {
         format!("{}/sync/v3/root", self.sync)
     }

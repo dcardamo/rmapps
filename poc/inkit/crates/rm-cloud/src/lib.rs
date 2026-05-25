@@ -21,6 +21,7 @@ pub use auth::{refresh_user_token, register_device, Credentials};
 pub use client::Client;
 pub use config::Config;
 pub use error::{Error, Result};
+pub use plumbing::commit::{DocUpsert, Mutation};
 pub use plumbing::index::{
     doc_hash, doc_size, parse_doc_index, parse_root_index, root_hash, serialize_doc_index,
     serialize_root_index, sha256_hex, DocEntry, FileEntry,
