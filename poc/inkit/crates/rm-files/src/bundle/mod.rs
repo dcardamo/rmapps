@@ -148,6 +148,17 @@ impl Page<'_> {
             None => Ok(None),
         }
     }
+
+    /// Raw bytes of this page's `.rm` scene file, if present.
+    ///
+    /// Returns `None` when the page has never been annotated (no `.rm` entry),
+    /// the same condition under which [`scene`][Page::scene] returns `Ok(None)`.
+    /// Unlike `scene`, this hands back the unparsed bytes so a caller can run its
+    /// own device transform (e.g. `Remarkable::read_ink`).
+    pub fn scene_bytes(&self) -> Option<&[u8]> {
+        let key = format!("{}/{}.rm", self.bundle.uuid, self.id);
+        self.bundle.files.get(&key).map(|v| v.as_slice())
+    }
 }
 
 // ---------------------------------------------------------------------------
