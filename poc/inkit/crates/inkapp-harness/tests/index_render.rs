@@ -47,6 +47,13 @@ fn index_renders_and_paginates() {
         "entries land on both pages: {pages:?}"
     );
 
+    let idx_regions = manifest
+        .regions
+        .iter()
+        .filter(|r| r.name.starts_with("idx-"))
+        .count();
+    assert_eq!(idx_regions, n, "every entry rendered as an idx-* region");
+
     assert_golden("index_page0", &render_page(&compiled, 0).unwrap());
     assert_golden("index_page1", &render_page(&compiled, 1).unwrap());
 }
