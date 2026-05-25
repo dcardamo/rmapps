@@ -61,8 +61,7 @@ impl<M> GestureAction<M> {
         }
         // Non-highlighter strokes attributed to this region with a point inside
         // the rect (the Checkbox two-stage filter); union their bounding boxes so
-        // a multi-stroke scribble is handled as a single gesture. Highlighter
-        // strokes are excluded, so a highlight never triggers the action.
+        // a multi-stroke scribble is handled as a single gesture.
         let mut min_x = f64::INFINITY;
         let mut max_x = f64::NEG_INFINITY;
         for bbox in ink

@@ -107,6 +107,25 @@ fn no_fire_when_empty() {
 }
 
 #[test]
+fn new_presence_only_fires_on_strike() {
+    // The M=() convenience constructor: decode yields one unit message on a strike.
+    let g = GestureAction::new("title", "How CGI changed the web");
+    let manifest = manifest_with("title", TITLE_RECT);
+    let ink = region_ink(
+        false,
+        vec![
+            PdfPoint { x: 12.0, y: 18.0 },
+            PdfPoint { x: 108.0, y: 18.0 },
+        ],
+    );
+    assert!(
+        g.read(&ink, &manifest),
+        "presence-only control detects the strike"
+    );
+    assert_eq!(g.decode(&ink, &manifest), vec![()]);
+}
+
+#[test]
 fn render_declares_region_and_content() {
     let g = GestureAction::with_msg("title", "Hello", M::Archived);
     let markup = g.render(&mut RenderCx::new(0));
