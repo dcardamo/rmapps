@@ -1,7 +1,10 @@
 //! The MVU loop runtime: the render walk (`render_document`) and the multi-cycle
 //! driver (`App`, `DocSet`, `step`).
 
-use crate::assets::AssetMap;
+use std::sync::Arc;
+
+use crate::assets::{asset_key, resolve_assets, AssetMap, ImageFetcher, OfflineFetcher};
+use crate::cache::Cache;
 use crate::component::RenderCx;
 use crate::connector::ConnectorSet;
 use crate::crypto::Key;
@@ -246,6 +249,8 @@ pub struct App<M, Msg, Cx> {
     version: u64,
     key: Key,
     geom: PageGeom,
+    fetcher: Arc<dyn ImageFetcher>,
+    asset_cache: Option<Arc<Cache>>,
 }
 
 impl<M, Msg, Cx> App<M, Msg, Cx> {
@@ -256,6 +261,8 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         view: ViewFn<M, Msg, Cx>,
         key: Key,
         geom: PageGeom,
+        fetcher: Arc<dyn ImageFetcher>,
+        asset_cache: Option<Arc<Cache>>,
     ) -> Self {
         Self {
             model,
@@ -265,6 +272,8 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
             version: 1,
             key,
             geom,
+            fetcher,
+            asset_cache,
         }
     }
 }
@@ -284,15 +293,41 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
         futures::future::join_all(cs.iter().map(|c| c.flush())).await;
     }
 
+    /// Collect every component's declared image URLs across the doc set, map each
+    /// to its `(asset_key, url)` pair, and resolve them through the pipeline into
+    /// an `AssetMap` (fetch + normalize + cache, placeholder on failure).
+    async fn resolve_doc_assets(&self, docs: &Documents<Msg>) -> AssetMap {
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for doc in &docs.0 {
+            for c in &doc.flow {
+                for url in c.image_urls() {
+                    pairs.push((asset_key(&url), url));
+                }
+            }
+        }
+        resolve_assets(&pairs, self.asset_cache.as_deref(), &*self.fetcher).await
+    }
+
+    /// Flush the asset cache (if any) so resolved images survive a restart.
+    /// Live binaries call this on shutdown.
+    pub async fn close(&self) -> Result<()> {
+        if let Some(c) = &self.asset_cache {
+            c.close().await?;
+        }
+        Ok(())
+    }
+
     /// Render the full document set from current state, (re)populating `set`.
     /// Refreshes connectors first so `view` reads warm caches.
     pub async fn render(&mut self, set: &mut DocSet) -> Result<Vec<RenderedDoc>> {
         self.refresh_all().await;
         let docs = (self.view)(&self.model, &self.connectors);
+        let assets = self.resolve_doc_assets(&docs).await;
         let mut out = Vec::new();
         let mut entries = HashMap::new();
         for doc in &docs.0 {
-            let rd = render_document_in(doc, self.version, &self.key, self.geom)?;
+            let rd =
+                render_document_in_with_assets(doc, self.version, &self.key, self.geom, &assets)?;
             entries.insert(
                 rd.key.0.clone(),
                 DocEntry {
@@ -355,9 +390,16 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
 
         // 3. Re-render the post-fold view.
         let next = (self.view)(&self.model, &self.connectors);
+        let assets = self.resolve_doc_assets(&next).await;
         let mut next_rendered: Vec<RenderedDoc> = Vec::new();
         for doc in &next.0 {
-            next_rendered.push(render_document_in(doc, self.version, &self.key, self.geom)?);
+            next_rendered.push(render_document_in_with_assets(
+                doc,
+                self.version,
+                &self.key,
+                self.geom,
+                &assets,
+            )?);
         }
 
         // 4. Reconcile by key against the prior set.
@@ -502,6 +544,8 @@ impl<M, Msg, Cx> BuilderFull<M, Msg, Cx> {
             view: self.view,
             key,
             geom: PageGeom::default(),
+            fetcher: Arc::new(OfflineFetcher),
+            asset_cache: None,
         }
     }
 }
@@ -513,6 +557,8 @@ pub struct BuilderReady<M, Msg, Cx> {
     view: ViewFn<M, Msg, Cx>,
     key: Key,
     geom: PageGeom,
+    fetcher: Arc<dyn ImageFetcher>,
+    asset_cache: Option<Arc<Cache>>,
 }
 
 impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
@@ -520,6 +566,20 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
     #[must_use]
     pub fn page(mut self, geom: PageGeom) -> Self {
         self.geom = geom;
+        self
+    }
+
+    /// Inject the image fetcher (default: `OfflineFetcher`, i.e. no network).
+    #[must_use]
+    pub fn fetcher(mut self, fetcher: Arc<dyn ImageFetcher>) -> Self {
+        self.fetcher = fetcher;
+        self
+    }
+
+    /// Inject the durable asset cache used for warm-restart / offline image serving.
+    #[must_use]
+    pub fn asset_cache(mut self, cache: Arc<Cache>) -> Self {
+        self.asset_cache = Some(cache);
         self
     }
 
@@ -531,6 +591,8 @@ impl<M, Msg, Cx> BuilderReady<M, Msg, Cx> {
             self.view,
             self.key,
             self.geom,
+            self.fetcher,
+            self.asset_cache,
         )
     }
 }
