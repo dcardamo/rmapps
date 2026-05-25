@@ -19,6 +19,10 @@ pub enum Error {
     Secrets(String),
     #[error("cache failed: {0}")]
     Cache(String),
+    #[error("deploy config: {0}")]
+    Config(String),
+    #[error("device transport failed: {0}")]
+    Transport(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
