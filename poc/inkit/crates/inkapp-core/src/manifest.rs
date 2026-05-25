@@ -56,34 +56,45 @@ pub struct Manifest {
     pub state: DocState,
 }
 
+/// One end of a breakable region's vertical extent, in Typst space (top-left
+/// origin), points. `split_rects` uses the start bound's `x`/`w` for every frame
+/// (a flowing full-column region has constant left edge and width); the end
+/// bound's `x`/`w` are unused (only its `page`/`y` bound the last frame).
+#[derive(Debug, Clone, Copy)]
+struct FlowBound {
+    page: usize,
+    x: f64,
+    y: f64,
+    w: f64,
+}
+
 /// Reconstruct the per-frame PDF rects of a breakable region from its start/end
-/// bounds. Emits one `Region` per page in `start_page..=end_page`: the start page
-/// runs from `y_start` to its bottom, interior pages are full height, the end page
-/// runs from the top to `y_end`. Each rect is flipped to PDF space with its own
-/// page height. `start_page == end_page` degenerates to a single `y_start..y_end`
-/// rect (the no-break case).
+/// bounds. Emits one `Region` per page in `start.page..=end.page`: the start page
+/// runs from `start.y` to its bottom, interior pages are full height, the end page
+/// runs from the top to `end.y`. Each rect is flipped to PDF space with its own
+/// page height. `start.page == end.page` degenerates to a single `start.y..end.y`
+/// rect (the no-break case). Degenerate zero-height frames (a bound landing exactly
+/// on a page edge) are skipped so they don't clutter the manifest.
 fn split_rects(
     name: &str,
-    start_page: usize,
-    x: f64,
-    y_start: f64,
-    w: f64,
-    end_page: usize,
-    y_end: f64,
+    start: FlowBound,
+    end: FlowBound,
     page_heights: &[f64],
 ) -> Result<Vec<Region>> {
     let mut out = Vec::new();
-    for p in start_page..=end_page {
+    for p in start.page..=end.page {
         let page_h = *page_heights.get(p).ok_or_else(|| {
             Error::Region(format!("flow region '{name}' references missing page {p}"))
         })?;
-        let top = if p == start_page { y_start } else { 0.0 };
-        let bottom = if p == end_page { y_end } else { page_h };
-        out.push(Region {
-            name: name.to_string(),
-            page: p,
-            rect: typst_to_pdf_rect(x, top, w, bottom - top, page_h),
-        });
+        let top = if p == start.page { start.y } else { 0.0 };
+        let bottom = if p == end.page { end.y } else { page_h };
+        if bottom > top {
+            out.push(Region {
+                name: name.to_string(),
+                page: p,
+                rect: typst_to_pdf_rect(start.x, top, start.w, bottom - top, page_h),
+            });
+        }
     }
     Ok(out)
 }
@@ -160,12 +171,18 @@ pub fn recover_regions(doc: &PagedDocument) -> Result<Manifest> {
         })?;
         regions.extend(split_rects(
             &start.name,
-            start.page,
-            start.x,
-            start.y,
-            w,
-            end.page,
-            end.y,
+            FlowBound {
+                page: start.page,
+                x: start.x,
+                y: start.y,
+                w,
+            },
+            FlowBound {
+                page: end.page,
+                x: end.x,
+                y: end.y,
+                w: 0.0,
+            },
             &page_heights,
         )?);
     }
@@ -191,7 +208,23 @@ mod split_tests {
 
     #[test]
     fn single_page_is_one_rect() {
-        let rs = split_rects("p", 0, 10.0, 100.0, 50.0, 0, 140.0, &[560.0]).unwrap();
+        let rs = split_rects(
+            "p",
+            FlowBound {
+                page: 0,
+                x: 10.0,
+                y: 100.0,
+                w: 50.0,
+            },
+            FlowBound {
+                page: 0,
+                x: 10.0,
+                y: 140.0,
+                w: 0.0,
+            },
+            &[560.0],
+        )
+        .unwrap();
         assert_eq!(rs.len(), 1);
         assert_eq!(rs[0].page, 0);
         assert_eq!(
@@ -202,7 +235,23 @@ mod split_tests {
 
     #[test]
     fn two_pages_split_at_break() {
-        let rs = split_rects("p", 0, 10.0, 500.0, 50.0, 1, 30.0, &[560.0, 560.0]).unwrap();
+        let rs = split_rects(
+            "p",
+            FlowBound {
+                page: 0,
+                x: 10.0,
+                y: 500.0,
+                w: 50.0,
+            },
+            FlowBound {
+                page: 1,
+                x: 10.0,
+                y: 30.0,
+                w: 0.0,
+            },
+            &[560.0, 560.0],
+        )
+        .unwrap();
         assert_eq!(rs.len(), 2);
         assert_eq!(
             rs[0],
@@ -224,7 +273,23 @@ mod split_tests {
 
     #[test]
     fn three_pages_middle_is_full_height() {
-        let rs = split_rects("p", 0, 10.0, 500.0, 50.0, 2, 20.0, &[560.0, 560.0, 560.0]).unwrap();
+        let rs = split_rects(
+            "p",
+            FlowBound {
+                page: 0,
+                x: 10.0,
+                y: 500.0,
+                w: 50.0,
+            },
+            FlowBound {
+                page: 2,
+                x: 10.0,
+                y: 20.0,
+                w: 0.0,
+            },
+            &[560.0, 560.0, 560.0],
+        )
+        .unwrap();
         assert_eq!(rs.len(), 3);
         assert_eq!(
             rs[0].rect,
@@ -236,6 +301,22 @@ mod split_tests {
 
     #[test]
     fn missing_page_errors() {
-        assert!(split_rects("p", 0, 0.0, 0.0, 1.0, 5, 0.0, &[560.0]).is_err());
+        assert!(split_rects(
+            "p",
+            FlowBound {
+                page: 0,
+                x: 0.0,
+                y: 0.0,
+                w: 1.0
+            },
+            FlowBound {
+                page: 5,
+                x: 0.0,
+                y: 0.0,
+                w: 0.0
+            },
+            &[560.0],
+        )
+        .is_err());
     }
 }
