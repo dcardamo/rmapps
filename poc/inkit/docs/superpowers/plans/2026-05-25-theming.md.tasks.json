@@ -1,0 +1,39 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-25-theming.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Vendor reading fonts into InkWorld",
+      "status": "pending",
+      "description": "**Goal:** Embed Newsreader, Fraunces, Hanken Grotesk into InkWorld's FontBook so `#set text(font: ...)` resolves deterministically.\n\n**Files:** crates/inkapp-core/assets/fonts/*.ttf (7 vendored), crates/inkapp-core/src/world.rs\n\n**Verify:** nix develop -c cargo test --workspace\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/assets/fonts\", \"crates/inkapp-core/src/world.rs\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"7 TTFs vendored\", \"FontBook contains Newsreader family\", \"workspace tests pass\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Theme type, reader() default, and Typst prelude",
+      "status": "pending",
+      "description": "**Goal:** Add Theme struct with reader() default, chained builder, and prelude() emitting the Typst styling block. Register module + re-export from inkapp-core.\n\n**Files:** crates/inkapp-core/src/theme.rs (new), crates/inkapp-core/src/lib.rs\n\n**Verify:** nix develop -c cargo test -p inkapp-core theme::\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/theme.rs\", \"crates/inkapp-core/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core theme::\", \"acceptanceCriteria\": [\"reader() defaults correct\", \"default==reader\", \"prelude emits grayscale luma + fonts, never rgb\", \"builder overrides\", \"Theme re-exported\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Thread Theme through render API and App builder",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** Inject theme prelude in document_source_in (replacing hardcoded #set text); add theme: &Theme sibling param across the _in* family; wrappers default to reader(); App gains theme field + .theme() builder; facade re-exports Theme.\n\n**Files:** crates/inkapp-core/src/runtime.rs, crates/inkapp/src/lib.rs\n\n**Verify:** nix develop -c cargo test --workspace\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/runtime.rs\", \"crates/inkapp/src/lib.rs\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"prelude replaces #set text line\", \"theme sibling param on _in* family\", \"wrappers default reader()\", \"App.theme() builder\", \"nonempty PDF + byte-identical determinism\", \"facade re-export\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Harness golden for reader-themed output",
+      "status": "pending",
+      "blockedBy": [0, 1, 2],
+      "description": "**Goal:** Golden test rendering reader theme over heading + justified body + block quote + raw span via inspect(); commit reviewed PNG.\n\n**Files:** crates/inkapp-harness/tests/theme.rs (new), crates/inkapp-harness/tests/golden/theme_reader.png (generated)\n\n**Verify:** nix develop -c cargo test -p inkapp-harness theme_reader\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/tests/theme.rs\", \"crates/inkapp-harness/tests/golden/theme_reader.png\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-harness theme_reader\", \"acceptanceCriteria\": [\"styled snippet compiles + rasterizes + matches golden\", \"golden committed after review\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Record the theming capability in docs/appdx.md",
+      "status": "pending",
+      "blockedBy": [0, 1, 2, 3],
+      "description": "**Goal:** Add a Theming subsection to docs/appdx.md describing Theme/reader()/prelude()/.theme(), marked Built (spec definition of done).\n\n**Files:** docs/appdx.md\n\n**Verify:** grep -n Theme docs/appdx.md\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -n Theme docs/appdx.md\", \"acceptanceCriteria\": [\"Theming subsection present and marked Built\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-25"
+}
