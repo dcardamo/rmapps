@@ -2,6 +2,8 @@ use inkapp_core::component::Component;
 use inkapp_core::components::notice::Notice;
 use inkapp_core::document::Document;
 use inkapp_core::geometry::PageGeom;
+use inkapp_core::manifest::recover_regions;
+use inkapp_core::render::compile_to_document;
 use inkapp_core::runtime::compile_document_in;
 
 /// A tall flow: 40 notice lines. Fits in few pages at the default geometry and
@@ -35,5 +37,30 @@ fn short_page_paginates_to_more_pages() {
     assert!(
         short_pages > default_pages,
         "short page must paginate to more pages: short={short_pages} default={default_pages}"
+    );
+}
+
+#[test]
+fn flow_region_recovers_one_rect_per_frame() {
+    // Emit flow-start/flow-end markers directly (no prelude needed) around a tall
+    // block on a short page, so the body spans several frames.
+    let src = r#"
+#set page(width: 200pt, height: 100pt, margin: 8pt)
+#context [#metadata((name: "p", role: "flow-start", page: here().position().page - 1, x: here().position().x / 1pt, y: here().position().y / 1pt, w: 120.0)) <region>]
+#block(height: 300pt, fill: luma(230))[]
+#context [#metadata((name: "p", role: "flow-end", page: here().position().page - 1, x: here().position().x / 1pt, y: here().position().y / 1pt)) <region>]
+"#;
+    let doc = compile_to_document(src).unwrap();
+    let m = recover_regions(&doc).unwrap();
+    let p: Vec<_> = m.regions.iter().filter(|r| r.name == "p").collect();
+    assert!(
+        p.len() >= 2,
+        "a 300pt body on an ~84pt page must split into ≥2 frames, got {}",
+        p.len()
+    );
+    let pages: Vec<usize> = p.iter().map(|r| r.page).collect();
+    assert!(
+        pages.windows(2).all(|w| w[0] < w[1]),
+        "frames in page order: {pages:?}"
     );
 }
