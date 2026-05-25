@@ -3,4 +3,4 @@
 
 pub mod convert;
 
-pub use convert::image_key;
+pub use convert::{convert, image_key, Converted, Token};

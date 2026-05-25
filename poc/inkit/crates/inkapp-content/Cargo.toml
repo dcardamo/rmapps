@@ -6,6 +6,7 @@ license = "MIT"
 description = "HTML→Typst article content pipeline for inkapp: sanitize + structured render + highlightable Article component"
 
 [dependencies]
+ego-tree = "0.6"
 inkapp-core = { path = "../inkapp-core" }
 scraper = "0.20"
 sha2 = "0.10"
