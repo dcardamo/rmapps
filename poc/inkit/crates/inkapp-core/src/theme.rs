@@ -112,6 +112,18 @@ impl Theme {
     /// and quote styling. Injected in place of the bare `#set text` line. Does NOT
     /// emit `#set page` — page geometry is owned by `PageGeom`.
     pub fn prelude(&self) -> String {
+        let body = escape_typst_str(&self.body);
+        let heading = escape_typst_str(&self.heading);
+        let mono = escape_typst_str(&self.mono);
+
+        // The quote rule is the most intricate line: an indented, muted, italic block
+        // with a left rule. Built separately for readability.
+        let quote_rule = format!(
+            "#show quote: it => block(inset: (left: 1em), stroke: (left: 0.5pt + luma({rule})), text(fill: luma({muted}), style: \"italic\", it.body))\n",
+            rule = self.rule_tone,
+            muted = self.muted_tone,
+        );
+
         format!(
             "#set text(font: \"{body}\", size: {size}pt, fill: luma({body_tone}))\n\
              #set par(leading: {leading}em, justify: {justify})\n\
@@ -119,19 +131,25 @@ impl Theme {
              #show heading.where(level: 1): set text(size: 1.6em)\n\
              #show heading.where(level: 2): set text(size: 1.3em)\n\
              #show raw: set text(font: \"{mono}\")\n\
-             #show quote: it => block(inset: (left: 1em), stroke: (left: 0.5pt + luma({rule_tone})), text(fill: luma({muted_tone}), style: \"italic\", it.body))\n",
-            body = self.body,
+             {quote_rule}",
+            body = body,
             size = self.size_pt,
             body_tone = self.body_tone,
             leading = self.leading_em,
             justify = self.justify,
-            heading = self.heading,
+            heading = heading,
             heading_tone = self.heading_tone,
-            mono = self.mono,
-            rule_tone = self.rule_tone,
-            muted_tone = self.muted_tone,
+            mono = mono,
+            quote_rule = quote_rule,
         )
     }
+}
+
+/// Escape a string for safe interpolation into a Typst double-quoted string literal.
+/// Font family names reach `prelude()` from app code (and later from config), so a
+/// stray `"` or `\` must not be able to alter the generated Typst.
+fn escape_typst_str(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 impl Default for Theme {
@@ -151,7 +169,12 @@ mod tests {
         assert_eq!(t.heading, "Fraunces");
         assert_eq!(t.mono, "DejaVu Sans Mono");
         assert_eq!(t.size_pt, 11.0);
+        assert_eq!(t.leading_em, 0.75);
         assert!(t.justify);
+        assert_eq!(t.heading_tone, 26);
+        assert_eq!(t.body_tone, 34);
+        assert_eq!(t.muted_tone, 110);
+        assert_eq!(t.rule_tone, 216);
     }
 
     #[test]
@@ -170,6 +193,20 @@ mod tests {
         assert!(
             !p.contains("rgb("),
             "tones must be grayscale luma, never rgb"
+        );
+    }
+
+    #[test]
+    fn prelude_escapes_font_names() {
+        // A font name with a quote must not break out of the Typst string literal.
+        let p = Theme::reader().body("Ev\"il").prelude();
+        assert!(
+            p.contains("font: \"Ev\\\"il\""),
+            "quote in font name is escaped"
+        );
+        assert!(
+            !p.contains("font: \"Ev\"il\""),
+            "raw unescaped quote must not appear"
         );
     }
 
