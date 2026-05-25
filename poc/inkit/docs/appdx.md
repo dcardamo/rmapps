@@ -21,8 +21,10 @@
 > via the secret store, cassette mode retained for tests) backed by a reusable
 > **`inkapp-core::cache`** durable primitive — a `foyer` hybrid memory+disk cache with
 > sha256 integrity for content-addressed derived keys, giving warm-restart/offline
-> reads. **Pagination** (so apps never think in pages) and the **HTML→Typst content +
-> image pipeline** are the next worktrees.
+> reads. **Pagination** (so apps never think in pages) and the **offline image
+> pipeline** (fetch → normalize → cache → serve images for `#image`, with a 1×1
+> placeholder fallback) are built; the **HTML→Typst content** half is the parallel
+> worktree that emits the `#image` calls feeding this pipeline.
 >
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
 > **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
@@ -344,6 +346,29 @@ you genuinely need a *reusable content* component do you reach for a stored
 
 (`From` is still handy for the dumb **leaf** conversions inside `view` — one
 `connector::Event` → one `EventRow`: total, 1:1, context-free, tidy to test.)
+
+### Images
+
+Components embed images with Typst's `#image("/assets/{key}.png")`, where `key` is
+the first 16 hex chars of `sha256(url)`. A component declares the URLs its render
+references via **`image_urls()`**; the framework collects them across the whole
+document set on each render, resolves each through the **offline image pipeline**,
+and registers the resulting bytes so `#image` resolves with no network at compile
+time. Existing components are unaffected — `image_urls` defaults to none.
+
+*(Built — `inkapp-core::assets`.)* `resolve_assets` takes `(key, url)` pairs and
+returns an asset map. Each image is fetched through a pluggable **`ImageFetcher`**
+seam (a `FakeFetcher` for tests; an `OfflineFetcher` default so nothing hits the
+network unless a live build injects the retrying `HttpImageFetcher`, which mirrors
+the Readwise connector's backoff client), **normalized to PNG** (jpeg/webp/avif →
+PNG via the `image` crate + libdav1d, dropping ≤2px tracking pixels), and cached in
+the durable `inkapp-core::cache` for warm-restart/offline reads. Any image that
+fails to fetch or normalize becomes a 1×1 transparent **placeholder**, so an
+emitted `#image` never dangles and compilation never fails. `InkWorld` serves the
+registered bytes from `World::file()`; the compile path threads the asset map
+through additive `*_with_assets` entry points; and `App` resolves assets
+automatically each render/step, flushing the cache on `App::close()`. Renders are
+deterministic — identical inputs produce byte-identical PDFs.
 
 ---
 
