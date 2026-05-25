@@ -32,7 +32,10 @@
 > meet at one seam: `Article` emits `#image("/assets/{key}.png")` and returns the
 > `(key, url)` pairs, where `key = sha256(url)[..16]` (`asset_key`/`asset_path` are
 > the single source of truth shared by both sides), and the image pipeline serves
-> exactly those keys.
+> exactly those keys. A **`Theme` API** (`inkapp-core::theme`) rounds out the reader
+> aesthetic: Newsreader/Fraunces/DejaVu fonts embedded in the framework, a type scale
+> and grayscale palette, injected via `Theme::prelude()`, with `Theme::reader()` as
+> the zero-config default and a builder for per-app overrides.
 >
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
 > **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
@@ -377,6 +380,21 @@ registered bytes from `World::file()`; the compile path threads the asset map
 through additive `*_with_assets` entry points; and `App` resolves assets
 automatically each render/step, flushing the cache on `App::close()`. Renders are
 deterministic — identical inputs produce byte-identical PDFs.
+
+### Theming
+
+*(Built — `inkapp-core::theme`.)* Apps render in a real reading aesthetic, not Typst
+defaults. A `Theme` carries font families (`body`/`heading`/`mono`), a type scale
+(`size_pt`, `leading_em`, `justify`), and grayscale tones (`heading`/`body`/`muted`/
+`rule`, as `u8` luma so they stay device-safe on any reMarkable). `Theme::reader()` is
+the default: Newsreader body, Fraunces headings, DejaVu Sans Mono for raw, justified
+11pt. The framework embeds these fonts, so families resolve deterministically with no
+host font search. `Theme::prelude()` emits the Typst `#set text` / `#set par` /
+`#show heading` / quote / raw styling that `document_source_in` injects ahead of the
+component flow; page geometry stays separate (owned by `PageGeom`). Apps override per
+app through the builder — `app(model)....theme(Theme::reader().size_pt(12.0))` — and
+the zero-config default needs no `.theme(...)` call at all. (Config-driven themes are
+a separate, later increment; this is a pure code API.)
 
 ---
 
