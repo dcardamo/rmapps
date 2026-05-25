@@ -551,8 +551,8 @@ impl Readwise {
         let fetch = Arc::new(crate::http::HttpFetch::new(client.clone(), token.clone()));
 
         let mut me = Readwise::build(Vec::new(), Overlay::default(), None);
-        me.config = config.clone();
         me.locations = Self::locations_from(&config);
+        me.config = config;
         me.fetch = fetch;
 
         // Write transport needs to look up cached articles for highlight metadata.
