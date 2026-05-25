@@ -18,8 +18,10 @@ pub struct State {
     pub root_hash: String,
     /// Current generation (0 before first PUT).
     pub generation: i64,
-    /// If true, the next root PUT returns 412 then clears the flag.
-    pub force_conflict_once: bool,
+    /// Number of upcoming root PUTs to reject with 412 (decremented each time).
+    pub conflicts_remaining: u32,
+    /// If true, the next root GET returns 401 then clears the flag.
+    pub unauthorized_once: bool,
 }
 
 /// A running fake cloud. Drop to stop it.
@@ -50,7 +52,17 @@ impl FakeCloud {
 
     /// Force the next root PUT to fail with 412 (simulate a competing writer).
     pub fn inject_conflict_once(&self) {
-        self.state.lock().unwrap().force_conflict_once = true;
+        self.state.lock().unwrap().conflicts_remaining = 1;
+    }
+
+    /// Reject the next `n` root PUTs with 412 (to exercise the commit retry bound).
+    pub fn inject_conflicts(&self, n: u32) {
+        self.state.lock().unwrap().conflicts_remaining = n;
+    }
+
+    /// Force the next root GET to return 401 once (to exercise token-refresh retry).
+    pub fn inject_unauthorized_once(&self) {
+        self.state.lock().unwrap().unauthorized_once = true;
     }
 
     /// Number of stored blobs (test helper).

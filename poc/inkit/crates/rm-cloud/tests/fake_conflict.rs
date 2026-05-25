@@ -29,6 +29,25 @@ async fn commit_succeeds_after_injected_conflict() {
 }
 
 #[tokio::test]
+async fn commit_exhausts_after_persistent_conflicts() {
+    let cloud = FakeCloud::spawn().await;
+    let client = Client::from_user_token(Config::single_host(&cloud.base), "user-token");
+
+    cloud.inject_conflicts(10); // every one of the 10 attempts will 412
+    let err = client
+        .commit(Mutation {
+            upserts: vec![one_doc("doc-x")],
+            removals: vec![],
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, rm_cloud::Error::CommitExhausted(10)),
+        "got {err:?}"
+    );
+}
+
+#[tokio::test]
 async fn commit_round_trips_into_snapshot() {
     let cloud = FakeCloud::spawn().await;
     let client = Client::from_user_token(Config::single_host(&cloud.base), "user-token");

@@ -57,6 +57,13 @@ struct RootResp {
 }
 
 async fn root_get(AxState(state): AxState<Shared>) -> impl IntoResponse {
+    {
+        let mut s = state.lock().unwrap();
+        if s.unauthorized_once {
+            s.unauthorized_once = false;
+            return (StatusCode::UNAUTHORIZED, "forced unauthorized").into_response();
+        }
+    }
     let s = state.lock().unwrap();
     if s.generation == 0 && s.root_hash.is_empty() {
         return (StatusCode::NOT_FOUND, "no root yet").into_response();
@@ -82,8 +89,8 @@ async fn root_put(
     Json(req): Json<RootPutReq>,
 ) -> impl IntoResponse {
     let mut s = state.lock().unwrap();
-    if s.force_conflict_once {
-        s.force_conflict_once = false;
+    if s.conflicts_remaining > 0 {
+        s.conflicts_remaining -= 1;
         return (StatusCode::PRECONDITION_FAILED, "forced conflict").into_response();
     }
     if req.generation != s.generation {
