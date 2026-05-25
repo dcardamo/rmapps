@@ -305,6 +305,25 @@ decodes nothing — so surfacing a message (a header, a connector sync failure) 
 matter of *composing* it, not authoring Typst. It's generic over the app's `Msg`
 (which it never emits), so it drops into any `view` flow.
 
+The framework ships an `Index` **Display** component — a typographically clean,
+paginating listing for landing/contents documents (the reader's Library and Feed
+pages). It takes a list of `IndexEntry { title, byline, reading_time, summary }`
+rows and renders each as a non-breakable region box (entries never split across a
+page break; the list flows and paginates between them); like `Notice` it decodes
+nothing and is generic over the app's `Msg`. Apps map connector data to entries
+with a dumb leaf conversion in `view` — `inkapp-readwise-reader` provides
+`From<&Article> for IndexEntry` (byline = author or site name; `reading_time`
+passed through verbatim) so core stays connector-blind.
+
+Color is device-optimal without leaking the device into components. Components name
+semantic palette **roles** (`heading`, `byline`, `muted`, `ink`, `rule`, `paper`)
+from a `Theme` carried on the `RenderCx`, never literal colors — the framework
+fills the palette, exactly as it supplies page geometry for "page-blind" layout.
+The default is grayscale; the reMarkable Paper Pro palette ("Indigo + Tomato")
+renders the same document optimally on color e-ink. The palette is set on the
+`App` (`.theme(...)`) by a binary's bootstrap, so app `update`/`view` stay
+device-blind.
+
 ### Components never talk to connectors
 
 A component's mode and a connector's read/write capability are **separate axes**. A
