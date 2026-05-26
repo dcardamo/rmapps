@@ -31,7 +31,7 @@
     {
       "id": 4,
       "subject": "Task 4: push_replace_ink on DeviceTransport + CloudTransport impl",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Second push variant that replaces (not preserves) on-device ink. publish keeps push; sync_once post-fold uses push_replace_ink. CloudTransport strips .rm blobs.\n\n**Files:**\n- Modify: crates/inkapp-core/src/sync.rs\n- Modify: crates/rm-device/src/transport.rs\n- Create: crates/inkapp-core/tests/sync_replace_ink.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test sync_replace_ink` and `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/sync.rs\", \"crates/rm-device/src/transport.rs\", \"crates/inkapp-core/tests/sync_replace_ink.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test sync_replace_ink\", \"acceptanceCriteria\": [\"trait gains async fn push_replace_ink with default = push\", \"sync_once post-fold uses replace\", \"publish keeps push\", \"CloudTransport override strips .rm blobs then put\", \"counting fake transport asserts call shape\"]}\n```"
     },
     {

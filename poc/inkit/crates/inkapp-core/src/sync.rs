@@ -20,7 +20,21 @@ use crate::runtime::{App, Cycle, DocSet};
 #[async_trait::async_trait]
 pub trait DeviceTransport: Send + Sync {
     /// Push a rendered document (its key + PDF bytes) to the device.
+    /// Preserves any existing on-device ink (e.g. pending pre-fold annotations).
+    /// Used by `publish` and the pre-pull rebuild inside `sync_once`.
     async fn push(&self, key: &str, pdf: &[u8]) -> Result<()>;
+
+    /// Push a rendered document AND replace the on-device ink layer with empty.
+    /// `sync_once` calls this after a fold — the pulled ink has been turned into
+    /// state, the next render reflects it, so preserving the (now-stale-against-
+    /// shifted-content) per-page raster is wrong.
+    ///
+    /// Default delegates to `push` for transports that don't yet distinguish;
+    /// specific backends (reMarkable `CloudTransport`) override to strip `.rm` blobs.
+    async fn push_replace_ink(&self, key: &str, pdf: &[u8]) -> Result<()> {
+        self.push(key, pdf).await
+    }
+
     /// Delete a document by key. Best-effort: a missing document is not an error.
     async fn delete(&self, key: &str);
     /// Pull all device ink, keyed by document key, as PDF-space strokes.
@@ -65,8 +79,10 @@ pub async fn sync_once<M, Msg: Clone, Cx: ConnectorSet>(
             transport.delete(&k.0).await;
         }
     }
+    // Post-fold push: the pulled ink is now baked into state; preserve the
+    // (stale) per-page raster would misalign with the re-rendered content.
     for rd in &cycle.rendered {
-        transport.push(&rd.key.0, &rd.pdf).await?;
+        transport.push_replace_ink(&rd.key.0, &rd.pdf).await?;
     }
     println!(
         "synced: {} message(s), {} op(s)",
