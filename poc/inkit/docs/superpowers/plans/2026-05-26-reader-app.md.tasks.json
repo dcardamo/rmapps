@@ -43,7 +43,7 @@
     {
       "id": 6,
       "subject": "Task 6: Reader view — Library + Feed Documents with full composition",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 1, 2, 3, 4, 5],
       "description": "**Goal:** Replace stub view with Index + per-article (Heading + Article body) inside Sections, ActionBand page header per Document. Library + Feed from connector. Banner Notice when failed_writes non-empty.\n\n**Files:**\n- Modify: apps/reader/src/lib.rs\n- Create: apps/reader/tests/app.rs\n- Create: apps/reader/tests/shared.rs\n\n**Verify:** `nix develop -c cargo test -p reader`\n\n```json:metadata\n{\"files\": [\"apps/reader/src/lib.rs\", \"apps/reader/tests/app.rs\", \"apps/reader/tests/shared.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p reader\", \"acceptanceCriteria\": [\"library-only cassette yields one Library Document\", \"both cassettes yields two Documents, library first\", \"each Doc has ActionBand page header (4 cells)\", \"each Doc flow opens with Index, then Section per article\", \"banner appears when failed_writes non-empty\", \"compile yields token regions AND action regions\"]}\n```"
     },

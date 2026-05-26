@@ -1,12 +1,19 @@
 //! The Reader app — Library.pdf + Feed.pdf with a per-page ActionBand.
-//! For v1 the `view` returns an empty Documents set; task 6 wires the full
-//! composition. This task scaffolds the crate + CLI only.
 
 use std::sync::Arc;
 
-use inkapp::Documents;
+use inkapp::{flow, Document, Documents};
+use inkapp_core::component::{Component, RenderCx};
+use inkapp_core::components::action_band::ActionBand;
+use inkapp_core::components::heading::Heading;
+use inkapp_core::components::index::{Index, IndexEntry};
+use inkapp_core::components::notice::Notice;
+use inkapp_core::components::section::Section;
 use inkapp_core::connector::{Connector, ConnectorSet};
-use inkapp_readwise_reader::{ArticleId, Location, Readwise};
+use inkapp_core::ink::RegionInk;
+use inkapp_core::manifest::Manifest;
+use inkapp_content::Article as ContentArticle;
+use inkapp_readwise_reader::{Article as ApiArticle, ArticleId, Location, Readwise};
 
 /// The Model: no own state — the queue and highlights live in Readwise.
 pub struct App;
@@ -81,7 +88,156 @@ pub fn update(msg: Msg, _m: &mut App, cx: &Connectors) {
     }
 }
 
-/// Stub view — task 6 replaces this with the full Library + Feed composition.
-pub fn view(_m: &App, _cx: &Connectors) -> Documents<Msg> {
-    Documents(Vec::new())
+/// Newtype wrapper that adapts `Heading` (which has `type Msg = ()`) into any `M`.
+/// Since Heading never decodes ink and emits no messages, the type erasure is sound.
+struct HeadingAdaptor<M> {
+    inner: Heading,
+    _msg: std::marker::PhantomData<fn() -> M>,
+}
+
+impl<M> HeadingAdaptor<M> {
+    fn new(h: Heading) -> Self {
+        Self {
+            inner: h,
+            _msg: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<M> Component for HeadingAdaptor<M> {
+    type Msg = M;
+
+    fn render(&self, cx: &mut RenderCx) -> String {
+        // Delegate to the inner Heading's render. Heading::render takes &mut RenderCx<()>
+        // — the RenderCx is the same type regardless of M.
+        self.inner.render(cx)
+    }
+
+    fn typst_sources(&self) -> Vec<(String, String)> {
+        self.inner.typst_sources()
+    }
+
+    fn decode(&self, _ink: &[RegionInk], _manifest: &Manifest) -> Vec<M> {
+        // Heading never emits messages — this is the whole point of the adaptor.
+        Vec::new()
+    }
+}
+
+/// Build the four-cell ActionBand header for every page in a collection document.
+/// Labels must not contain '-' (validated by ActionBand::new).
+fn action_band() -> ActionBand<Msg> {
+    ActionBand::new([
+        (
+            "Inbox".to_string(),
+            Box::new(|id: &str| Msg::Move {
+                article: ArticleId::new(id),
+                to: Location::New,
+            }) as Box<dyn Fn(&str) -> Msg + Send + Sync>,
+        ),
+        (
+            "Archive".to_string(),
+            Box::new(|id: &str| Msg::Move {
+                article: ArticleId::new(id),
+                to: Location::Archive,
+            }) as Box<dyn Fn(&str) -> Msg + Send + Sync>,
+        ),
+        (
+            "Later".to_string(),
+            Box::new(|id: &str| Msg::Move {
+                article: ArticleId::new(id),
+                to: Location::Later,
+            }) as Box<dyn Fn(&str) -> Msg + Send + Sync>,
+        ),
+        (
+            "Delete".to_string(),
+            Box::new(|id: &str| Msg::Delete {
+                article: ArticleId::new(id),
+            }) as Box<dyn Fn(&str) -> Msg + Send + Sync>,
+        ),
+    ])
+}
+
+/// Build the Heading for an article: title + byline (author preferred, site_name
+/// fallback) + optional reading time. Wrapped in `HeadingAdaptor` so it can be
+/// placed inside a `Section<Msg>` body (`Heading` itself has `Msg = ()`).
+fn heading_for(a: &ApiArticle) -> HeadingAdaptor<Msg> {
+    let mut h = Heading::new(a.title.clone());
+    let byline = if !a.author.is_empty() {
+        Some(a.author.clone())
+    } else if !a.site_name.is_empty() {
+        Some(a.site_name.clone())
+    } else {
+        None
+    };
+    if let Some(b) = byline {
+        h = h.byline(b);
+    }
+    if let Some(rt) = a.reading_time.as_deref().filter(|s| !s.is_empty()) {
+        h = h.reading_time(rt);
+    }
+    HeadingAdaptor::new(h)
+}
+
+/// Build the content Article body wired with an on-highlight closure.
+fn article_body(a: &ApiArticle) -> ContentArticle<Msg> {
+    let id = a.id.clone();
+    ContentArticle::new(
+        a.html_content.as_deref().unwrap_or(""),
+        &a.highlights,
+        move |s| Msg::Highlighted {
+            article: id.clone(),
+            text: s.to_string(),
+        },
+    )
+}
+
+/// Build a collection Document from a slice of articles; returns `None` when the
+/// slice is empty (so the Document is simply omitted from the set).
+fn collection_doc(key: &str, articles: Vec<ApiArticle>) -> Option<Document<Msg>> {
+    if articles.is_empty() {
+        return None;
+    }
+
+    let entries: Vec<IndexEntry> = articles.iter().map(IndexEntry::from).collect();
+
+    // Start the flow with the index page.
+    let mut items: Vec<Box<dyn Component<Msg = Msg>>> =
+        vec![Box::new(Index::<Msg>::new(entries))];
+
+    // One Section per article: Heading + Article body.
+    for a in &articles {
+        let section_body: Vec<Box<dyn Component<Msg = Msg>>> = vec![
+            Box::new(heading_for(a)),
+            Box::new(article_body(a)),
+        ];
+        items.push(Box::new(Section::<Msg>::new(&a.id.0, section_body)));
+    }
+
+    Some(Document::keyed(key, items).page_header(action_band()))
+}
+
+/// The view: Library + Feed Documents, with an optional sync-failure banner prepended.
+pub fn view(_m: &App, cx: &Connectors) -> Documents<Msg> {
+    let mut docs: Vec<Document<Msg>> = Vec::new();
+
+    // Prepend a banner when previous writes failed (mirrors reading-queue pattern).
+    let failed = cx.readwise.failed_writes();
+    if !failed.is_empty() {
+        docs.push(Document::keyed(
+            "_banner",
+            flow![Notice::line(&format!(
+                "couldn't sync {} change(s) to Readwise",
+                failed.len()
+            ))],
+        ));
+    }
+
+    if let Some(d) = collection_doc("Library", cx.readwise.library()) {
+        docs.push(d);
+    }
+    if let Some(d) = collection_doc("Feed", cx.readwise.feed()) {
+        docs.push(d);
+    }
+
+    Documents(docs)
 }
