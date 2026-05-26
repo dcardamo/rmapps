@@ -29,8 +29,7 @@ pub async fn render_to_dir<M, Msg, Cx: ConnectorSet>(
     let mut entries = Vec::with_capacity(rendered.len());
     for rd in &rendered {
         let path = out.join(format!("{}.pdf", sanitize_key(&rd.key.0)));
-        std::fs::write(&path, &rd.pdf)
-            .map_err(|e| Error::Config(format!("preview write: {e}")))?;
+        std::fs::write(&path, &rd.pdf).map_err(|e| Error::Config(format!("preview write: {e}")))?;
         entries.push(RenderedEntry {
             key: rd.key.0.clone(),
             path,
@@ -59,8 +58,7 @@ pub(crate) async fn render_to_dir_and_map<M, Msg, Cx: ConnectorSet>(
     let mut pdfs: HashMap<String, Vec<u8>> = HashMap::new();
     for rd in rendered {
         let path = out.join(format!("{}.pdf", sanitize_key(&rd.key.0)));
-        std::fs::write(&path, &rd.pdf)
-            .map_err(|e| Error::Config(format!("preview write: {e}")))?;
+        std::fs::write(&path, &rd.pdf).map_err(|e| Error::Config(format!("preview write: {e}")))?;
         entries.push(RenderedEntry {
             key: rd.key.0.clone(),
             path,
