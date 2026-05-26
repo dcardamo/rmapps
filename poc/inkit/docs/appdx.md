@@ -856,6 +856,48 @@ reading-queue and agenda) is gone.
 
 ---
 
+## Local preview & doctor
+
+Two framework subcommands let an author validate an app without device round-trips.
+They live in the `inkapp` facade and are mounted by every app binary.
+
+### `<app> preview [--out DIR] [--serve] [--port N]`
+
+Renders the app's current document set to `<DIR>/<key>.pdf` (default `./preview`).
+With `--serve`, also binds an HTTP server on `0.0.0.0:<port>` (default `4747`) and
+prints a Tailscale-reachable URL using the local hostname:
+
+```
+$ reading-queue preview --serve
+preview: wrote 7 PDF(s) to ./preview
+  abc123  (3 pages, 4128 bytes)  -> ./preview/abc123.pdf
+  ...
+preview: serving at http://neptune:4747
+```
+
+The server lists every doc at `/` and serves the raw PDF at `/<key>.pdf`.
+
+### `<app> doctor`
+
+Preflight checklist for an app's prerequisites. Reports one row per check:
+
+```
+[PASS] user key present
+[PASS] readwise connector token present
+[FAIL] device auth 'remarkable' present       — Scope::DeviceAuth name='remarkable' not in store
+[PASS] [app.reading-queue] config resolves
+[PASS] [page] config resolves
+[PASS] [device] config resolves
+[PASS] readwise connector refresh
+[PASS] render probe — first content doc 'abc123' → 3 pages, 4128 bytes
+```
+
+Exit code is `0` if every check passed, `1` if any failed. Built on
+`inkapp::doctor::Checklist`, which each app composes with its own connector
+list — see `apps/reading-queue/src/main.rs::run_doctor` for the worked example.
+
+---
+
 ## Open questions parking lot
 
 - Key management & tenant isolation once multi-user / cloud.
