@@ -37,7 +37,7 @@
     {
       "id": 6,
       "subject": "Task 6: Reconcile docs/appdx.md",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** Mark publish/sync_once/serve as built; describe serve as the loop the device round-trip rides on.\n\n**Files:** `docs/appdx.md`\n\n**Verify:** `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\":[\"docs/appdx.md\"],\"verifyCommand\":\"nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"serve documented\",\"built markers updated\"]}\n```"
     }
