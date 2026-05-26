@@ -9,8 +9,8 @@
     {"id": 6, "subject": "Task 5: doctor config_resolves + connector_refresh", "status": "completed", "blockedBy": [5]},
     {"id": 7, "subject": "Task 6: doctor render_probe + end-to-end test", "status": "completed", "blockedBy": [6]},
     {"id": 8, "subject": "Task 7: Wire Preview + Doctor into reading-queue", "status": "completed", "blockedBy": [4, 7]},
-    {"id": 9, "subject": "Task 8: Wire Preview + Doctor into agenda", "status": "pending", "blockedBy": [8]},
-    {"id": 10, "subject": "Task 9: Document in appdx + final workspace check", "status": "pending", "blockedBy": [9]}
+    {"id": 9, "subject": "Task 8: Wire Preview + Doctor into agenda", "status": "completed", "blockedBy": [8]},
+    {"id": 10, "subject": "Task 9: Document in appdx + final workspace check", "status": "completed", "blockedBy": [9]}
   ],
   "lastUpdated": "2026-05-25"
 }
