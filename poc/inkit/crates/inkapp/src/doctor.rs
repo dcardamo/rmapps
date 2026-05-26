@@ -106,6 +106,56 @@ impl Checklist {
         self
     }
 
+    /// Add a check that builds the app via `build()`, renders the full document
+    /// set, and reports the first non-`_banner` doc's page count and byte size.
+    ///
+    /// `build` may be an `async` closure — it is called inside a dedicated
+    /// single-threaded tokio runtime running in a `spawn_blocking` thread.  This
+    /// sidesteps the `!Send` bound on `App::render` (which holds `dyn Component`
+    /// trait objects) while keeping `Checklist` itself `Send`.
+    ///
+    /// Any error returned by `build` or by the render is reported as a Fail
+    /// outcome, so missing secrets / config / connector errors surface cleanly.
+    pub fn render_probe<F, Fut, M, Msg, Cx>(mut self, build: F) -> Self
+    where
+        F: FnOnce() -> Fut + Send + 'static,
+        Fut: std::future::Future<
+                Output = inkapp_core::error::Result<inkapp_core::runtime::App<M, Msg, Cx>>,
+            > + 'static,
+        M: 'static,
+        Msg: 'static,
+        Cx: inkapp_core::connector::ConnectorSet + 'static,
+    {
+        // Wrap `build` in an `Option` so the `FnOnce` can be stored behind `Mutex`
+        // and taken exactly once when `Check::run` fires.
+        let build_opt: std::sync::Mutex<Option<F>> = std::sync::Mutex::new(Some(build));
+        let thunk: RenderThunk = Box::new(move || {
+            // Take the FnOnce out of the inner mutex.
+            let f = build_opt
+                .lock()
+                .unwrap()
+                .take()
+                .expect("builder taken twice");
+            // Run the !Send futures in a fresh single-threaded tokio runtime
+            // spawned via spawn_blocking, so we don't block the multi-thread executor.
+            tokio::task::spawn_blocking(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("probe runtime")
+                    .block_on(async move {
+                        let mut application = f().await?;
+                        let mut set = inkapp_core::runtime::DocSet::default();
+                        application.render(&mut set).await
+                    })
+            })
+        });
+        self.checks.push(Box::new(RenderProbe {
+            build: std::sync::Mutex::new(Some(thunk)),
+        }));
+        self
+    }
+
     /// Run every check, returning the outcomes. Used by tests.
     pub async fn collect(self) -> Vec<Outcome> {
         let mut out = Vec::with_capacity(self.checks.len());
@@ -244,13 +294,95 @@ impl Check for ConnectorCheck {
     }
 }
 
+// --- RenderProbe ---
+
+/// A thunk that, when called, spawns a single-threaded runtime in a blocking
+/// thread and runs the app render there (sidesteps the `!Send` component
+/// objects inside `App`). Returns a `JoinHandle` that resolves to the doc list.
+type RenderThunk = Box<
+    dyn FnOnce() -> tokio::task::JoinHandle<
+            inkapp_core::error::Result<Vec<inkapp_core::runtime::RenderedDoc>>,
+        > + Send,
+>;
+
+struct RenderProbe {
+    build: std::sync::Mutex<Option<RenderThunk>>,
+}
+
+#[async_trait]
+impl Check for RenderProbe {
+    async fn run(&self) -> Outcome {
+        let label = "render probe".to_string();
+        let thunk = self.build.lock().unwrap().take();
+        let Some(t) = thunk else {
+            return Outcome {
+                name: label,
+                status: Status::Fail,
+                detail: "probe already consumed".into(),
+            };
+        };
+        let join_result = t().await;
+        let result = match join_result {
+            Ok(r) => r,
+            Err(e) => {
+                return Outcome {
+                    name: label,
+                    status: Status::Fail,
+                    detail: format!("probe task panicked: {e}"),
+                };
+            }
+        };
+        match result {
+            Ok(docs) => {
+                let probe = docs.iter().find(|d| d.key.0 != "_banner");
+                match probe {
+                    Some(d) => Outcome {
+                        name: label,
+                        status: Status::Pass,
+                        detail: format!(
+                            "first content doc '{}' → {} pages, {} bytes",
+                            d.key.0,
+                            d.page_count,
+                            d.pdf.len()
+                        ),
+                    },
+                    None => Outcome {
+                        name: label,
+                        status: Status::Fail,
+                        detail: "no content docs to render".into(),
+                    },
+                }
+            }
+            Err(e) => Outcome {
+                name: label,
+                status: Status::Fail,
+                detail: e.to_string(),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use inkapp_config::store::ConfigStore;
+    use inkapp_core::crypto::Key;
+    use inkapp_core::runtime::{app, App as Runtime};
     use inkapp_core::secrets::{Scope, SecretStore};
     use inkapp_readwise_reader::Readwise;
+    use reading_queue::{update, view, App as RqApp, Connectors};
     use std::sync::Arc;
+
+    fn build_cassette_app(
+    ) -> inkapp_core::error::Result<Runtime<RqApp, reading_queue::Msg, Connectors>> {
+        let connectors = Connectors::from_arc(Arc::new(Readwise::from_cassette()));
+        Ok(app(RqApp)
+            .connector(connectors)
+            .update(update)
+            .view(view)
+            .key(Key::from_bytes([7u8; 32]))
+            .build())
+    }
 
     #[tokio::test]
     async fn secrets_empty_store_fails_each_check() {
@@ -354,5 +486,66 @@ mod tests {
             "{:?}",
             outcomes[0]
         );
+    }
+
+    #[tokio::test]
+    async fn render_probe_passes_on_cassette_app() {
+        let dir = tempfile::tempdir().unwrap();
+        let outcomes = Checklist::new(dir.path().join("s.json"))
+            .render_probe(|| async { build_cassette_app() })
+            .collect()
+            .await;
+        assert_eq!(outcomes.len(), 1);
+        assert!(
+            matches!(outcomes[0].status, Status::Pass),
+            "{:?}",
+            outcomes[0]
+        );
+        assert!(
+            outcomes[0].detail.contains("pages"),
+            "detail mentions pages: {:?}",
+            outcomes[0]
+        );
+        assert!(
+            outcomes[0].detail.contains("bytes"),
+            "detail mentions bytes: {:?}",
+            outcomes[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn doctor_populated_returns_zero_end_to_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let secrets_path = dir.path().join("secrets.json");
+        {
+            let mut s = SecretStore::open(&secrets_path).unwrap();
+            s.set(Scope::UserKey, "default", &[0u8; 32]).unwrap();
+            s.set(Scope::ConnectorCred, "readwise", b"tok").unwrap();
+            s.set(Scope::DeviceAuth, "remarkable", b"auth").unwrap();
+        }
+        let cfg = dir.path().join("config.toml");
+        // DeviceConfig and PageConfig have namespace = "framework", so they
+        // live at [device] / [page] directly (no instance sub-key).
+        std::fs::write(
+            &cfg,
+            "[app.reading-queue.default]\ndevice_folder = \"/RQ\"\n\
+             [page]\n\
+             [device]\nbackend = \"remarkable\"\n",
+        )
+        .unwrap();
+        let store = ConfigStore::open(&cfg).unwrap();
+        let rw: Arc<dyn inkapp_core::connector::Connector> = Arc::new(Readwise::from_cassette());
+        let code = Checklist::new(&secrets_path)
+            .user_key()
+            .secret(Scope::ConnectorCred, "readwise")
+            .secret(Scope::DeviceAuth, "remarkable")
+            .config_resolves::<reading_queue::AppConfig>(&store, "default", "app.reading-queue")
+            .config_resolves::<inkapp_core::geometry::PageConfig>(&store, "default", "page")
+            .config_resolves::<inkapp_core::geometry::DeviceConfig>(&store, "default", "device")
+            .connector_refresh("readwise", rw)
+            .render_probe(|| async { build_cassette_app() })
+            .run()
+            .await;
+        assert_eq!(code, 0);
     }
 }
