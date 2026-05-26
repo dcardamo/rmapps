@@ -7,5 +7,8 @@ result
 # this catches a repo-local one used for testing via $INKAPP_CONFIG_PATH).
 /config.toml
 
+# local `preview --out` output
+/preview/
+
 # brainstorming visual companion mockups
 .superpowers/
