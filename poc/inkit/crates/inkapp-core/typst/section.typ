@@ -6,9 +6,12 @@
 #let section-state = state("inkapp.section", "")
 
 #let section(id, body) = {
+  // Update the state BEFORE the pagebreak so the per-page header on the NEXT
+  // page can read the correct section id via `section-state.at(here())`. The
+  // header is placed at the top of the page before any body content, so
+  // updating after the break would leave the header one step behind.
+  section-state.update(id)
   // Force a fresh page (weak: no blank pages for the very first section).
   pagebreak(weak: true)
-  // Update the section state — observable from any later read on this & subsequent pages.
-  section-state.update(id)
   body
 }

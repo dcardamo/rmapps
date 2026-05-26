@@ -24,7 +24,7 @@
     {
       "id": 3,
       "subject": "Task 3: ActionBand<M> component + #action-band authored module",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** A reusable N-cell per-page action band reading the current 'inkapp.section' state, with per-cell Fn(section_id) -> M closures. Decodes pen strikes per cell.\n\n**Files:**\n- Create: crates/inkapp-core/typst/action_band.typ\n- Create: crates/inkapp-core/src/components/action_band.rs\n- Modify: crates/inkapp-core/src/components/mod.rs\n- Create: crates/inkapp-core/tests/action_band.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test action_band`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/action_band.typ\", \"crates/inkapp-core/src/components/action_band.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/action_band.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test action_band\", \"acceptanceCriteria\": [\"ActionBand::new(cells) constructor with closures\", \"render emits #action-band(...) call\", \"per-section per-page action-{label}-{id} regions\", \"pen strike on cell fires closure with section id\", \"highlighter does not fire actions\", \"empty ink fires nothing\"]}\n```"
     },
