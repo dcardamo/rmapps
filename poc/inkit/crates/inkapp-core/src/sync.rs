@@ -114,11 +114,28 @@ mod tests {
             .build()
     }
 
+    use std::collections::VecDeque;
+
     #[derive(Default)]
     struct FakeTransport {
         pushed: Mutex<Vec<(String, usize)>>,
-        pulled: Mutex<usize>,
+        canned_pulls: Mutex<VecDeque<HashMap<String, Vec<Vec<Stroke>>>>>,
+        pulls_done: Mutex<usize>,
+        deleted: Mutex<Vec<String>>,
     }
+
+    impl FakeTransport {
+        /// Seed the queue of pull responses (front = first call). Empty queue → next
+        /// `pull` returns an empty HashMap.
+        #[allow(dead_code)]
+        fn with_pulls(pulls: Vec<HashMap<String, Vec<Vec<Stroke>>>>) -> Self {
+            Self {
+                canned_pulls: Mutex::new(pulls.into_iter().collect()),
+                ..Self::default()
+            }
+        }
+    }
+
     #[async_trait::async_trait]
     impl DeviceTransport for FakeTransport {
         async fn push(&self, key: &str, pdf: &[u8]) -> Result<()> {
@@ -128,10 +145,16 @@ mod tests {
                 .push((key.to_string(), pdf.len()));
             Ok(())
         }
-        async fn delete(&self, _key: &str) {}
+        async fn delete(&self, key: &str) {
+            self.deleted.lock().unwrap().push(key.to_string());
+        }
         async fn pull(&self, _p: &HashMap<String, f64>) -> HashMap<String, Vec<Vec<Stroke>>> {
-            *self.pulled.lock().unwrap() += 1;
-            HashMap::new()
+            *self.pulls_done.lock().unwrap() += 1;
+            self.canned_pulls
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or_default()
         }
     }
 
@@ -153,7 +176,7 @@ mod tests {
         let mut set = DocSet::default();
         let t = FakeTransport::default();
         let cycle = sync_once(&mut application, &mut set, &t).await.unwrap();
-        assert_eq!(*t.pulled.lock().unwrap(), 1);
+        assert_eq!(*t.pulls_done.lock().unwrap(), 1);
         assert!(cycle.ops.is_empty(), "no device ops without ink");
         assert!(cycle.decoded.is_empty());
     }
