@@ -1,9 +1,10 @@
-//! Assemble and run the reading-queue app from configuration. A `config`
-//! subcommand exposes the config CLI; otherwise the selected instance is wired
-//! from `config.toml` (+ `secrets.json`), its initial document set is rendered,
-//! and the documents are deployed to the device resolved from `[device]`.
+//! Assemble and run the reading-queue app from configuration. Subcommands:
+//! `config` (config CLI), `sync` (one-shot sync_once), `run` (publish + serve
+//! loop). With no subcommand, performs a one-shot publish (today's behaviour).
 
-use clap::Parser;
+use std::time::Duration;
+
+use clap::{Parser, Subcommand};
 use inkapp::{app, cli, ConfigStore, DeviceConfig, SecretStore};
 use inkapp_config::store::select_instance;
 use reading_queue::{update, view, App, AppConfig, Connectors};
@@ -15,7 +16,22 @@ struct Cli {
     #[arg(long, global = true)]
     instance: Option<String>,
     #[command(subcommand)]
-    config: Option<cli::ConfigCmd>,
+    cmd: Option<Cmd>,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Configuration management (instances, secrets, connectors).
+    #[command(subcommand)]
+    Config(cli::ConfigCmd),
+    /// Publish the document set, then loop sync_once forever (Ctrl-C exits).
+    Run {
+        /// Override the configured `sync_interval_secs` for this run.
+        #[arg(long)]
+        interval: Option<u64>,
+    },
+    /// One-shot pull + fold + push.
+    Sync,
 }
 
 #[tokio::main]
@@ -24,7 +40,7 @@ async fn main() {
     let cfg_path = ConfigStore::default_path().expect("config path");
 
     // `config` subcommand: run the config CLI and exit before any wiring.
-    if let Some(cmd) = args.config {
+    if let Some(Cmd::Config(cmd)) = args.cmd {
         let code = cli::run(cmd, cfg_path).expect("config command");
         std::process::exit(code);
     }
@@ -39,7 +55,6 @@ async fn main() {
     let mut secrets = SecretStore::open_default().expect("open secrets");
     let key = secrets.user_key().expect("user key");
 
-    // Persistent cache dir so warm-restart/offline reads survive across runs.
     let cache_dir = std::env::var_os("XDG_CACHE_HOME")
         .map(std::path::PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".cache")))
@@ -59,15 +74,47 @@ async fn main() {
         .page(page.into())
         .build();
 
-    // Resolve the device transport from `[device]` + the app's folder, then
-    // deploy the rendered document set to the device.
     let transport = inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone())
         .expect("resolve device transport");
-    inkapp::publish(&mut application, transport.as_ref())
-        .await
-        .expect("publish to device");
-    println!(
-        "reading-queue[{instance}]: published to {} ({})",
-        app_cfg.device_folder, device.backend
-    );
+
+    match args.cmd {
+        Some(Cmd::Config(_)) => unreachable!("handled above"),
+        Some(Cmd::Sync) => {
+            let cycle = inkapp::sync_once(&mut application, transport.as_ref())
+                .await
+                .expect("sync_once");
+            println!(
+                "reading-queue[{instance}]: synced {} msg(s), {} op(s)",
+                cycle.decoded.len(),
+                cycle.ops.len()
+            );
+        }
+        Some(Cmd::Run { interval }) => {
+            let secs = interval.unwrap_or(device.sync_interval_secs);
+            println!(
+                "reading-queue[{instance}]: serving every {secs}s on {} ({})",
+                app_cfg.device_folder, device.backend
+            );
+            let shutdown = async {
+                let _ = tokio::signal::ctrl_c().await;
+            };
+            inkapp::serve(
+                &mut application,
+                transport.as_ref(),
+                Duration::from_secs(secs),
+                shutdown,
+            )
+            .await
+            .expect("serve loop");
+        }
+        None => {
+            inkapp::publish(&mut application, transport.as_ref())
+                .await
+                .expect("publish to device");
+            println!(
+                "reading-queue[{instance}]: published to {} ({})",
+                app_cfg.device_folder, device.backend
+            );
+        }
+    }
 }

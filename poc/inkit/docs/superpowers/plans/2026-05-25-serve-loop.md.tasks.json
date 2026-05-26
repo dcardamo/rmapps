@@ -1,0 +1,46 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-25-serve-loop.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Add sync_interval_secs to DeviceConfig",
+      "status": "completed",
+      "description": "**Goal:** Add `pub sync_interval_secs: u64` (default 30) to `DeviceConfig`.\n\n**Files:**\n- Modify: `crates/inkapp-core/src/geometry.rs:114-121`\n\n**Verify:** `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/geometry.rs\"],\"verifyCommand\":\"nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"DeviceConfig.sync_interval_secs default 30\",\"workspace tests green\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Extend FakeTransport with scripted pulls and delete log",
+      "status": "completed",
+      "description": "**Goal:** `FakeTransport` gains a `VecDeque` of canned pull responses, a `deleted` Vec, and renames `pulled` → `pulls_done`. Existing tests stay green.\n\n**Files:** `crates/inkapp-core/src/sync.rs`\n\n**Verify:** `nix develop -c cargo test -p inkapp-core sync::tests`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/sync.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core sync::tests\",\"acceptanceCriteria\":[\"scripted pulls\",\"delete log\",\"existing tests green\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Add serve loop + 3 TDD tests",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Add `serve(app, set, transport, interval, shutdown)` in `inkapp_core::sync` and three tests: publish-before-pull, archive-on-ink, two-cycle-decode-then-quiet.\n\n**Files:** `crates/inkapp-core/src/sync.rs`\n\n**Verify:** `nix develop -c cargo test -p inkapp-core sync::tests`\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/sync.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp-core sync::tests\",\"acceptanceCriteria\":[\"serve defined\",\"publish-before-pull test\",\"archive-on-ink test\",\"two-cycle test\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Re-export serve from inkapp facade",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "**Goal:** Add `inkapp::serve` wrapper in `deploy.rs` and re-export from `lib.rs` (single-line edit).\n\n**Files:** `crates/inkapp/src/deploy.rs`, `crates/inkapp/src/lib.rs:24`\n\n**Verify:** `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\":[\"crates/inkapp/src/deploy.rs\",\"crates/inkapp/src/lib.rs\"],\"verifyCommand\":\"nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"inkapp::serve exported\",\"single-line re-export\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Wire run/sync subcommands into reading-queue",
+      "status": "completed",
+      "blockedBy": [1, 4],
+      "description": "**Goal:** Promote `Cli::config` to a `Cmd` enum with `Config`, `Run { interval }`, `Sync`. Default preserves publish-once.\n\n**Files:** `apps/reading-queue/src/main.rs`\n\n**Verify:** `nix develop -c cargo build -p reading-queue`\n\n```json:metadata\n{\"files\":[\"apps/reading-queue/src/main.rs\"],\"verifyCommand\":\"nix develop -c cargo build -p reading-queue\",\"acceptanceCriteria\":[\"default publish-once\",\"sync subcommand\",\"run subcommand\",\"ctrl-c wired\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Reconcile docs/appdx.md",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** Mark publish/sync_once/serve as built; describe serve as the loop the device round-trip rides on.\n\n**Files:** `docs/appdx.md`\n\n**Verify:** `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\":[\"docs/appdx.md\"],\"verifyCommand\":\"nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"serve documented\",\"built markers updated\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-25"
+}
