@@ -1,5 +1,6 @@
 //! Assemble and run the agenda app from configuration. Supports
-//! `config`, `preview`, and `doctor` subcommands as framework facades.
+//! `config`, `op` (pair / secret), `preview`, and `doctor` subcommands as
+//! framework facades. No subcommand: publish to device.
 
 use agenda::{update, view, App, AppConfig, Connectors};
 use clap::{Parser, Subcommand};
@@ -21,8 +22,11 @@ enum Cmd {
     /// Manage configuration.
     #[command(subcommand)]
     Config(cli::ConfigCmd),
+    /// Operator setup: pair the reMarkable, manage secrets.
+    #[command(subcommand)]
+    Op(cli::OpCmd),
     /// Render the document set locally for browser preview.
-    Preview(inkapp::cli::PreviewArgs),
+    Preview(cli::PreviewArgs),
     /// Run preflight checks (secrets, config, connectors, render).
     Doctor,
 }
@@ -39,13 +43,17 @@ async fn main() {
             let code = cli::run(c, cfg_path).expect("config command");
             std::process::exit(code);
         }
+        Some(Cmd::Op(op)) => {
+            let code = cli::run_op(op, secrets_path).await.expect("op command");
+            std::process::exit(code);
+        }
         Some(Cmd::Doctor) => {
             let code = run_doctor(&cfg_path, &secrets_path, &instance).await;
             std::process::exit(code);
         }
-        Some(Cmd::Preview(args)) => {
+        Some(Cmd::Preview(p_args)) => {
             let mut application = build_app(&cfg_path, &instance);
-            let code = inkapp::preview::run(&mut application, args)
+            let code = inkapp::preview::run(&mut application, p_args)
                 .await
                 .expect("preview run");
             std::process::exit(code);
@@ -55,9 +63,10 @@ async fn main() {
             let store = ConfigStore::open(&cfg_path).expect("open config");
             let device: DeviceConfig = store.resolve(&instance).expect("resolve device config");
             let app_cfg: AppConfig = store.resolve(&instance).expect("resolve app config");
+            let secrets = SecretStore::open_default().expect("open secrets");
             let mut application = build_app(&cfg_path, &instance);
             let transport =
-                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone())
+                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone(), &secrets)
                     .expect("resolve device transport");
             inkapp::publish(&mut application, transport.as_ref())
                 .await

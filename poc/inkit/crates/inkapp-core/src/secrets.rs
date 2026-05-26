@@ -78,6 +78,7 @@ impl SecretStore {
         Self::open(Self::default_path()?)
     }
 
+    /// Public so binaries can locate the same file the store opens by default.
     pub fn default_path() -> Result<PathBuf> {
         if let Ok(p) = std::env::var("INKAPP_SECRETS_PATH") {
             return Ok(PathBuf::from(p));
@@ -103,6 +104,11 @@ impl SecretStore {
                 .map(Some)
                 .map_err(|e| Error::Secrets(format!("corrupt base64 for '{name}': {e}"))),
         }
+    }
+
+    /// Names stored under `scope`. Values are NOT returned (operator listing).
+    pub fn names(&self, scope: Scope) -> Vec<String> {
+        self.data.section(scope).keys().cloned().collect()
     }
 
     /// Store a secret and persist the file.

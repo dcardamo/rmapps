@@ -10,9 +10,11 @@ inkapp-core = { path = "../inkapp-core" }
 rm-files = { path = "../rm-files" }
 rm-cloud = { path = "../rm-cloud" }
 async-trait = "0.1"
+reqwest = { version = "0.12", features = ["json"] }
 
 [dev-dependencies]
 # The fake feature provides an in-process cloud to test CloudTransport against.
 rm-cloud = { path = "../rm-cloud", features = ["fake"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
 zip = "2"

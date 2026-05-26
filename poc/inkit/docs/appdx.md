@@ -858,8 +858,8 @@ each wrapping a `DeviceTransport`, cover the full deployment lifecycle:
 The device backend plus target folder come from **`config.toml`** (see "Secrets &
 config"): the framework `[device].backend` section and the app instance's
 `device_folder` key. The app resolves them and asks the `inkapp` facade to build a
-transport — `resolve_transport(backend, folder)` — which it passes to any of the
-three primitives. The generic engine (`inkapp-core::sync`) drives any
+transport — `resolve_transport(backend, folder, &secrets)` — which it passes to any
+of the three primitives. The generic engine (`inkapp-core::sync`) drives any
 `DeviceTransport`; the reMarkable backend (`rm-device::CloudTransport`, backed
 natively by the pure-Rust `rm-cloud` client — no `rmapi` CLI) is today's only
 implementation. Adding a device family is a new `*-device` crate plus one `match`
@@ -920,6 +920,21 @@ Preflight checklist for an app's prerequisites. Reports one row per check:
 Exit code is `0` if every check passed, `1` if any failed. Built on
 `inkapp::doctor::Checklist`, which each app composes with its own connector
 list — see `apps/reading-queue/src/main.rs::run_doctor` for the worked example.
+
+### Fresh machine setup
+
+Once per machine, pair the device and store any connector secrets:
+
+```sh
+app pair ABCD1234                                    # 8-char code from
+                                                     # my.remarkable.com/device/desktop/connect
+app secret set connector readwise-reader <token>     # for the readwise reader
+```
+
+The device token is persisted to `~/.config/inkapp/secrets.json` (mode `0600`)
+under `Scope::DeviceAuth / "remarkable"`. `RM_CLOUD_DEVICE_TOKEN` and
+`RM_CLOUD_USER_TOKEN` env vars remain supported as a fallback for CI or one-shot
+use. *(Built — `rm-device::auth::pair` + `inkapp::cli::OpCmd`.)*
 
 ---
 

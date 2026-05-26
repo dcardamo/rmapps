@@ -1,0 +1,54 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-25-device-pairing.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 0: rm-device::auth — credential resolution",
+      "status": "completed",
+      "description": "Pure, env-injectable credential resolver in rm-device with a public wrapper.\n\n```json:metadata\n{\"files\":[\"crates/rm-device/src/auth.rs\",\"crates/rm-device/src/lib.rs\",\"crates/rm-device/tests/credentials.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-device --test credentials -- resolve_\",\"acceptanceCriteria\":[\"REMARKABLE_DEVICE_AUTH_NAME == remarkable\",\"resolve_with store-wins/env-fallback/user-only/missing-both/empty-strings pass\",\"clippy clean\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 1: rm-device::auth::pair — FakeCloud integration test",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "Prove pairing end-to-end against FakeCloud.\n\n```json:metadata\n{\"files\":[\"crates/rm-device/tests/credentials.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-device --test credentials pair_\",\"acceptanceCriteria\":[\"pair stores device-token-for-ABCD1234\",\"survives reopen\",\"second pair overwrites\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 2: CloudTransport::from_secrets",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "Production ctor: resolves credentials (store-or-env), picks Client variant.\n\n```json:metadata\n{\"files\":[\"crates/rm-device/src/transport.rs\",\"crates/rm-device/tests/credentials.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-device --test credentials from_secrets_\",\"acceptanceCriteria\":[\"Ok with stored device token (no env)\",\"Err when both empty\",\"clippy clean\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 3: inkapp re-exports + resolve_transport(secrets) signature",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "Thread &SecretStore through resolve_transport; surface pair/resolve_credentials/REMARKABLE_DEVICE_AUTH_NAME.\n\n```json:metadata\n{\"files\":[\"crates/inkapp/src/lib.rs\",\"crates/inkapp/src/deploy.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp --lib\",\"acceptanceCriteria\":[\"resolve_transport routes via from_secrets\",\"re-exports present\",\"existing test passes\",\"clippy clean\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 4: inkapp::cli — OpCmd, SecretCmd, run",
+      "status": "completed",
+      "blockedBy": [4],
+      "description": "Operator CLI in inkapp facade: pair <code>, secret set|list. Adds SecretStore::names(scope).\n\n```json:metadata\n{\"files\":[\"crates/inkapp/src/cli.rs\",\"crates/inkapp/src/lib.rs\",\"crates/inkapp/Cargo.toml\",\"crates/inkapp/tests/cli.rs\",\"crates/inkapp-core/src/secrets.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p inkapp --test cli\",\"acceptanceCriteria\":[\"OpCmd Pair/Secret parse\",\"secret set round-trips to disk\",\"secret list exits 0, no values printed\",\"clippy clean\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 5: App mains — top-level Command enum (one Op arm)",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "Restructure both apps to top-level Command enum with Config + Op arms; thread &secrets into resolve_transport. Make SecretStore::default_path pub.\n\n```json:metadata\n{\"files\":[\"apps/reading-queue/src/main.rs\",\"apps/agenda/src/main.rs\",\"crates/inkapp-core/src/secrets.rs\"],\"verifyCommand\":\"nix develop -c cargo build -p reading-queue -p agenda && nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"both apps build\",\"--help shows config and op subcommands\",\"no-subcommand publish preserved\",\"clippy --workspace clean\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 6: docs/appdx.md — record native device pairing",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "Document new fresh-machine flow; note env-var fallback; mark item built.\n\n```json:metadata\n{\"files\":[\"docs/appdx.md\"],\"verifyCommand\":\"nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"fresh-machine subsection added\",\"env-var fallback noted\",\"item marked done\",\"workspace tests + fmt-check + clippy all green\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-25T12:00:00Z"
+}

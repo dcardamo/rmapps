@@ -10,18 +10,24 @@ use std::time::Duration;
 use inkapp_core::connector::ConnectorSet;
 use inkapp_core::error::{Error, Result};
 use inkapp_core::runtime::{App, Cycle, DocSet};
+use inkapp_core::secrets::SecretStore;
 use inkapp_core::sync::{self, DeviceTransport};
 
 use rm_device::CloudTransport;
 
-/// Resolve a backend identifier + device folder into a concrete transport. The
-/// single place backends are named; a new device family adds one arm and one
-/// `*-device` crate. Errors on an unknown backend.
-pub fn resolve_transport(backend: &str, folder: String) -> Result<Box<dyn DeviceTransport>> {
+/// Resolve a backend identifier + device folder + secret store into a concrete
+/// transport. The single place backends are named; a new device family adds
+/// one arm and one `*-device` crate. Errors on an unknown backend.
+///
+/// The reMarkable transport prefers a stored device token (paired via
+/// [`crate::pair`]); it falls back to `RM_CLOUD_*` env vars for CI / one-shot use.
+pub fn resolve_transport(
+    backend: &str,
+    folder: String,
+    secrets: &SecretStore,
+) -> Result<Box<dyn DeviceTransport>> {
     match backend {
-        // The reMarkable transport talks to the cloud natively via `rm-cloud`
-        // (credentials from `RM_CLOUD_DEVICE_TOKEN` / `RM_CLOUD_USER_TOKEN`).
-        "remarkable" => Ok(Box::new(CloudTransport::from_env(folder)?)),
+        "remarkable" => Ok(Box::new(CloudTransport::from_secrets(secrets, folder)?)),
         other => Err(Error::Config(format!("unknown deploy backend {other:?}"))),
     }
 }
@@ -64,10 +70,18 @@ where
 mod tests {
     use super::*;
 
+    fn empty_store() -> (tempfile::TempDir, SecretStore) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SecretStore::open(dir.path().join("secrets.json")).unwrap();
+        (dir, store)
+    }
+
     #[test]
     fn resolve_routes_known_and_rejects_unknown_backends() {
-        // An unknown backend is rejected with a clear config error.
-        match resolve_transport("supernote", "/X".into()) {
+        let (_d, secrets) = empty_store();
+
+        // Unknown backend → clear config error.
+        match resolve_transport("supernote", "/X".into(), &secrets) {
             Err(e) => assert!(
                 e.to_string().contains("unknown deploy backend"),
                 "unexpected error: {e}"
@@ -75,14 +89,15 @@ mod tests {
             Ok(_) => panic!("an unknown backend must not resolve"),
         }
 
-        // The known "remarkable" backend routes to the cloud transport. We assert
-        // routing (not a live connection): resolving may still fail downstream if
-        // no cloud credentials are present, but it must NOT be the unknown-backend
-        // error above.
-        if let Err(e) = resolve_transport("remarkable", "/X".into()) {
+        // Known "remarkable": with no credentials in store OR env, this MUST fail —
+        // but with a credential error, NOT the unknown-backend error.
+        // SAFETY: single-threaded test; env vars cleared.
+        std::env::remove_var("RM_CLOUD_DEVICE_TOKEN");
+        std::env::remove_var("RM_CLOUD_USER_TOKEN");
+        if let Err(e) = resolve_transport("remarkable", "/X".into(), &secrets) {
             assert!(
                 !e.to_string().contains("unknown deploy backend"),
-                "remarkable should be a known backend"
+                "remarkable should be a known backend, got: {e}"
             );
         }
     }

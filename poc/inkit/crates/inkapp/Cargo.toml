@@ -9,6 +9,7 @@ description = "inkapp facade: the app-authoring surface (core + default device)"
 inkapp-core = { path = "../inkapp-core" }
 inkapp-config = { path = "../inkapp-config", features = ["cli"] }
 rm-device = { path = "../rm-device" }
+rm-cloud = { path = "../rm-cloud" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 async-trait = "0.1"

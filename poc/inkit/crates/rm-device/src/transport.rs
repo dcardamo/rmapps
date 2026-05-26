@@ -68,6 +68,27 @@ impl CloudTransport {
         Ok(Self::with_client(client, folder))
     }
 
+    /// A transport with credentials resolved from `SecretStore` (preferred) or
+    /// `RM_CLOUD_*` env (fallback). The endpoint config comes from
+    /// `Config::from_env()` like [`from_env`]; tests that need a fake host can
+    /// still set `RM_CLOUD_HOST`, or construct via [`with_client`] directly.
+    pub fn from_secrets(
+        secrets: &inkapp_core::secrets::SecretStore,
+        folder: impl Into<String>,
+    ) -> Result<Self> {
+        use rm_cloud::{Client, Config};
+        let creds = crate::auth::resolve_credentials(secrets)
+            .map_err(|e| Error::Transport(format!("rm-cloud: {e}")))?;
+        let config = Config::from_env();
+        let client = match (creds.device_token, creds.user_token) {
+            (Some(d), _) => Client::from_device_token(config, d),
+            (None, Some(u)) => Client::from_user_token(config, u),
+            // resolve_credentials returns MissingCredential before reaching here.
+            (None, None) => unreachable!("resolve_credentials guarantees at least one token"),
+        };
+        Ok(Self::with_client(client, folder))
+    }
+
     /// A transport over an explicit client (tests pass a fake-cloud client).
     pub fn with_client(client: Client, folder: impl Into<String>) -> Self {
         Self {

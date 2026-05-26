@@ -30,6 +30,7 @@ pub use inkapp_core::geometry::DeviceConfig;
 pub use inkapp_core::sync::DeviceTransport;
 
 pub use rm_device::Remarkable;
+pub use rm_device::{pair, resolve_credentials, CloudTransport, REMARKABLE_DEVICE_AUTH_NAME};
 
 pub use inkapp_config::store::{select_instance, ConfigStore};
 pub use inkapp_config::{Config, ConfigError, ConnectorRef, Namespace, SecretRef};

@@ -36,8 +36,9 @@ fn build_app() -> Framework<App, Msg, Connectors> {
 #[ignore = "manual: requires reMarkable cloud creds (RM_CLOUD_*)"]
 async fn publish_to_device() {
     let mut application = build_app();
-    let transport =
-        inkapp::resolve_transport("remarkable", "/ReadingQueue".into()).expect("build transport");
+    let secrets = SecretStore::open_default().expect("open secrets store");
+    let transport = inkapp::resolve_transport("remarkable", "/ReadingQueue".into(), &secrets)
+        .expect("build transport");
     inkapp::publish(&mut application, transport.as_ref())
         .await
         .expect("publish");
@@ -52,8 +53,9 @@ async fn publish_to_device() {
 #[ignore = "manual: requires reMarkable cloud creds (RM_CLOUD_*); run after inking + syncing"]
 async fn sync_from_device() {
     let mut application = build_app();
-    let transport =
-        inkapp::resolve_transport("remarkable", "/ReadingQueue".into()).expect("build transport");
+    let secrets = SecretStore::open_default().expect("open secrets store");
+    let transport = inkapp::resolve_transport("remarkable", "/ReadingQueue".into(), &secrets)
+        .expect("build transport");
     inkapp::sync_once(&mut application, transport.as_ref())
         .await
         .expect("sync");

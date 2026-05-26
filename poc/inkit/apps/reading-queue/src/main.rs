@@ -1,14 +1,16 @@
-//! Assemble and run the reading-queue app from configuration. Subcommands:
-//! `config`, `preview`, `doctor`, `sync` (one-shot sync_once), `run` (publish +
-//! serve loop). With no subcommand, performs a one-shot publish.
+//! Assemble and run the reading-queue app from configuration.
+//!
+//! Subcommands: `config`, `op` (pair / secret), `preview`, `doctor`, `sync`
+//! (one-shot sync_once), `run` (publish + serve loop). With no subcommand,
+//! performs a one-shot publish.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use inkapp::{app, cli, ConfigStore, DeviceConfig, SecretStore};
 use inkapp_config::store::select_instance;
 use reading_queue::{update, view, App, AppConfig, Connectors};
-use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "reading-queue")]
@@ -25,8 +27,11 @@ enum Cmd {
     /// Configuration management (instances, secrets, connectors).
     #[command(subcommand)]
     Config(cli::ConfigCmd),
+    /// Operator setup: pair the reMarkable, manage secrets.
+    #[command(subcommand)]
+    Op(cli::OpCmd),
     /// Render the document set locally for browser preview.
-    Preview(inkapp::cli::PreviewArgs),
+    Preview(cli::PreviewArgs),
     /// Run preflight checks (secrets, config, connectors, render).
     Doctor,
     /// Publish the document set, then loop sync_once forever (Ctrl-C exits).
@@ -51,6 +56,10 @@ async fn main() {
             let code = cli::run(c, cfg_path).expect("config command");
             std::process::exit(code);
         }
+        Some(Cmd::Op(op)) => {
+            let code = cli::run_op(op, secrets_path).await.expect("op command");
+            std::process::exit(code);
+        }
         Some(Cmd::Doctor) => {
             let code = run_doctor(&cfg_path, &secrets_path, &instance).await;
             std::process::exit(code);
@@ -66,9 +75,10 @@ async fn main() {
             let store = ConfigStore::open(&cfg_path).expect("open config");
             let device: DeviceConfig = store.resolve(&instance).expect("resolve device config");
             let app_cfg: AppConfig = store.resolve(&instance).expect("resolve app config");
+            let secrets = SecretStore::open_default().expect("open secrets");
             let mut application = build_app(&cfg_path, &instance).await;
             let transport =
-                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone())
+                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone(), &secrets)
                     .expect("resolve device transport");
             let cycle = inkapp::sync_once(&mut application, transport.as_ref())
                 .await
@@ -84,9 +94,10 @@ async fn main() {
             let device: DeviceConfig = store.resolve(&instance).expect("resolve device config");
             let app_cfg: AppConfig = store.resolve(&instance).expect("resolve app config");
             let secs = interval.unwrap_or(device.sync_interval_secs);
+            let secrets = SecretStore::open_default().expect("open secrets");
             let mut application = build_app(&cfg_path, &instance).await;
             let transport =
-                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone())
+                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone(), &secrets)
                     .expect("resolve device transport");
             println!(
                 "reading-queue[{instance}]: serving every {secs}s on {} ({})",
@@ -109,9 +120,10 @@ async fn main() {
             let store = ConfigStore::open(&cfg_path).expect("open config");
             let device: DeviceConfig = store.resolve(&instance).expect("resolve device config");
             let app_cfg: AppConfig = store.resolve(&instance).expect("resolve app config");
+            let secrets = SecretStore::open_default().expect("open secrets");
             let mut application = build_app(&cfg_path, &instance).await;
             let transport =
-                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone())
+                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone(), &secrets)
                     .expect("resolve device transport");
             inkapp::publish(&mut application, transport.as_ref())
                 .await

@@ -11,6 +11,9 @@ use inkapp_core::geometry::{DevicePoint, PdfPoint};
 use inkapp_core::ink::Stroke;
 use rm_files::{Pen, PenColor, Point, Scene, SceneItem};
 
+pub mod auth;
+pub use auth::{pair, resolve_credentials, resolve_with, REMARKABLE_DEVICE_AUTH_NAME};
+
 mod transport;
 pub use transport::{strokes_by_page, strokes_from_bundle, CloudTransport};
 

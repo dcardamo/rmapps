@@ -2438,6 +2438,7 @@ dependencies = [
  "inkapp-core",
  "inkapp-readwise-reader",
  "reading-queue",
+ "rm-cloud",
  "rm-device",
  "serde",
  "tempfile",
@@ -4294,8 +4295,10 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "inkapp-core",
+ "reqwest",
  "rm-cloud",
  "rm-files",
+ "tempfile",
  "tokio",
  "zip",
 ]
