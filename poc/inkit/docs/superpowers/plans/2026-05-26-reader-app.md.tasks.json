@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 0: Heading Display component",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** A reusable theme-aware Heading component (title + byline + reading-time + optional subtitle).\n\n**Files:**\n- Create: crates/inkapp-core/typst/heading.typ\n- Create: crates/inkapp-core/src/components/heading.rs\n- Modify: crates/inkapp-core/src/components/mod.rs\n- Create: crates/inkapp-core/tests/heading_component.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test heading_component`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/heading.typ\", \"crates/inkapp-core/src/components/heading.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/heading_component.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test heading_component\", \"acceptanceCriteria\": [\"Heading::new(title) renders title only\", \"all four chainable fields render\", \"theme-aware (cx.theme())\", \"decode returns empty\", \"compiles through compile_document_in\"]}\n```"
     },
     {
@@ -55,5 +55,5 @@
       "description": "**Goal:** Per project convention, mark Heading, Section, ActionBand, page_header, push_replace_ink, and apps/reader as built in docs/appdx.md.\n\n**Files:**\n- Modify: docs/appdx.md\n\n**Verify:** `grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md` produces hits for each term.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md\", \"acceptanceCriteria\": [\"appdx mentions all five framework primitives\", \"appdx mentions apps/reader\", \"prose style matches existing 'beyond the spine' paragraphs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-26T17:55:00Z"
+  "lastUpdated": "2026-05-26T19:30:00Z"
 }
