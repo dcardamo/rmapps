@@ -2,9 +2,13 @@
 //! docs/superpowers/specs/2026-05-25-local-preview-and-doctor-design.md.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use inkapp_config::store::ConfigStore;
+use inkapp_config::Config as ConfigTrait;
+use inkapp_core::connector::Connector;
 use inkapp_core::secrets::{Scope, SecretStore};
 
 /// Per-check result status.
@@ -68,6 +72,36 @@ impl Checklist {
             name,
             label,
             expect_len: None,
+        }));
+        self
+    }
+
+    /// Add a check that a typed config section resolves without error.
+    /// The resolution is done eagerly (at call time) and the outcome is stored
+    /// as a `StaticCheck` so it does not require `store` to outlive `self`.
+    pub fn config_resolves<T: ConfigTrait + 'static>(
+        mut self,
+        store: &ConfigStore,
+        instance: &str,
+        label: &str,
+    ) -> Self {
+        let res = store.resolve::<T>(instance);
+        self.checks.push(Box::new(StaticCheck {
+            label: format!("[{}] config resolves", label),
+            outcome_status: match &res {
+                Ok(_) => Status::Pass,
+                Err(_) => Status::Fail,
+            },
+            detail: res.err().map(|e| e.to_string()).unwrap_or_default(),
+        }));
+        self
+    }
+
+    /// Add a check that calls `connector.refresh()` and reports its result.
+    pub fn connector_refresh(mut self, label: &str, c: Arc<dyn Connector>) -> Self {
+        self.checks.push(Box::new(ConnectorCheck {
+            label: format!("{} connector refresh", label),
+            c,
         }));
         self
     }
@@ -167,10 +201,56 @@ impl Check for SecretCheck {
     }
 }
 
+/// A check whose outcome was computed eagerly at construction time (e.g. a
+/// config resolution that borrows a `ConfigStore` only at the call site).
+struct StaticCheck {
+    label: String,
+    outcome_status: Status,
+    detail: String,
+}
+
+#[async_trait]
+impl Check for StaticCheck {
+    async fn run(&self) -> Outcome {
+        Outcome {
+            name: self.label.clone(),
+            status: self.outcome_status.clone(),
+            detail: self.detail.clone(),
+        }
+    }
+}
+
+/// A check that calls `Connector::refresh` and maps the result to Pass/Fail.
+struct ConnectorCheck {
+    label: String,
+    c: Arc<dyn Connector>,
+}
+
+#[async_trait]
+impl Check for ConnectorCheck {
+    async fn run(&self) -> Outcome {
+        match self.c.refresh().await {
+            Ok(()) => Outcome {
+                name: self.label.clone(),
+                status: Status::Pass,
+                detail: String::new(),
+            },
+            Err(e) => Outcome {
+                name: self.label.clone(),
+                status: Status::Fail,
+                detail: e.to_string(),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use inkapp_config::store::ConfigStore;
     use inkapp_core::secrets::{Scope, SecretStore};
+    use inkapp_readwise_reader::Readwise;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn secrets_empty_store_fails_each_check() {
@@ -236,5 +316,43 @@ mod tests {
         }
         let code_ok = Checklist::new(&path).user_key().run().await;
         assert_eq!(code_ok, 0, "present user_key => exit 0");
+    }
+
+    #[tokio::test]
+    async fn config_resolves_passes_on_valid_section() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = dir.path().join("config.toml");
+        std::fs::write(
+            &cfg,
+            "[app.reading-queue.default]\ndevice_folder = \"/RQ\"\n",
+        )
+        .unwrap();
+        let store = ConfigStore::open(&cfg).unwrap();
+        let outcomes = Checklist::new(dir.path().join("s.json"))
+            .config_resolves::<reading_queue::AppConfig>(&store, "default", "app.reading-queue")
+            .collect()
+            .await;
+        assert_eq!(outcomes.len(), 1);
+        assert!(
+            matches!(outcomes[0].status, Status::Pass),
+            "{:?}",
+            outcomes[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn connector_refresh_passes_for_cassette() {
+        let dir = tempfile::tempdir().unwrap();
+        let rw: Arc<dyn inkapp_core::connector::Connector> = Arc::new(Readwise::from_cassette());
+        let outcomes = Checklist::new(dir.path().join("s.json"))
+            .connector_refresh("readwise", rw)
+            .collect()
+            .await;
+        assert_eq!(outcomes.len(), 1);
+        assert!(
+            matches!(outcomes[0].status, Status::Pass),
+            "{:?}",
+            outcomes[0]
+        );
     }
 }
