@@ -17,7 +17,7 @@
     {
       "id": 2,
       "subject": "Task 2: Document::page_header + render & decode wiring",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Document<M> carries an optional page_header component; the framework wires its render into #set page(header:) and calls its decode per cycle.\n\n**Files:**\n- Modify: crates/inkapp-core/src/document.rs\n- Modify: crates/inkapp-core/src/runtime.rs\n- Create: crates/inkapp-core/tests/page_header.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test page_header` and `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/document.rs\", \"crates/inkapp-core/src/runtime.rs\", \"crates/inkapp-core/tests/page_header.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test page_header\", \"acceptanceCriteria\": [\"Document::page_header(c) builder\", \"document_source_in emits #set page(header:)\", \"collect_typst_sources includes header sources\", \"App::step decodes header per cycle\", \"header regions appear on every page\"]}\n```"
     },
