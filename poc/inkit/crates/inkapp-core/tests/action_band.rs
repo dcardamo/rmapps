@@ -148,6 +148,75 @@ fn empty_ink_fires_nothing() {
     assert!(msgs.is_empty());
 }
 
+/// Three short non-highlighter strokes across the Archive cell, each spanning
+/// ~20% of the cell width on its own (below the 60% threshold), but with a
+/// total union of ~60%. The bbox-union classification fires; the old per-stroke
+/// `any(…)` approach would not.
+#[test]
+fn multi_stroke_scribble_fires_action() {
+    let (band, _log) = band_with_recorder();
+    let (doc, manifest, _) = compile_doc_with_band(band);
+    let header = doc.page_header.as_ref().unwrap();
+
+    let target = manifest
+        .regions
+        .iter()
+        .find(|r| r.name == "action-Archive-art-1")
+        .unwrap();
+
+    let w = target.rect.x1 - target.rect.x0;
+    let y_mid = (target.rect.y0 + target.rect.y1) / 2.0;
+
+    // Three strokes each covering ~22% of the cell width (< 60% threshold alone),
+    // placed consecutively so their union spans ~66% (> 60% threshold together).
+    // Using 22% per stroke avoids the floating-point boundary at exactly 60%.
+    let make_short_stroke = |frac_start: f64, frac_end: f64| -> Stroke {
+        Stroke {
+            points: (0..=5)
+                .map(|i| inkapp_core::geometry::PdfPoint {
+                    x: target.rect.x0 + w * (frac_start + (frac_end - frac_start) * (i as f64 / 5.0)),
+                    y: y_mid,
+                })
+                .collect(),
+            highlighter: false,
+        }
+    };
+
+    let region_ink = vec![RegionInk {
+        region: "action-Archive-art-1".into(),
+        strokes: vec![
+            make_short_stroke(0.0, 0.22),
+            make_short_stroke(0.22, 0.44),
+            make_short_stroke(0.44, 0.66),
+        ],
+    }];
+
+    let msgs = header.decode(&region_ink, &manifest);
+    assert_eq!(
+        msgs,
+        vec![TestMsg::Archive("art-1".into())],
+        "three short strokes spanning 60% total must fire the action via bbox union"
+    );
+}
+
+#[test]
+#[should_panic(expected = "must not contain '-'")]
+fn label_with_dash_panics_on_construction() {
+    ActionBand::new([(
+        "Move-Archive".to_string(),
+        Box::new(|_id: &str| ()) as Box<dyn Fn(&str) -> () + Send + Sync>,
+    )]);
+}
+
+#[test]
+#[should_panic(expected = "must not be empty")]
+fn empty_label_panics_on_construction() {
+    ActionBand::new([(
+        "".to_string(),
+        Box::new(|_id: &str| ()) as Box<dyn Fn(&str) -> () + Send + Sync>,
+    )]);
+}
+
 #[cfg(test)]
 #[allow(dead_code)]
 fn _debug_minimal_typst() {
