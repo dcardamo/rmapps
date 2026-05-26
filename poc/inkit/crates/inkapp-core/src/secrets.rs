@@ -78,7 +78,7 @@ impl SecretStore {
         Self::open(Self::default_path()?)
     }
 
-    fn default_path() -> Result<PathBuf> {
+    pub fn default_path() -> Result<PathBuf> {
         if let Ok(p) = std::env::var("INKAPP_SECRETS_PATH") {
             return Ok(PathBuf::from(p));
         }
