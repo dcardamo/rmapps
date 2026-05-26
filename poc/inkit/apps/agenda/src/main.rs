@@ -113,8 +113,7 @@ async fn run_doctor(
 
     // ICS and localcal connectors carry no credentials — skip secret() checks for both.
     // Build them if config allows; otherwise skip connector_refresh gracefully.
-    let connectors_opt: Option<Connectors> =
-        Connectors::from_config(&store, &app_cfg).ok();
+    let connectors_opt: Option<Connectors> = Connectors::from_config(&store, &app_cfg).ok();
 
     let secrets = SecretStore::open(secrets_path).expect("open secrets");
     let instance_owned = instance.to_string();

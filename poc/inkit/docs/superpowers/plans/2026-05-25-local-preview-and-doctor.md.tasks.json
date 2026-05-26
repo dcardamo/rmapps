@@ -1,14 +1,14 @@
 {
   "planPath": "docs/superpowers/plans/2026-05-25-local-preview-and-doctor.md",
   "tasks": [
-    {"id": 1, "subject": "Task 0: Add deps and module scaffolding", "status": "pending"},
-    {"id": 2, "subject": "Task 1: preview::render_to_dir + RenderedEntry", "status": "pending", "blockedBy": [1]},
-    {"id": 3, "subject": "Task 2: preview::make_router", "status": "pending", "blockedBy": [2]},
-    {"id": 4, "subject": "Task 3: preview::run (serve + hostname URL)", "status": "pending", "blockedBy": [3]},
-    {"id": 5, "subject": "Task 4: doctor::Checklist + secret checks", "status": "pending", "blockedBy": [1]},
-    {"id": 6, "subject": "Task 5: doctor config_resolves + connector_refresh", "status": "pending", "blockedBy": [5]},
-    {"id": 7, "subject": "Task 6: doctor render_probe + end-to-end test", "status": "pending", "blockedBy": [6]},
-    {"id": 8, "subject": "Task 7: Wire Preview + Doctor into reading-queue", "status": "pending", "blockedBy": [4, 7]},
+    {"id": 1, "subject": "Task 0: Add deps and module scaffolding", "status": "completed"},
+    {"id": 2, "subject": "Task 1: preview::render_to_dir + RenderedEntry", "status": "completed", "blockedBy": [1]},
+    {"id": 3, "subject": "Task 2: preview::make_router", "status": "completed", "blockedBy": [2]},
+    {"id": 4, "subject": "Task 3: preview::run (serve + hostname URL)", "status": "completed", "blockedBy": [3]},
+    {"id": 5, "subject": "Task 4: doctor::Checklist + secret checks", "status": "completed", "blockedBy": [1]},
+    {"id": 6, "subject": "Task 5: doctor config_resolves + connector_refresh", "status": "completed", "blockedBy": [5]},
+    {"id": 7, "subject": "Task 6: doctor render_probe + end-to-end test", "status": "completed", "blockedBy": [6]},
+    {"id": 8, "subject": "Task 7: Wire Preview + Doctor into reading-queue", "status": "completed", "blockedBy": [4, 7]},
     {"id": 9, "subject": "Task 8: Wire Preview + Doctor into agenda", "status": "pending", "blockedBy": [8]},
     {"id": 10, "subject": "Task 9: Document in appdx + final workspace check", "status": "pending", "blockedBy": [9]}
   ],
