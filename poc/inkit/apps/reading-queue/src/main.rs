@@ -1,5 +1,8 @@
-//! Assemble and run the reading-queue app from configuration. Supports
-//! `config`, `preview`, and `doctor` subcommands as framework facades.
+//! Assemble and run the reading-queue app from configuration. Subcommands:
+//! `config`, `preview`, `doctor`, `sync` (one-shot sync_once), `run` (publish +
+//! serve loop). With no subcommand, performs a one-shot publish.
+
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use inkapp::{app, cli, ConfigStore, DeviceConfig, SecretStore};
@@ -19,13 +22,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Manage configuration.
+    /// Configuration management (instances, secrets, connectors).
     #[command(subcommand)]
     Config(cli::ConfigCmd),
     /// Render the document set locally for browser preview.
     Preview(inkapp::cli::PreviewArgs),
     /// Run preflight checks (secrets, config, connectors, render).
     Doctor,
+    /// Publish the document set, then loop sync_once forever (Ctrl-C exits).
+    Run {
+        /// Override the configured `sync_interval_secs` for this run.
+        #[arg(long)]
+        interval: Option<u64>,
+    },
+    /// One-shot pull + fold + push.
+    Sync,
 }
 
 #[tokio::main]
@@ -44,12 +55,54 @@ async fn main() {
             let code = run_doctor(&cfg_path, &secrets_path, &instance).await;
             std::process::exit(code);
         }
-        Some(Cmd::Preview(args)) => {
+        Some(Cmd::Preview(p_args)) => {
             let mut application = build_app(&cfg_path, &instance).await;
-            let code = inkapp::preview::run(&mut application, args)
+            let code = inkapp::preview::run(&mut application, p_args)
                 .await
                 .expect("preview run");
             std::process::exit(code);
+        }
+        Some(Cmd::Sync) => {
+            let store = ConfigStore::open(&cfg_path).expect("open config");
+            let device: DeviceConfig = store.resolve(&instance).expect("resolve device config");
+            let app_cfg: AppConfig = store.resolve(&instance).expect("resolve app config");
+            let mut application = build_app(&cfg_path, &instance).await;
+            let transport =
+                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone())
+                    .expect("resolve device transport");
+            let cycle = inkapp::sync_once(&mut application, transport.as_ref())
+                .await
+                .expect("sync_once");
+            println!(
+                "reading-queue[{instance}]: synced {} msg(s), {} op(s)",
+                cycle.decoded.len(),
+                cycle.ops.len()
+            );
+        }
+        Some(Cmd::Run { interval }) => {
+            let store = ConfigStore::open(&cfg_path).expect("open config");
+            let device: DeviceConfig = store.resolve(&instance).expect("resolve device config");
+            let app_cfg: AppConfig = store.resolve(&instance).expect("resolve app config");
+            let secs = interval.unwrap_or(device.sync_interval_secs);
+            let mut application = build_app(&cfg_path, &instance).await;
+            let transport =
+                inkapp::resolve_transport(&device.backend, app_cfg.device_folder.clone())
+                    .expect("resolve device transport");
+            println!(
+                "reading-queue[{instance}]: serving every {secs}s on {} ({})",
+                app_cfg.device_folder, device.backend
+            );
+            let shutdown = async {
+                let _ = tokio::signal::ctrl_c().await;
+            };
+            inkapp::serve(
+                &mut application,
+                transport.as_ref(),
+                Duration::from_secs(secs),
+                shutdown,
+            )
+            .await
+            .expect("serve loop");
         }
         None => {
             // Default behavior preserved: publish to device.

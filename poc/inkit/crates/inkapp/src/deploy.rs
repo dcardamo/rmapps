@@ -4,6 +4,9 @@
 //! the only place a concrete device backend is named, so `inkapp-config` never
 //! needs to depend on a `*-device` crate.
 
+use std::future::Future;
+use std::time::Duration;
+
 use inkapp_core::connector::ConnectorSet;
 use inkapp_core::error::{Error, Result};
 use inkapp_core::runtime::{App, Cycle, DocSet};
@@ -39,6 +42,22 @@ pub async fn sync_once<M, Msg: Clone, Cx: ConnectorSet>(
 ) -> Result<Cycle<Msg>> {
     let mut set = DocSet::default();
     sync::sync_once(app, &mut set, transport).await
+}
+
+/// Publish the document set, then loop: every `interval`, run one `sync_once`
+/// cycle (pull ink → fold → push/delete). Returns when `shutdown` resolves.
+/// Apps usually pass `tokio::signal::ctrl_c()` as the shutdown future.
+pub async fn serve<M, Msg, Cx: ConnectorSet>(
+    app: &mut App<M, Msg, Cx>,
+    transport: &dyn DeviceTransport,
+    interval: Duration,
+    shutdown: impl Future<Output = ()>,
+) -> Result<()>
+where
+    Msg: Clone + std::fmt::Debug,
+{
+    let mut set = DocSet::default();
+    sync::serve(app, &mut set, transport, interval, shutdown).await
 }
 
 #[cfg(test)]

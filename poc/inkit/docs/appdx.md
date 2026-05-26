@@ -8,9 +8,12 @@
 > feed + writable local-calendar connectors behind it), **Typst component
 > authoring** (a multi-file Typst world + a framework `#region` prelude, with
 > `Checkbox`'s render half authored in `checkbox.typ`), the **document- &
-> component-level state field** riding the sealed manifest, and now **multi-page
+> component-level state field** riding the sealed manifest, **multi-page
 > pagination** (one content flow → N-page, device-parametric render with
-> split-region recovery and per-page ink stitching) are all implemented and tested.
+> split-region recovery and per-page ink stitching), and the **serve loop**
+> (`publish` once then loop `sync_once` every interval — the full device
+> round-trip as one call, Ctrl-C shutdown, per-cycle logging) are all implemented
+> and tested.
 > What remains is only the explicitly-future material — simultaneous *(doc ×
 > device)* fan-out, event sourcing/CRDT, multi-user/cloud — not the spine. Open
 > questions are marked **(open)** inline.
@@ -840,19 +843,41 @@ management and tenant-isolation mechanics are undesigned.
 
 ## On-device deployment is framework-provided
 
-On-device deployment is no longer per-app code. An app deploys with two
-device-agnostic calls — `inkapp::publish(&mut app, transport)` and
-`inkapp::sync_once(&mut app, transport)`. The device backend plus target folder
-come from **`config.toml`** (see "Secrets & config"): the framework
-`[device].backend` section and the app instance's `device_folder` key. The app
-resolves them and asks the `inkapp` facade to build a transport —
-`resolve_transport(backend, folder)` — which it passes to `publish`/`sync_once`.
-The generic engine (`inkapp-core::sync`) drives any `DeviceTransport`; the
-reMarkable backend (`rm-device::CloudTransport`, backed natively by the pure-Rust
-`rm-cloud` client — no `rmapi` CLI) is today's only implementation. Adding a device
-family is a new `*-device` crate plus one `match` arm in `resolve_transport` — apps
-and the engine are untouched. The old per-app `serve.rs` (duplicated across
-reading-queue and agenda) is gone.
+*(Built — `publish`, `sync_once`, and `serve` are all live in `inkapp-core::sync` and
+re-exported from the `inkapp` facade.)*
+
+On-device deployment is no longer per-app code. Three device-agnostic primitives,
+each wrapping a `DeviceTransport`, cover the full deployment lifecycle:
+
+| Primitive                                         | What it does                                                                                |
+|---------------------------------------------------|---------------------------------------------------------------------------------------------|
+| `inkapp::publish(&mut app, transport)`            | Renders the full document set and pushes every document to the device. One-shot.            |
+| `inkapp::sync_once(&mut app, transport)`          | Pulls device ink, folds one cycle (decode → update → re-render → reconcile), then pushes/deletes. One-shot. |
+| `inkapp::serve(&mut app, transport, interval, shutdown)` | The loop the device round-trip rides on. Calls `publish` once, then every `interval` runs one `sync_once` cycle. Returns when `shutdown` resolves. Each cycle logs `decoded=K ops=push:P delete:D` plus indented message and op detail when non-empty. |
+
+The device backend plus target folder come from **`config.toml`** (see "Secrets &
+config"): the framework `[device].backend` section and the app instance's
+`device_folder` key. The app resolves them and asks the `inkapp` facade to build a
+transport — `resolve_transport(backend, folder)` — which it passes to any of the
+three primitives. The generic engine (`inkapp-core::sync`) drives any
+`DeviceTransport`; the reMarkable backend (`rm-device::CloudTransport`, backed
+natively by the pure-Rust `rm-cloud` client — no `rmapi` CLI) is today's only
+implementation. Adding a device family is a new `*-device` crate plus one `match`
+arm in `resolve_transport` — apps and the engine are untouched. The old per-app
+`serve.rs` (duplicated across reading-queue and agenda) is gone.
+
+**`[device].sync_interval_secs`** (default 30) is the standard config knob; an app
+passes it to `serve` as `Duration::from_secs(device.sync_interval_secs)`.
+`tokio::signal::ctrl_c()` is the standard shutdown future for foreground processes.
+
+**Worked-example CLI surface.** The reading-queue binary maps these three primitives
+to three subcommands:
+
+| Subcommand / invocation | Primitive used | Notes                                            |
+|-------------------------|----------------|--------------------------------------------------|
+| *(no subcommand)*       | `publish`      | Publish-once; the original behaviour.            |
+| `sync`                  | `sync_once`    | One-shot pull-fold-push; useful for scripting.   |
+| `run [--interval N]`    | `serve`        | Continuous loop; Ctrl-C exits. `--interval` overrides `sync_interval_secs`. |
 
 ---
 
