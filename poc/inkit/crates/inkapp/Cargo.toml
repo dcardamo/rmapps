@@ -11,7 +11,15 @@ inkapp-config = { path = "../inkapp-config", features = ["cli"] }
 rm-device = { path = "../rm-device" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+gethostname = "0.5"
+clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+inkapp-readwise-reader = { path = "../inkapp-readwise-reader" }
+inkapp-content = { path = "../inkapp-content" }

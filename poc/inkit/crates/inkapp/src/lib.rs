@@ -22,10 +22,14 @@ pub use inkapp_core::{components, flow};
 
 mod deploy;
 pub use deploy::{publish, resolve_transport, sync_once};
+
+pub mod cli;
+pub mod doctor;
+pub mod preview;
 pub use inkapp_core::geometry::DeviceConfig;
 pub use inkapp_core::sync::DeviceTransport;
 
 pub use rm_device::Remarkable;
 
 pub use inkapp_config::store::{select_instance, ConfigStore};
-pub use inkapp_config::{cli, Config, ConfigError, ConnectorRef, Namespace, SecretRef};
+pub use inkapp_config::{Config, ConfigError, ConnectorRef, Namespace, SecretRef};
