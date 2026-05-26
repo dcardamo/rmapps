@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 1: Section<M> component + #section authored module",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** A reusable wrapper that opens per-section Typst state + a weak pagebreak, wraps a body. State name fixed at 'inkapp.section'.\n\n**Files:**\n- Create: crates/inkapp-core/typst/section.typ\n- Create: crates/inkapp-core/src/components/section.rs\n- Modify: crates/inkapp-core/src/components/mod.rs\n- Create: crates/inkapp-core/tests/section_component.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test section_component`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/section.typ\", \"crates/inkapp-core/src/components/section.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/section_component.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test section_component\", \"acceptanceCriteria\": [\"Section::new(id, body) constructor\", \"render emits #section(id, [body])\", \"two sections paginate to >=2 pages\", \"decode delegates to body\"]}\n```"
     },
@@ -55,5 +55,5 @@
       "description": "**Goal:** Per project convention, mark Heading, Section, ActionBand, page_header, push_replace_ink, and apps/reader as built in docs/appdx.md.\n\n**Files:**\n- Modify: docs/appdx.md\n\n**Verify:** `grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md` produces hits for each term.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md\", \"acceptanceCriteria\": [\"appdx mentions all five framework primitives\", \"appdx mentions apps/reader\", \"prose style matches existing 'beyond the spine' paragraphs\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-05-26T19:30:00Z"
+  "lastUpdated": "2026-05-26T20:00:00Z"
 }

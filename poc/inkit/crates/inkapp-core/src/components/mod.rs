@@ -6,6 +6,7 @@ pub mod highlight_text;
 pub mod index;
 pub mod notice;
 pub mod passage;
+pub mod section;
 pub mod stepper;
 
 use crate::ink::RegionInk;
