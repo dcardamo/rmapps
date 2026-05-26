@@ -1,9 +1,8 @@
-#import "/inkapp/region.typ": region
-
 // One section. Sets the `inkapp.section` state to `id` and forces a weak page
 // break, then lays out `body`. A per-page header that reads
-// `state("inkapp.section").at(here().position())` will see this id on every page
-// covered by this section.
+// `state("inkapp.section", "").at(here().position())` (re-declare the state in
+// the consumer — Typst state is keyed by name string, so a fresh handle works)
+// will see this id on every page covered by this section.
 #let section-state = state("inkapp.section", "")
 
 #let section(id, body) = {
