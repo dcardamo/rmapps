@@ -21,7 +21,7 @@ pub use inkapp_core::Theme;
 pub use inkapp_core::{components, flow};
 
 mod deploy;
-pub use deploy::{publish, resolve_transport, sync_once};
+pub use deploy::{publish, resolve_transport, serve, sync_once};
 pub use inkapp_core::geometry::DeviceConfig;
 pub use inkapp_core::sync::DeviceTransport;
 
