@@ -109,8 +109,9 @@ impl From<PageConfig> for PageGeom {
     }
 }
 
-/// The `[device]` config section — which device backend to deploy to. The
-/// per-app target folder lives in each app's own config section, not here.
+/// The `[device]` config section — which device backend to deploy to, and the
+/// polling cadence the `serve` loop uses between sync cycles. The per-app target
+/// folder lives in each app's own config section, not here.
 #[derive(Debug, Clone, serde::Deserialize, inkapp_config::Config)]
 #[serde(default)]
 #[config(kind = "device", namespace = "framework")]
@@ -118,6 +119,10 @@ pub struct DeviceConfig {
     /// Device backend identifier (e.g. "remarkable").
     #[config(default = String::from("remarkable"))]
     pub backend: String,
+    /// Seconds between sync cycles when running `serve`. The `--interval` CLI
+    /// flag, when provided, overrides this.
+    #[config(default = 30u64)]
+    pub sync_interval_secs: u64,
 }
 
 /// Convert a Typst top-left-origin rect to a PDF bottom-left-origin rect using
