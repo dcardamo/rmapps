@@ -66,21 +66,24 @@ struct RawList {
 #[derive(Deserialize)]
 struct RawDoc {
     id: String,
-    #[serde(default)]
+    // Bare-String fields use `null_as_default` so an API-returned `null`
+    // deserialises as "" instead of failing the whole list-parse — Reader
+    // returns null for several of these on incomplete-metadata items.
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     url: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     source_url: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     title: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     author: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     site_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     category: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     location: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     summary: String,
     #[serde(default)]
     image_url: Option<String>,
@@ -90,7 +93,7 @@ struct RawDoc {
     reading_time: Option<String>,
     #[serde(default)]
     published_date: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::null_as_default")]
     saved_at: String,
     #[serde(default)]
     html_content: Option<String>,

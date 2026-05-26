@@ -14,7 +14,20 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Treat an explicit JSON `null` as `T::default()` (in addition to `serde(default)`
+/// already handling an absent field). The Reader API returns `null` for several
+/// string fields on incomplete-metadata articles (e.g. `author`, `site_name`,
+/// `source_url`, `summary`, `saved_at`); without this they'd fail deserialisation
+/// with "invalid type: null, expected a string".
+pub(crate) fn null_as_default<'de, T, D>(d: D) -> Result<T, D::Error>
+where
+    T: Default + Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
 
 use inkapp_core::connector::{Connector, ConnectorError};
 use inkapp_core::single_flight::SingleFlight;
@@ -67,26 +80,27 @@ impl Location {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Article {
     pub id: ArticleId,
+    #[serde(default, deserialize_with = "null_as_default")]
     pub title: String,
     /// Plain-text body — the worked-example/highlight source until the content
     /// pipeline lands. Rich source HTML rides in `html_content`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub body: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub highlights: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub url: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub source_url: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub author: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub site_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub category: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub location: Location,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub summary: String,
     #[serde(default)]
     pub image_url: Option<String>,
@@ -96,7 +110,7 @@ pub struct Article {
     pub reading_time: Option<String>,
     #[serde(default)]
     pub published_date: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub saved_at: String,
     #[serde(default)]
     pub html_content: Option<String>,
