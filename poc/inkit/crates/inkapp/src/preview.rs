@@ -70,6 +70,66 @@ pub(crate) async fn render_to_dir_and_map<M, Msg, Cx: ConnectorSet>(
     Ok((entries, pdfs))
 }
 
+use std::sync::Arc;
+
+use axum::{
+    extract::{Path as AxumPath, State},
+    http::{header, StatusCode},
+    response::{Html, IntoResponse, Response},
+    routing::get,
+    Router,
+};
+
+#[derive(Clone)]
+struct PdfState {
+    pdfs: Arc<HashMap<String, Vec<u8>>>,
+}
+
+/// Build a router that lists and serves an in-memory PDF set.
+/// Pure: takes the map by value, returns a configured Router.
+pub fn make_router(pdfs: HashMap<String, Vec<u8>>) -> Router {
+    let state = PdfState {
+        pdfs: Arc::new(pdfs),
+    };
+    Router::new()
+        .route("/", get(index))
+        .route("/{filename}", get(serve_pdf))
+        .with_state(state)
+}
+
+async fn index(State(s): State<PdfState>) -> Html<String> {
+    let mut keys: Vec<&String> = s.pdfs.keys().collect();
+    keys.sort();
+    let mut html = String::from(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>inkapp preview</title>\
+         <style>body{font-family:sans-serif;max-width:60em;margin:2em auto;padding:0 1em}\
+         li{margin:.4em 0}.meta{color:#888;font-size:.9em}</style></head><body>\
+         <h1>inkapp preview</h1><ul>",
+    );
+    for k in keys {
+        let bytes = s.pdfs[k].len();
+        html.push_str(&format!(
+            "<li><a href=\"/{k}.pdf\">{k}</a> <span class=\"meta\">({bytes} bytes)</span></li>"
+        ));
+    }
+    html.push_str("</ul></body></html>");
+    Html(html)
+}
+
+async fn serve_pdf(State(s): State<PdfState>, AxumPath(filename): AxumPath<String>) -> Response {
+    // filename is "<key>.pdf"; strip the suffix to get the lookup key.
+    let key = filename.strip_suffix(".pdf").unwrap_or(&filename);
+    match s.pdfs.get(key) {
+        Some(bytes) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/pdf")],
+            bytes.clone(),
+        )
+            .into_response(),
+        None => (StatusCode::NOT_FOUND, "not found").into_response(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     mod fixture {
@@ -91,6 +151,10 @@ mod tests {
     }
 
     use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
 
     #[tokio::test]
     async fn render_to_dir_writes_nonempty_pdfs_starting_with_magic() {
@@ -106,5 +170,70 @@ mod tests {
             assert_eq!(bytes.len(), e.size_bytes, "size_bytes matches file");
             assert!(e.page_count >= 1, "{} must have at least one page", e.key);
         }
+    }
+
+    fn fixture_pdfs() -> std::collections::HashMap<String, Vec<u8>> {
+        let mut m = std::collections::HashMap::new();
+        m.insert("alpha".to_string(), b"%PDF-1.4\n...alpha...".to_vec());
+        m.insert("beta".to_string(), b"%PDF-1.4\n...beta...".to_vec());
+        m
+    }
+
+    #[tokio::test]
+    async fn router_lists_keys_at_root() {
+        let router = make_router(fixture_pdfs());
+        let resp = router
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        assert!(
+            body.contains(r#"href="/alpha.pdf""#),
+            "index lists alpha: {body}"
+        );
+        assert!(
+            body.contains(r#"href="/beta.pdf""#),
+            "index lists beta: {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn router_serves_known_pdf_with_correct_content_type_and_bytes() {
+        let pdfs = fixture_pdfs();
+        let expected = pdfs.get("alpha").cloned().unwrap();
+        let router = make_router(pdfs);
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/alpha.pdf")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("content-type").unwrap(),
+            "application/pdf",
+        );
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(body.as_ref(), expected.as_slice());
+    }
+
+    #[tokio::test]
+    async fn router_returns_404_for_unknown_key() {
+        let router = make_router(fixture_pdfs());
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/missing.pdf")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
