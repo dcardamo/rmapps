@@ -46,7 +46,6 @@ fn sanitize_key(k: &str) -> String {
 }
 
 /// Render to dir and also return an in-memory PDF map keyed by doc key (used by `run`).
-#[allow(dead_code)]
 pub(crate) async fn render_to_dir_and_map<M, Msg, Cx: ConnectorSet>(
     app: &mut App<M, Msg, Cx>,
     out: &Path,
@@ -128,6 +127,47 @@ async fn serve_pdf(State(s): State<PdfState>, AxumPath(filename): AxumPath<Strin
             .into_response(),
         None => (StatusCode::NOT_FOUND, "not found").into_response(),
     }
+}
+
+/// Render to `args.out`; if `args.serve`, bind `0.0.0.0:port` and serve the same
+/// PDFs over HTTP, printing a Tailscale-reachable URL using the local hostname.
+pub async fn run<M, Msg, Cx: ConnectorSet>(
+    app: &mut App<M, Msg, Cx>,
+    args: PreviewArgs,
+) -> Result<i32> {
+    let (entries, pdfs) = render_to_dir_and_map(app, &args.out).await?;
+    println!(
+        "preview: wrote {} PDF(s) to {}",
+        entries.len(),
+        args.out.display()
+    );
+    for e in &entries {
+        println!(
+            "  {}  ({} pages, {} bytes)  -> {}",
+            e.key,
+            e.page_count,
+            e.size_bytes,
+            e.path.display()
+        );
+    }
+    if !args.serve {
+        return Ok(0);
+    }
+    let host = gethostname::gethostname().to_string_lossy().into_owned();
+    let addr: std::net::SocketAddr = ([0, 0, 0, 0], args.port).into();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| Error::Config(format!("preview bind {addr}: {e}")))?;
+    println!(
+        "preview: serving at http://{host}:{port}",
+        host = host,
+        port = args.port
+    );
+    let router = make_router(pdfs);
+    axum::serve(listener, router)
+        .await
+        .map_err(|e| Error::Config(format!("preview serve: {e}")))?;
+    Ok(0)
 }
 
 #[cfg(test)]
@@ -235,5 +275,34 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn run_without_serve_writes_pdfs_and_returns_zero() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut application = fixture::cassette_app();
+        let args = PreviewArgs {
+            out: tmp.path().to_path_buf(),
+            serve: false,
+            port: 4747,
+        };
+        let code = run(&mut application, args).await.unwrap();
+        assert_eq!(code, 0);
+        // At least one PDF exists.
+        let count = std::fs::read_dir(tmp.path())
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .unwrap()
+                    .path()
+                    .extension()
+                    .is_some_and(|x| x == "pdf")
+            })
+            .count();
+        assert!(
+            count >= 1,
+            "expected at least one .pdf in {}",
+            tmp.path().display()
+        );
     }
 }
