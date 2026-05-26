@@ -37,7 +37,7 @@
     {
       "id": 5,
       "subject": "Task 5: Scaffold apps/reader (CLI + AppConfig, stub view)",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** New app crate that compiles, exposes the same CLI surface as reading-queue, resolves config — empty view. Locks wiring before composition.\n\n**Files:**\n- Modify: Cargo.toml (workspace members)\n- Create: apps/reader/Cargo.toml\n- Create: apps/reader/src/lib.rs\n- Create: apps/reader/src/main.rs\n- Create: apps/reader/tests/config.rs\n\n**Verify:** `nix develop -c cargo test -p reader` and `nix develop -c cargo build -p reader`\n\n```json:metadata\n{\"files\": [\"Cargo.toml\", \"apps/reader/Cargo.toml\", \"apps/reader/src/lib.rs\", \"apps/reader/src/main.rs\", \"apps/reader/tests/config.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p reader\", \"acceptanceCriteria\": [\"cargo build -p reader succeeds\", \"AppConfig default device_folder = /Reader\", \"AppConfig default readwise = readwise.main\", \"CLI mirrors reading-queue (config/op/doctor/preview/sync/run/publish)\", \"config test resolves all sections\"]}\n```"
     },
     {
