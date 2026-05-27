@@ -47,6 +47,14 @@ enum Cmd {
         #[arg(long)]
         highlighter: bool,
     },
+    /// Apply raw .rm (or .rmdoc) bytes directly via the device's read_ink path.
+    /// Bypasses gesture synthesis. Used for Layer-2 lens-parity tests.
+    LoadRm {
+        doc_id: String,
+        page: usize,
+        #[arg(long)]
+        path: String,
+    },
     /// List ink on a page
     List {
         doc_id: String,
@@ -148,6 +156,34 @@ pub async fn run(args: Args) -> ! {
             }
             let _ = session.flush();
             output::print_ok(json!({ "points": points.len(), "highlighter": highlighter }))
+        }
+        Cmd::LoadRm { doc_id, page, path } => {
+            let device_id = device_id
+                .as_ref()
+                .unwrap_or_else(|| output::print_err("bad_args", "--device required for load-rm"));
+            // Read bytes: either a raw .rm file or a .rmdoc bundle (extract page 0 scene).
+            let bytes: Vec<u8> = if path.ends_with(".rmdoc") {
+                let bundle = match rm_files::Bundle::open(std::path::Path::new(&path)) {
+                    Ok(b) => b,
+                    Err(e) => output::print_err("io_error", format!("open bundle: {e}")),
+                };
+                let pages = bundle.pages();
+                match pages.first().and_then(|p| p.scene_bytes()) {
+                    Some(s) => s.to_vec(),
+                    None => output::print_err("invalid_fixture", "bundle has no scene pages"),
+                }
+            } else {
+                match std::fs::read(&path) {
+                    Ok(b) => b,
+                    Err(e) => output::print_err("io_error", format!("read file: {e}")),
+                }
+            };
+            let applied = match session.ink_apply_rm_bytes(device_id, &doc_id, page, &bytes) {
+                Ok(n) => n,
+                Err(e) => output::print_err("apply_failed", e.to_string()),
+            };
+            let _ = session.flush();
+            output::print_ok(json!({ "applied": applied }))
         }
         Cmd::List {
             doc_id,

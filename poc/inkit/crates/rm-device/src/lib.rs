@@ -25,7 +25,8 @@ pub use transport::{strokes_by_page, strokes_from_bundle, CloudTransport};
 /// 0.9426× that declared canvas. Derived from an on-device calibration capture
 /// (`tests/fixtures/recordings/calibration.rmdoc`, reMarkable Paper Pro Move,
 /// 2026-05-23): a 5-cross tap sheet fit a uniform scale of 0.9426 with per-point
-/// residuals ≤4px. Re-derive any time via the `transform_fidelity` test.
+/// residuals ≤4px. Re-derive any time by re-running the calibration capture
+/// against `crates/rm-device/tests/device.rs::transform_is_invertible_across_geometries`.
 const CANVAS_W: f64 = 1323.4; // 1404 × 0.9426
 const CANVAS_H: f64 = 1764.6; // 1872 × 0.9426
 
@@ -63,6 +64,11 @@ impl Default for Remarkable {
     }
 }
 
+// Off-page contract: the four `Device` methods on `Remarkable` are pure linear
+// maps. No clamping, no dropping, no error on off-page inputs. See the trait
+// doc-comment in `inkapp_core::device::Device::pdf_to_device` and the tests
+// `off_page_strokes_round_trip_without_clamping` /
+// `read_ink_does_not_drop_off_canvas_points` in `tests/device.rs`.
 impl Device for Remarkable {
     fn pdf_to_device(&self, p: PdfPoint, page_h_pt: f64) -> DevicePoint {
         let page_w = self.page_w_pt(page_h_pt);

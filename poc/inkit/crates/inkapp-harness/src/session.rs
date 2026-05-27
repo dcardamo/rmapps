@@ -490,6 +490,40 @@ impl Session {
         Ok(())
     }
 
+    /// Decode raw `.rm` bytes through the reMarkable device and stage the resulting
+    /// strokes as pending ink on `(device, doc_id, page)`. Layer-2 surface — bypasses
+    /// gesture synthesis; intended for fixture-replay tests where the input is already
+    /// in the device's native scene format. Returns the number of strokes staged.
+    pub fn ink_apply_rm_bytes(
+        &mut self,
+        device: &DeviceId,
+        doc_id: &str,
+        page: usize,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        let page_h = pdf_page_height(&self.state_dir, doc_id, page)?;
+        let rm = rm_device::Remarkable::new();
+        let strokes = inkapp_core::device::Device::read_ink(&rm, bytes, page_h)
+            .map_err(|e| std::io::Error::other(format!("read_ink: {e}")))?;
+        let n = strokes.len();
+        for s in strokes {
+            self.append_stroke(device, doc_id, page, s)?;
+        }
+        if self.recording_enabled() {
+            let _ = self.trace_writer().append_call(
+                &["ink", "load-rm"],
+                serde_json::json!({
+                    "device": device.as_str(),
+                    "doc_id": doc_id,
+                    "page": page,
+                    "stroke_count": n,
+                }),
+                serde_json::json!({ "applied": n }),
+            );
+        }
+        Ok(n)
+    }
+
     /// Append a freeform polyline stroke.
     pub fn ink_draw(
         &mut self,
@@ -870,6 +904,46 @@ fn region_rect(
                 format!("region {region} on page {page} not found"),
             )
         })
+}
+
+/// Extract the height (in PDF points) of `page` from the stored PDF for `doc_id`.
+/// Uses the `/MediaBox` entry from the page dictionary. Falls back to 560.0 (the
+/// harness default) if the PDF is absent, unparseable, or the page is missing.
+fn pdf_page_height(state_dir: &Path, doc_id: &str, page: usize) -> std::io::Result<f64> {
+    let pdf_path = state_dir.join("docs").join(doc_id).join("pdf.pdf");
+    let bytes = match fs::read(&pdf_path) {
+        Ok(b) => b,
+        Err(_) => return Ok(crate::recording::PAGE_H),
+    };
+    let doc = match lopdf::Document::load_mem(&bytes) {
+        Ok(d) => d,
+        Err(_) => return Ok(crate::recording::PAGE_H),
+    };
+    let pages = doc.get_pages(); // BTreeMap<u32, ObjectId>, 1-based
+                                 // lopdf page numbers are 1-based; our `page` is 0-based.
+    let pdf_page_num = (page as u32) + 1;
+    let Some(page_id) = pages.get(&pdf_page_num) else {
+        return Ok(crate::recording::PAGE_H);
+    };
+    let page_obj = match doc.get_object(*page_id) {
+        Ok(lopdf::Object::Dictionary(d)) => d.clone(),
+        _ => return Ok(crate::recording::PAGE_H),
+    };
+    // /MediaBox is [x0 y0 x1 y1] — height = y1 - y0.
+    let media_box = match page_obj.get(b"MediaBox") {
+        Ok(mb) => mb,
+        Err(_) => return Ok(crate::recording::PAGE_H),
+    };
+    let arr = match doc.dereference(media_box) {
+        Ok((_, lopdf::Object::Array(a))) => a.clone(),
+        _ => return Ok(crate::recording::PAGE_H),
+    };
+    if arr.len() < 4 {
+        return Ok(crate::recording::PAGE_H);
+    }
+    let y0 = arr[1].as_float().unwrap_or(0.0) as f64;
+    let y1 = arr[3].as_float().unwrap_or(560.0) as f64;
+    Ok((y1 - y0).max(1.0))
 }
 
 async fn push_to_fake_cloud(cloud: &FakeCloud, app: &PublishedApp) -> std::io::Result<()> {

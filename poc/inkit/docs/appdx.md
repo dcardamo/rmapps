@@ -987,6 +987,31 @@ library API `Session::step_app<M, Msg, Cx>` works fully and is what the dogfood
 test will use once an in-tree app is registered. *(Built — `crates/inkctl` +
 `crates/inkapp-harness/src/{session,observe,emit,trace,pdf_links}.rs`.)*
 
+### Test coverage by layer
+
+Tracks the layered testing program from
+[spec 2026-05-27](superpowers/specs/2026-05-27-reader-thorough-test-design.md).
+
+- **Layer 2 — device coord transform.** Covered 2026-05-27.
+  - `rm-device` PDF↔device transform inverts across the inkapp-default
+    (560pt) and A4 (841.89pt) geometries at multiple sample points
+    (`crates/rm-device/tests/device.rs::transform_is_invertible_across_geometries`).
+  - Off-page strokes round-trip without clamping or dropping; contract
+    pinned on the `Device` trait
+    (`off_page_strokes_round_trip_without_clamping`,
+    `read_ink_does_not_drop_off_canvas_points`).
+  - `GlyphRange` text-highlight rects synthesize 17-point horizontal
+    swipes through the rect's vertical midpoint
+    (`text_highlight_rect_synthesizes_swipe`).
+  - Real-recording fixture decodes to expected PDF-space bbox within
+    a 4pt residual budget
+    (`calibration_fixture_decodes_to_expected_pdf_region`).
+  - `inkctl ink load-rm` matches `Remarkable::read_ink` on the same
+    fixture bytes
+    (`crates/inkctl/tests/lens_parity_layer2.rs::layer2_lens_matches_library`).
+  - inkctl gap closed during this layer: `ink load-rm` verb added
+    (previously no inkctl path accepted raw `.rm` / `.rmdoc` bytes).
+
 ---
 
 ## Open questions parking lot
