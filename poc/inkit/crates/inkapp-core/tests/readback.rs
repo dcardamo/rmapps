@@ -211,3 +211,90 @@ fn attribute_page_is_single_page_wrapper() {
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].region, "a");
 }
+
+fn multi_point(points: &[(f64, f64)]) -> Stroke {
+    Stroke {
+        points: points
+            .iter()
+            .map(|(x, y)| PdfPoint { x: *x, y: *y })
+            .collect(),
+        highlighter: false,
+    }
+}
+
+#[test]
+fn multi_point_stroke_attributes_if_any_point_in_region() {
+    // Region "a" = [0,0]-[10,10]. A 3-point stroke starts outside, dips into
+    // the region at the midpoint, then exits. Library contract: ANY point in
+    // the region → attributed.
+    let m = Manifest {
+        version: 1,
+        regions: vec![Region {
+            name: "a".into(),
+            page: 0,
+            rect: rect(0.0, 0.0, 10.0, 10.0),
+        }],
+        ..Default::default()
+    };
+    let s = multi_point(&[(-5.0, 5.0), (5.0, 5.0), (15.0, 5.0)]);
+    let ink = attribute_page(&[s], &m);
+    let a = ink
+        .iter()
+        .find(|ri| ri.region == "a")
+        .expect("attributed to a");
+    assert_eq!(a.strokes.len(), 1, "single stroke attributed once");
+}
+
+#[test]
+fn multi_point_stroke_in_two_regions_attributes_to_both() {
+    // Two NON-overlapping regions; a single stroke has one point in each.
+    // Library contract: stroke appears in both region buckets.
+    let m = Manifest {
+        version: 1,
+        regions: vec![
+            Region {
+                name: "a".into(),
+                page: 0,
+                rect: rect(0.0, 0.0, 10.0, 10.0),
+            },
+            Region {
+                name: "b".into(),
+                page: 0,
+                rect: rect(50.0, 50.0, 60.0, 60.0),
+            },
+        ],
+        ..Default::default()
+    };
+    let s = multi_point(&[(5.0, 5.0), (30.0, 30.0), (55.0, 55.0)]);
+    let ink = attribute_page(&[s], &m);
+    let a = ink
+        .iter()
+        .find(|ri| ri.region == "a")
+        .expect("attributed to a");
+    let b = ink
+        .iter()
+        .find(|ri| ri.region == "b")
+        .expect("attributed to b");
+    assert_eq!(a.strokes.len(), 1);
+    assert_eq!(b.strokes.len(), 1);
+    assert_eq!(
+        ink.iter().map(|ri| ri.strokes.len()).sum::<usize>(),
+        2,
+        "stroke attributed to both regions (one in each bucket)"
+    );
+}
+
+#[test]
+fn stroke_outside_all_regions_is_dropped() {
+    // Contract: a stroke that matches no region is dropped from the output —
+    // there is no "unattributed" bucket in the current library design. Tests
+    // pin this so any future change is a deliberate behavior change.
+    let m = manifest(); // version 3, regions "a"=[0,0]-[10,10], "b"=[20,20]-[30,30]
+    let strokes = vec![stroke(100.0, 100.0), stroke(200.0, 200.0)];
+    let ink = attribute_page(&strokes, &m);
+    assert_eq!(
+        ink.iter().map(|ri| ri.strokes.len()).sum::<usize>(),
+        0,
+        "all strokes outside every region — dropped"
+    );
+}

@@ -352,10 +352,24 @@ pub fn ink_list(
         }
         ObserveGroup::ByRegion => {
             let (_, manifest) = load_doc(session.state_dir(), doc_id)?;
+            // Use the library's attribute() so the lens and the app loop see strokes
+            // grouped identically. The library tests all points and allows multi-region
+            // attribution; the former ad-hoc stroke_region helper used only the midpoint
+            // and returned the first match, which diverged from the library's behaviour.
+            let max_page = manifest
+                .regions
+                .iter()
+                .map(|r| r.page)
+                .max()
+                .unwrap_or(page);
+            let n_pages = max_page.max(page) + 1;
+            let mut pages: Vec<Vec<Stroke>> = vec![Vec::new(); n_pages];
+            pages[page] = all.clone();
+            let region_inks = inkapp_core::readback::attribute(&pages, &manifest);
             let mut m: std::collections::BTreeMap<String, Vec<Stroke>> = Default::default();
-            for s in &all {
-                if let Some(name) = stroke_region(s, &manifest, page) {
-                    m.entry(name).or_default().push(s.clone());
+            for ri in region_inks {
+                if !ri.strokes.is_empty() {
+                    m.insert(ri.region, ri.strokes);
                 }
             }
             (None, Some(m))
@@ -366,19 +380,6 @@ pub fn ink_list(
         by_layer,
         by_region,
     })
-}
-
-fn stroke_region(s: &Stroke, manifest: &Manifest, page: usize) -> Option<String> {
-    let mid = s.points.get(s.points.len() / 2)?;
-    for r in &manifest.regions {
-        if r.page != page {
-            continue;
-        }
-        if mid.x >= r.rect.x0 && mid.x <= r.rect.x1 && mid.y >= r.rect.y0 && mid.y <= r.rect.y1 {
-            return Some(r.name.clone());
-        }
-    }
-    None
 }
 
 pub(crate) fn load_doc(state_dir: &Path, doc_id: &str) -> std::io::Result<(DocSummary, Manifest)> {

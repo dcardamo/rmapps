@@ -1012,6 +1012,27 @@ Tracks the layered testing program from
   - inkctl gap closed during this layer: `ink load-rm` verb added
     (previously no inkctl path accepted raw `.rm` / `.rmdoc` bytes).
 
+- **Layer 3 — readback / attribution.** Covered 2026-05-27.
+  - Library `attribute_page` / `attribute` covered by 11 tests in
+    `crates/inkapp-core/tests/readback.rs`. Layer 3 added three to close gaps:
+    - `multi_point_stroke_attributes_if_any_point_in_region` — any-point
+      containment, not midpoint-only.
+    - `multi_point_stroke_in_two_regions_attributes_to_both` — a stroke
+      whose points span two non-overlapping regions attributes to both.
+    - `stroke_outside_all_regions_is_dropped` — pins drop behavior (no
+      "unattributed bucket" in the current library design; revisit if a
+      higher layer needs visibility into unattributed ink).
+  - `inkctl ink list --by-region` matches `readback::attribute` on the
+    same inputs
+    (`crates/inkctl/tests/lens_parity_layer3.rs::layer3_by_region_matches_attribute`).
+  - Harness lens gap closed during this layer: `observe::ink_list`'s
+    by-region path now calls `inkapp_core::readback::attribute` directly
+    instead of an ad-hoc `stroke_region` helper. Previously, strokes
+    whose midpoint landed outside a region but whose endpoints landed
+    inside it were invisible to the lens; strokes touching multiple
+    regions were attributed only to the first one. Both divergences
+    are now eliminated.
+
 ---
 
 ## Open questions parking lot
