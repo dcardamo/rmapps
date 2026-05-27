@@ -35,6 +35,12 @@ pub struct IndexEntry {
     /// Verbatim reading-time label (e.g. "5 min") — never parsed/reformatted.
     pub reading_time: Option<String>,
     pub summary: Option<String>,
+    /// If set, the title becomes a clickable PDF link jumping to the Section
+    /// whose id matches this value (Section emits a `<art-{id}>` label at the
+    /// start of its body). Typically populated by `From<&Article>` in the
+    /// connector — the same id you'd pass to `Section::new`. `None` renders
+    /// the title as plain text (no link).
+    pub link_id: Option<String>,
 }
 
 impl IndexEntry {
@@ -126,12 +132,22 @@ impl<M> Component for Index<M> {
                 ),
                 None => String::new(),
             };
-            let title_cell = format!(
-                "[#text(fill: luma({body_tone}), size: 1em)[#\"{t}\"]{by}]",
+            // Title cell. When `link_id` is set, wrap the whole title+byline
+            // in `#link(<art-{id}>, [...])` so a tap on the row jumps to the
+            // matching `Section`'s anchor. Typst label-name syntax requires
+            // the literal in source — the Rust substitution is safe because
+            // `link_id` is constrained at the call site (reader article ids
+            // are ULIDs that match Typst's label-name rules once prefixed).
+            let title_body = format!(
+                "#text(fill: luma({body_tone}), size: 1em)[#\"{t}\"]{by}",
                 body_tone = theme.body_tone,
                 t = esc_typst_str(&e.title),
                 by = byline_fragment,
             );
+            let title_cell = match e.link_id.as_deref().filter(|s| !s.is_empty()) {
+                Some(id) => format!("[#link(<art-{id}>, [{title_body}])]"),
+                None => format!("[{title_body}]"),
+            };
 
             // Reading-time cell — right-aligned, small uppercase tracked. Empty
             // cell when missing so the grid layout stays uniform.
@@ -208,6 +224,7 @@ mod tests {
             byline: Some("Ada Lovelace".into()),
             reading_time: Some("5 min".into()),
             summary: None,
+            link_id: None,
         };
         let src = Index::<()>::new(vec![e]).render(&mut RenderCx::new(0));
         // New shape: byline appears as `#" — Ada Lovelace"` in the muted tone,
@@ -243,6 +260,7 @@ mod tests {
             byline: None,
             reading_time: Some("3 min".into()),
             summary: None,
+            link_id: None,
         };
         let src = Index::<()>::new(vec![e]).render(&mut RenderCx::new(0));
         assert!(src.contains("#\"3 min\""), "reading_time present: {src}");
@@ -336,6 +354,7 @@ mod tests {
             byline: None,
             reading_time: None,
             summary: Some(long.clone()),
+            link_id: None,
         };
         let src = Index::<()>::new(vec![e]).render(&mut RenderCx::new(0));
         assert!(

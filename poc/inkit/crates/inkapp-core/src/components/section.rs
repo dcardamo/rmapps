@@ -36,8 +36,18 @@ impl<M> Component for Section<M> {
         for c in &self.body {
             body_src.push_str(&c.render(cx));
         }
-        // The body is wrapped in `[...]` so Typst treats it as content.
-        format!("#section(\"{id}\", [\n{body_src}])\n")
+        // Emit a zero-size labelable anchor at the start of the body so an
+        // Index entry's `#link(<art-{id}>, ...)` can jump here. Typst label
+        // syntax requires the label name in markup source, so we substitute
+        // via Rust: `<art-{id}>` attaches to the preceding `#metadata` element
+        // (renders nothing and takes no layout space). The label name shape
+        // (`art-{id}`) matches what `Index` consumes via `link_id` so the two
+        // sides stay in sync. The `art-` prefix is load-bearing: Typst labels
+        // forbid leading digits and reader article ids are ULIDs starting
+        // with a digit.
+        format!(
+            "#section(\"{id}\", [#metadata(\"section-anchor\")<art-{id}>\n{body_src}])\n"
+        )
     }
 
     fn typst_sources(&self) -> Vec<(String, String)> {

@@ -21,6 +21,7 @@ fn sample_entries(n: usize) -> Vec<IndexEntry> {
             // The compact Index layout drops summaries — leaving the field
             // populated would be misleading in the fixture.
             summary: None,
+            link_id: None,
         })
         .collect()
 }
