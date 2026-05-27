@@ -1,6 +1,12 @@
 //! `Heading` — a reusable Display component for long-form article/section
 //! openers: title, optional byline (author OR site_name fallback at the call
 //! site), optional reading-time, optional subtitle. Theme-aware via RenderCx.
+//!
+//! `Heading<M>` is generic over the app message type (default `()`) so it can
+//! be placed directly in a `Section<M>` body without an adaptor wrapper — the
+//! component never emits messages; `M` is phantom.
+
+use std::marker::PhantomData;
 
 use crate::component::{Component, RenderCx};
 use crate::components::esc_typst_str;
@@ -10,20 +16,26 @@ use crate::manifest::Manifest;
 /// Title + optional byline/reading-time/subtitle. Mirrors the metadata Readwise
 /// exposes (title/author/site_name/reading_time/summary), but the component is
 /// content-agnostic — pass whatever strings make sense.
-pub struct Heading {
+///
+/// `M` is the surrounding app message type. `Heading` never emits messages so
+/// `M` is purely phantom — `Heading::new(...)` defaults to `Heading<()>`, and
+/// `Heading::<Msg>::new(...)` produces a `Heading<Msg>` for direct composition.
+pub struct Heading<M = ()> {
     title: String,
     byline: Option<String>,
     reading_time: Option<String>,
     subtitle: Option<String>,
+    _msg: PhantomData<fn() -> M>,
 }
 
-impl Heading {
+impl<M> Heading<M> {
     pub fn new(title: impl Into<String>) -> Self {
         Self {
             title: title.into(),
             byline: None,
             reading_time: None,
             subtitle: None,
+            _msg: PhantomData,
         }
     }
 
@@ -46,8 +58,8 @@ impl Heading {
     }
 }
 
-impl Component for Heading {
-    type Msg = ();
+impl<M> Component for Heading<M> {
+    type Msg = M;
 
     fn render(&self, cx: &mut RenderCx) -> String {
         let theme = &cx.theme;
@@ -79,7 +91,7 @@ impl Component for Heading {
         call
     }
 
-    fn decode(&self, _ink: &[RegionInk], _manifest: &Manifest) -> Vec<()> {
+    fn decode(&self, _ink: &[RegionInk], _manifest: &Manifest) -> Vec<M> {
         vec![]
     }
 

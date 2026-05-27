@@ -84,6 +84,7 @@ fn library_compiles_and_recovers_action_plus_token_regions() {
 fn library_with_html_content_recovers_both_tok_and_action_regions() {
     use inkapp_core::component::Component;
     use inkapp_core::components::action_band::ActionBand;
+    use inkapp_core::components::heading::Heading;
     use inkapp_core::components::section::Section;
     use inkapp::Document;
     use inkapp_content::Article as ContentArticle;
@@ -102,12 +103,11 @@ fn library_with_html_content_recovers_both_tok_and_action_regions() {
         },
     );
 
-    // Use Notice<Msg> as the heading placeholder since Heading has Msg=() and can't
-    // be placed in a Section<Msg> without the app-internal HeadingAdaptor wrapper.
-    let heading_notice = inkapp_core::components::notice::Notice::<Msg>::line("Test Article");
+    // Heading<Msg> — now that Heading is generic, no adaptor or substitute needed.
+    let heading = Heading::<Msg>::new("Test Article");
 
     let section_body: Vec<Box<dyn Component<Msg = Msg>>> = vec![
-        Box::new(heading_notice),
+        Box::new(heading),
         Box::new(content_article),
     ];
 

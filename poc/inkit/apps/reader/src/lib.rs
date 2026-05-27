@@ -3,15 +3,13 @@
 use std::sync::Arc;
 
 use inkapp::{flow, Document, Documents};
-use inkapp_core::component::{Component, RenderCx};
+use inkapp_core::component::Component;
 use inkapp_core::components::action_band::ActionBand;
 use inkapp_core::components::heading::Heading;
 use inkapp_core::components::index::{Index, IndexEntry};
 use inkapp_core::components::notice::Notice;
 use inkapp_core::components::section::Section;
 use inkapp_core::connector::{Connector, ConnectorSet};
-use inkapp_core::ink::RegionInk;
-use inkapp_core::manifest::Manifest;
 use inkapp_content::Article as ContentArticle;
 use inkapp_readwise_reader::{Article as ApiArticle, ArticleId, Location, Readwise};
 
@@ -88,41 +86,6 @@ pub fn update(msg: Msg, _m: &mut App, cx: &Connectors) {
     }
 }
 
-/// Newtype wrapper that adapts `Heading` (which has `type Msg = ()`) into any `M`.
-/// Since Heading never decodes ink and emits no messages, the type erasure is sound.
-struct HeadingAdaptor<M> {
-    inner: Heading,
-    _msg: std::marker::PhantomData<fn() -> M>,
-}
-
-impl<M> HeadingAdaptor<M> {
-    fn new(h: Heading) -> Self {
-        Self {
-            inner: h,
-            _msg: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<M> Component for HeadingAdaptor<M> {
-    type Msg = M;
-
-    fn render(&self, cx: &mut RenderCx) -> String {
-        // Delegate to the inner Heading's render. Heading::render takes &mut RenderCx<()>
-        // — the RenderCx is the same type regardless of M.
-        self.inner.render(cx)
-    }
-
-    fn typst_sources(&self) -> Vec<(String, String)> {
-        self.inner.typst_sources()
-    }
-
-    fn decode(&self, _ink: &[RegionInk], _manifest: &Manifest) -> Vec<M> {
-        // Heading never emits messages — this is the whole point of the adaptor.
-        Vec::new()
-    }
-}
-
 /// Build the four-cell ActionBand header for every page in a collection document.
 /// Labels must not contain '-' (validated by ActionBand::new).
 fn action_band() -> ActionBand<Msg> {
@@ -158,10 +121,10 @@ fn action_band() -> ActionBand<Msg> {
 }
 
 /// Build the Heading for an article: title + byline (author preferred, site_name
-/// fallback) + optional reading time. Wrapped in `HeadingAdaptor` so it can be
-/// placed inside a `Section<Msg>` body (`Heading` itself has `Msg = ()`).
-fn heading_for(a: &ApiArticle) -> HeadingAdaptor<Msg> {
-    let mut h = Heading::new(a.title.clone());
+/// fallback) + optional reading time. Returns `Heading<Msg>` so it can be placed
+/// directly in a `Section<Msg>` body — no adaptor needed.
+fn heading_for(a: &ApiArticle) -> Heading<Msg> {
+    let mut h = Heading::<Msg>::new(a.title.clone());
     let byline = if !a.author.is_empty() {
         Some(a.author.clone())
     } else if !a.site_name.is_empty() {
@@ -175,7 +138,7 @@ fn heading_for(a: &ApiArticle) -> HeadingAdaptor<Msg> {
     if let Some(rt) = a.reading_time.as_deref().filter(|s| !s.is_empty()) {
         h = h.reading_time(rt);
     }
-    HeadingAdaptor::new(h)
+    h
 }
 
 /// Build the content Article body wired with an on-highlight closure.

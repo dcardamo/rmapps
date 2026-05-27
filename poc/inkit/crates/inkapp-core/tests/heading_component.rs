@@ -31,7 +31,7 @@ fn all_fields_render() {
 
 #[test]
 fn heading_typst_compiles() {
-    let h = Heading::new("Compilable").byline("Author").reading_time("3 min");
+    let h = Heading::<()>::new("Compilable").byline("Author").reading_time("3 min");
     let theme = Theme::reader();
     let mut cx = RenderCx::new(0).with_theme(theme.clone());
     let body = h.render(&mut cx);
@@ -50,6 +50,16 @@ fn heading_typst_compiles() {
 fn decode_is_empty() {
     let h = Heading::new("x");
     let manifest = inkapp_core::manifest::Manifest::default();
-    let msgs = <Heading as Component>::decode(&h, &[], &manifest);
-    let _: Vec<()> = msgs; // Heading::Msg = ()
+    // Default Heading<()> — decode returns Vec<()>
+    let msgs = <Heading<()> as Component>::decode(&h, &[], &manifest);
+    let _: Vec<()> = msgs;
+}
+
+#[test]
+fn heading_generic_msg_decode_is_empty() {
+    // Heading<u8> — still emits nothing; just verifies the generic impl works.
+    let h = Heading::<u8>::new("generic");
+    let manifest = inkapp_core::manifest::Manifest::default();
+    let msgs = <Heading<u8> as Component>::decode(&h, &[], &manifest);
+    assert!(msgs.is_empty());
 }
