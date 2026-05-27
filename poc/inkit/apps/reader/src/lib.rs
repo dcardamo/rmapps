@@ -163,9 +163,10 @@ fn collection_doc(key: &str, articles: Vec<ApiArticle>) -> Option<Document<Msg>>
 
     let entries: Vec<IndexEntry> = articles.iter().map(IndexEntry::from).collect();
 
-    // Start the flow with the index page.
+    // Start the flow with the index page. The DocKey doubles as the masthead
+    // title ("Library" / "Feed") — matches the old rmreader masthead.
     let mut items: Vec<Box<dyn Component<Msg = Msg>>> =
-        vec![Box::new(Index::<Msg>::new(entries))];
+        vec![Box::new(Index::<Msg>::new(entries).with_title(key))];
 
     // One Section per article: Heading + Article body.
     for a in &articles {
