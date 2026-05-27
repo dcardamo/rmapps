@@ -43,51 +43,133 @@ pub fn render_page(doc: &PagedDocument, page_index: usize) -> Result<Vec<u8>> {
     encode_png(&img)
 }
 
-/// Render page 0 of `doc` and composite region rects (blue) and ink strokes
-/// (red for pen, yellow for highlighter) over it. Returns PNG bytes.
+/// Toggles for which overlays `inspect_with_opts` draws. All default to `true` so
+/// the default `InspectOpts` produces the same "show everything" view that
+/// `inspect()` historically rendered.
+#[derive(Debug, Clone, Copy)]
+pub struct ShowFlags {
+    pub regions: bool,
+    pub links: bool,
+    pub synth_strokes: bool,
+    pub attributed_strokes: bool,
+}
+
+impl Default for ShowFlags {
+    fn default() -> Self {
+        Self {
+            regions: true,
+            links: true,
+            synth_strokes: true,
+            attributed_strokes: true,
+        }
+    }
+}
+
+/// Options for `inspect_with_opts`.
+///
+/// `layers` is a forward-looking filter for when strokes carry layer metadata
+/// (rm-scene layer names). It is currently accepted but ignored — all strokes
+/// are treated as one layer until that metadata is plumbed through.
+#[derive(Debug, Clone, Default)]
+pub struct InspectOpts {
+    pub layers: Option<Vec<String>>,
+    pub show: ShowFlags,
+}
+
+/// Render page `page` of `doc` and composite overlays:
+///
+/// * region rects in blue (when `opts.show.regions`),
+/// * PDF link rects in purple (when `opts.show.links`),
+/// * synthetic ink strokes — pen red, highlighter yellow — (when `opts.show.synth_strokes`),
+/// * attributed ink strokes in green (when `opts.show.attributed_strokes`).
 ///
 /// PDF-space y (origin bottom-left) is flipped to image y (top-left).
-pub fn inspect(doc: &PagedDocument, manifest: &Manifest, ink: &[Stroke]) -> Result<Vec<u8>> {
-    let (mut img, page_h_pt) = rasterize(doc, 0)?;
+///
+/// `synth` and `attributed` are stroke sets supplied by later tasks (10 / 11);
+/// pass `&[]` until then. `links` are PDF-space rects `(x0, y0, x1, y1)` for the
+/// page being inspected.
+pub fn inspect_with_opts(
+    doc: &PagedDocument,
+    manifest: &Manifest,
+    links: &[(f64, f64, f64, f64)],
+    synth: &[Stroke],
+    attributed: &[Stroke],
+    page: usize,
+    opts: &InspectOpts,
+) -> Result<Vec<u8>> {
+    let (mut img, page_h_pt) = rasterize(doc, page)?;
+    // Forward-looking: layer filtering will apply once strokes carry layer tags.
+    let _ = opts.layers.as_ref();
 
     // Convert PDF-space (pt, y-up) to image-space (px, y-down).
     let to_px = |x_pt: f64, y_pt: f64| -> (i64, i64) {
         let px = (x_pt as f32 * SCALE).round() as i64;
-        // flip y: image y grows downward, PDF y grows upward.
         let py = ((page_h_pt - y_pt as f32) * SCALE).round() as i64;
         (px, py)
     };
 
-    // Draw region outlines in blue.
-    let blue = Rgba([0_u8, 80, 220, 255]);
-    for r in &manifest.regions {
-        if r.page != 0 {
-            continue;
+    if opts.show.regions {
+        let blue = Rgba([0_u8, 80, 220, 255]);
+        for r in &manifest.regions {
+            if r.page != page {
+                continue;
+            }
+            let (x0, y0) = to_px(r.rect.x0, r.rect.y1);
+            let (x1, y1) = to_px(r.rect.x1, r.rect.y0);
+            draw_rect_outline(&mut img, x0, y0, x1, y1, blue);
         }
-        // r.rect.y1 is the top of the rect in PDF space → lowest image y.
-        let (x0, y0) = to_px(r.rect.x0, r.rect.y1);
-        let (x1, y1) = to_px(r.rect.x1, r.rect.y0);
-        draw_rect_outline(&mut img, x0, y0, x1, y1, blue);
     }
 
-    // Draw ink strokes: red for pen, yellow for highlighter.
-    for s in ink {
-        let color = if s.highlighter {
-            Rgba([230_u8, 210, 0, 255])
-        } else {
-            Rgba([220_u8, 0, 0, 255])
-        };
-        let mut prev: Option<(i64, i64)> = None;
-        for p in &s.points {
-            let cur = to_px(p.x, p.y);
-            if let Some(pp) = prev {
-                draw_line(&mut img, pp.0, pp.1, cur.0, cur.1, color);
-            }
-            prev = Some(cur);
+    if opts.show.links {
+        let purple = Rgba([180_u8, 0, 200, 255]);
+        for &(lx0, ly0, lx1, ly1) in links {
+            let (x0, y0) = to_px(lx0, ly1);
+            let (x1, y1) = to_px(lx1, ly0);
+            draw_rect_outline(&mut img, x0, y0, x1, y1, purple);
+        }
+    }
+
+    if opts.show.synth_strokes {
+        for s in synth {
+            let color = if s.highlighter {
+                Rgba([230_u8, 210, 0, 255])
+            } else {
+                Rgba([220_u8, 0, 0, 255])
+            };
+            draw_stroke_color(&mut img, s, color, &to_px);
+        }
+    }
+
+    if opts.show.attributed_strokes {
+        let green = Rgba([0_u8, 180, 60, 255]);
+        for s in attributed {
+            draw_stroke_color(&mut img, s, green, &to_px);
         }
     }
 
     encode_png(&img)
+}
+
+/// Back-compat wrapper: render page 0 with regions + synth strokes, no links,
+/// no attributed strokes. Delegates to `inspect_with_opts`.
+pub fn inspect(doc: &PagedDocument, manifest: &Manifest, ink: &[Stroke]) -> Result<Vec<u8>> {
+    inspect_with_opts(doc, manifest, &[], ink, &[], 0, &InspectOpts::default())
+}
+
+fn draw_stroke_color<F: Fn(f64, f64) -> (i64, i64)>(
+    img: &mut RgbaImage,
+    s: &Stroke,
+    color: Rgba<u8>,
+    to_px: &F,
+) {
+    let mut prev: Option<(i64, i64)> = None;
+    for p in &s.points {
+        let cur = to_px(p.x, p.y);
+        if let Some(pp) = prev {
+            draw_line(img, pp.0, pp.1, cur.0, cur.1, color);
+        }
+        prev = Some(cur);
+    }
 }
 
 fn put(img: &mut RgbaImage, x: i64, y: i64, c: Rgba<u8>) {

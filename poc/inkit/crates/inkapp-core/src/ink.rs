@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::geometry::{PdfPoint, PdfRect};
 
 /// A device-agnostic ink stroke in PDF-point coordinates.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Stroke {
     pub points: Vec<PdfPoint>,
     /// True if drawn with a highlighter tool (the only distinction rendering needs).

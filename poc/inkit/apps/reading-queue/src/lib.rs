@@ -20,7 +20,7 @@ pub use inkapp_core::components::checkbox::Checkbox;
 pub struct App;
 
 /// The things a user can do.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum Msg {
     Highlighted { article: ArticleId, text: String },
     Archived { article: ArticleId },

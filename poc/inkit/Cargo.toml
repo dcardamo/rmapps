@@ -13,6 +13,7 @@ members = [
     "crates/inkapp-content",
     "crates/inkapp-config",
     "crates/inkapp-config-derive",
+    "crates/inkctl",
     "spikes/typst-readback",
     "apps/reading-queue",
     "apps/agenda",

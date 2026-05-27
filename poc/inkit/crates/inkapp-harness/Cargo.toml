@@ -7,22 +7,21 @@ description = "In-software loop simulator and layers inspector for inkapp"
 
 [dependencies]
 inkapp-core = { path = "../inkapp-core" }
+rm-cloud = { path = "../rm-cloud", features = ["fake"] }
+rm-device = { path = "../rm-device" }
 typst = "0.14"
 typst-render = "0.14"
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+fs2 = "0.4"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+lopdf = "0.36"
 
 [dev-dependencies]
-# The harness src is generic over `&dyn Device`; the concrete reMarkable device
-# is only needed to drive the simulator/exercisers in tests.
-rm-device = { path = "../rm-device" }
-# rm-files is needed by the transform-fidelity test to read raw device coords
-# from a synthesized .rm capture and measure centroid error directly.
 rm-files = { path = "../rm-files" }
-# rm-cloud backs the manual on-device bars (acceptance/record) that push and pull
-# documents to/from the reMarkable cloud.
-rm-cloud = { path = "../rm-cloud" }
 zip = "2"
 tempfile = "3"
 reading-queue = { path = "../../apps/reading-queue" }
@@ -31,4 +30,3 @@ agenda = { path = "../../apps/agenda" }
 inkapp-ics = { path = "../inkapp-ics" }
 inkapp-localcal = { path = "../inkapp-localcal" }
 inkapp-content = { path = "../inkapp-content" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

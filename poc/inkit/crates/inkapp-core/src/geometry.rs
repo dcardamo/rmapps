@@ -42,7 +42,7 @@ impl PdfRect {
 }
 
 /// A point in PDF user space.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PdfPoint {
     pub x: f64,
     pub y: f64,

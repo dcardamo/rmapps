@@ -292,6 +292,11 @@ impl<M, Msg, Cx> App<M, Msg, Cx> {
         }
     }
 
+    /// Current internal version (post-render). Each step bumps it by 1.
+    pub fn version_get(&self) -> u64 {
+        self.version
+    }
+
     /// Flush the asset cache (if any) so resolved images survive a restart.
     /// Live binaries call this on shutdown. Does not require connectors.
     pub async fn close(&self) -> Result<()> {

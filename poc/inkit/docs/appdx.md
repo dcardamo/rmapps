@@ -938,6 +938,41 @@ use. *(Built — `rm-device::auth::pair` + `inkapp::cli::OpCmd`.)*
 
 ---
 
+## Agent-drivable test harness (`inkctl`)
+
+A CLI (`inkctl`) and library (`inkapp_harness::session`) that let Claude — or any
+agent — exercise inkapp apps end-to-end without hardware, the way Claude drives a
+browser via `playwright-cli`. The same engine that an interactive session uses
+can emit committed Rust `#[test]`s, so an agent session naturally produces
+durable test coverage. Per the spec at
+`docs/superpowers/specs/2026-05-26-inkctl-test-harness-design.md`.
+
+The harness library exposes a `Session` whose state lives in a directory on disk
+(`$INKCTL_HOME/<id>/`): an in-process axum fake reMarkable cloud (`rm-cloud`'s
+`fake` feature, persisted via `from_dir`/`dump_to_dir`), one or more virtual
+devices, published docs with their PDF+manifest+source, and a JSONL command
+trace. The observation surface — `page_describe`, `document_describe`,
+`page_snapshot`, `page_inspect` (with layer + link overlays), `device_tree`,
+`ink_list`, `pdf_links::extract` — is the "accessibility tree" Claude reads. The
+write surface — `ink_tap`/`swipe`/`fixture`/`draw`, `link_follow`, `step_app`
+(drives `App::step` over pending ink), `device_sync` — is what it acts through.
+
+The CLI is a thin clap shell over the library; every command emits JSON
+envelopes (`{ok, data}` / `{ok, error}`) so an agent can parse stdout. Six
+top-level nouns — `session`, `device`, `document`, `page`, `ink`, `record` — plus
+`record emit-test` which converts a `trace.jsonl` into a Rust `#[tokio::test]`
+that reproduces the recorded mutations via the harness library API (no
+subprocess, no JSON at runtime). A dogfood test at
+`crates/inkctl/tests/dogfood.rs` exercises the full record→emit pipeline.
+
+The CLI does not yet integrate `App::step` (no per-app registry shipped here);
+`session step` is structurally wired but returns `not_implemented`. The Rust
+library API `Session::step_app<M, Msg, Cx>` works fully and is what the dogfood
+test will use once an in-tree app is registered. *(Built — `crates/inkctl` +
+`crates/inkapp-harness/src/{session,observe,emit,trace,pdf_links}.rs`.)*
+
+---
+
 ## Open questions parking lot
 
 - Key management & tenant isolation once multi-user / cloud.
