@@ -148,6 +148,45 @@ impl DeviceTransport for CloudTransport {
         }
     }
 
+    /// Push a rendered document and replace the on-device ink layer.
+    /// Fetches the full `DocFiles`, swaps the `.pdf` blob, strips every `.rm`
+    /// blob (per-page ink rasters), then commits via `client.put`. This wipes
+    /// any ink that was already folded into state by `sync_once` — preserving it
+    /// would leave a stale raster misaligned against the re-rendered content.
+    ///
+    /// If the doc doesn't exist yet, falls back to a fresh `DocFiles::new_pdf`
+    /// (same path as `push` for a new doc — no ink to strip yet).
+    async fn push_replace_ink(&self, key: &str, pdf: &[u8]) -> Result<()> {
+        let folder_id = self.folder_id().await?;
+        let Some(id) = self.doc_id_for(&folder_id, key).await? else {
+            // New doc — no on-device ink yet; create via the standard put path.
+            return self
+                .client
+                .put(DocFiles::new_pdf(key, &folder_id, pdf.to_vec()))
+                .await
+                .map_err(|e| Error::Transport(format!("rm-cloud put {key}: {e}")));
+        };
+        let mut files = self
+            .client
+            .get(&id)
+            .await
+            .map_err(|e| Error::Transport(format!("rm-cloud get {id}: {e}")))?;
+        // Swap the PDF blob in place.
+        let pdf_name = format!("{id}.pdf");
+        let pdf_slot = files
+            .files
+            .iter_mut()
+            .find(|(n, _)| *n == pdf_name)
+            .ok_or_else(|| Error::Transport(format!("doc {id} missing .pdf blob")))?;
+        pdf_slot.1 = pdf.to_vec();
+        // Strip all per-page ink rasters so the device starts clean.
+        files.files.retain(|(n, _)| !n.ends_with(".rm"));
+        self.client
+            .put(files)
+            .await
+            .map_err(|e| Error::Transport(format!("rm-cloud push_replace_ink {key}: {e}")))
+    }
+
     async fn delete(&self, key: &str) {
         // Best-effort: a missing folder/doc is not an error.
         let Ok(folder_id) = self.folder_id().await else {
