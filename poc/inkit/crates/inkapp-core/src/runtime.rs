@@ -84,7 +84,12 @@ pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom, theme: &Theme) -
     // four-cell action band, ~28pt) overflows a 16pt margin and gets clipped.
     // We allocate `HEADER_RESERVE` pts of extra top margin when a header is
     // declared; per-document headers haven't yet needed taller than this.
-    const HEADER_RESERVE_PT: f64 = 36.0;
+    // Enough for a typical reader page-header stack: NavBand (~18pt) +
+    // ActionBand (~28pt) + a small gap. Apps with a smaller header (just one
+    // band) pay a few extra pt of unused top margin; apps with a taller
+    // custom header should override via PageGeom margin once the framework
+    // exposes that knob explicitly.
+    const HEADER_RESERVE_PT: f64 = 60.0;
     let top_margin = if doc.page_header.is_some() {
         geom.margin + HEADER_RESERVE_PT
     } else {

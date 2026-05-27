@@ -95,6 +95,12 @@ impl<M> Component for Index<M> {
         let body_font = esc_typst_str(&theme.body);
         let mut s = String::new();
 
+        // Emit an `<index-home>` anchor at the very top of the index so a
+        // NavBand's Home button can `#link(<index-home>, ...)` back here from
+        // anywhere in the document. Zero-size + invisible; the `#metadata`
+        // carries the label without affecting layout.
+        s.push_str("#metadata(\"index-home\")<index-home>\n");
+
         // Optional masthead — title in the heading font at a display size, plus an
         // uppercase tracked count subtitle. Both centered to the left margin.
         if let Some(t) = &self.title {

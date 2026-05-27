@@ -7,8 +7,10 @@ use inkapp_core::component::Component;
 use inkapp_core::components::action_band::ActionBand;
 use inkapp_core::components::heading::Heading;
 use inkapp_core::components::index::{Index, IndexEntry};
+use inkapp_core::components::nav_band::NavBand;
 use inkapp_core::components::notice::Notice;
 use inkapp_core::components::section::Section;
+use inkapp_core::components::stack::Stack;
 use inkapp_core::connector::{Connector, ConnectorSet};
 use inkapp_content::Article as ContentArticle;
 use inkapp_readwise_reader::{Article as ApiArticle, ArticleId, Location, Readwise};
@@ -177,7 +179,16 @@ fn collection_doc(key: &str, articles: Vec<ApiArticle>) -> Option<Document<Msg>>
         items.push(Box::new(Section::<Msg>::new(&a.id.0, section_body)));
     }
 
-    Some(Document::keyed(key, items).page_header(action_band()))
+    // Build the page header: NavBand (Prev / Home / Next, baked with the
+    // ordered article ids in this collection) ABOVE the ActionBand
+    // (Inbox/Archive/Later/Delete, drawn only on article pages). Combined
+    // via Stack so the framework's single `page_header` slot can hold both.
+    let order: Vec<String> = articles.iter().map(|a| a.id.0.clone()).collect();
+    let header: Stack<Msg> = Stack::new(vec![
+        Box::new(NavBand::<Msg>::new(order)),
+        Box::new(action_band()),
+    ]);
+    Some(Document::keyed(key, items).page_header(header))
 }
 
 /// The view: Library + Feed Documents, with an optional sync-failure banner prepended.
