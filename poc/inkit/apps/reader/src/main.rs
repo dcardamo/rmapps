@@ -144,6 +144,10 @@ async fn build_app(
     let app_cfg: AppConfig = store.resolve(instance).expect("resolve app config");
     let page: inkapp_core::geometry::PageConfig =
         store.resolve(instance).expect("resolve page config");
+    // `[theme]` is the user-facing accessibility knob — size_pt + fonts +
+    // justify. Defaults to the reader's code-default values; an empty or
+    // missing section uses those, so it's safe to resolve unconditionally.
+    let theme_cfg: inkapp::ThemeConfig = store.resolve(instance).expect("resolve theme config");
     let mut secrets = SecretStore::open_default().expect("open secrets");
     let key = secrets.user_key().expect("user key");
 
@@ -164,6 +168,7 @@ async fn build_app(
         .view(view)
         .key(key)
         .page(page.into())
+        .theme(theme_cfg.into())
         .build()
 }
 

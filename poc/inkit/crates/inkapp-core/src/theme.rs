@@ -1,6 +1,9 @@
 //! `Theme` — a code-level reading aesthetic. Holds font families, a type scale, and
 //! grayscale tones, and emits a Typst styling prelude injected into every document's
-//! source (see `runtime::document_source_in`). Pure code API: no config dependency.
+//! source (see `runtime::document_source_in`). The `[theme]` config section
+//! (`ThemeConfig` below) is the user-facing knob: change `size_pt` once and every
+//! component's text scales together, because every size is expressed in `em` relative
+//! to the body — the accessibility lever for poorer eyesight.
 
 /// A reading aesthetic: font families, a type scale, and grayscale tones, emitted as
 /// a Typst styling prelude. Tones are `u8` luma (0 = black, 255 = white), which makes
@@ -37,7 +40,13 @@ impl Theme {
             body: "Newsreader".to_string(),
             heading: "Fraunces".to_string(),
             mono: "DejaVu Sans Mono".to_string(),
-            size_pt: 11.0,
+            // 13pt body reads comfortably on a reMarkable Paper Pro Move; 11pt
+            // was tight enough that a reader with average eyesight noted it.
+            // Every component size is expressed in `em` relative to this, so a
+            // user who wants larger or smaller type sets one number (via the
+            // `[theme].size_pt` config knob or `Theme::reader().size_pt(x)` in
+            // code) and everything scales together — the accessibility lever.
+            size_pt: 13.0,
             leading_em: 0.75,
             justify: true,
             heading_tone: 26,
@@ -158,6 +167,51 @@ impl Default for Theme {
     }
 }
 
+/// The `[theme]` config section — the user-facing knob over the reading aesthetic.
+/// `size_pt` is the accessibility lever: every component sizes itself in `em`, so
+/// raising this one number scales the entire document's text uniformly.
+///
+/// Fields default to `Theme::reader()`'s values. An empty `[theme]` block in
+/// `config.toml` is a valid (no-op) override. Apps `store.resolve("default")`
+/// this and apply via `Theme::reader().size_pt(cfg.size_pt).body(cfg.body)...`,
+/// or build the full theme from it (see `Theme::from_config`).
+#[derive(Debug, Clone, serde::Deserialize, inkapp_config::Config)]
+#[serde(default)]
+#[config(kind = "theme", namespace = "framework")]
+pub struct ThemeConfig {
+    /// Base text size in points. Every component expresses its own size in `em`
+    /// relative to this — raise this number to scale the document up.
+    #[config(default = 13.0)]
+    pub size_pt: f64,
+    /// Body text font family.
+    #[config(default = String::from("Newsreader"))]
+    pub body: String,
+    /// Heading font family.
+    #[config(default = String::from("Fraunces"))]
+    pub heading: String,
+    /// Monospace / raw font family.
+    #[config(default = String::from("DejaVu Sans Mono"))]
+    pub mono: String,
+    /// Justify body paragraphs.
+    #[config(default = true)]
+    pub justify: bool,
+}
+
+impl From<ThemeConfig> for Theme {
+    /// Apply a `ThemeConfig` over `Theme::reader()` (font tones + leading from
+    /// the code default, font families and size from config). Apps that want
+    /// full code-level control still build `Theme::reader().size_pt(...)`
+    /// directly; `from_config` is for the config-driven path.
+    fn from(c: ThemeConfig) -> Self {
+        Theme::reader()
+            .body(c.body)
+            .heading(c.heading)
+            .mono(c.mono)
+            .size_pt(c.size_pt)
+            .justify(c.justify)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,7 +222,7 @@ mod tests {
         assert_eq!(t.body, "Newsreader");
         assert_eq!(t.heading, "Fraunces");
         assert_eq!(t.mono, "DejaVu Sans Mono");
-        assert_eq!(t.size_pt, 11.0);
+        assert_eq!(t.size_pt, 13.0);
         assert_eq!(t.leading_em, 0.75);
         assert!(t.justify);
         assert_eq!(t.heading_tone, 26);

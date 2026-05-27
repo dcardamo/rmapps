@@ -13,37 +13,40 @@
 // on an e-ink device, with uppercase letterforms and tight letter-tracking.
 #let action-band(labels) = context {
   let sid = section-state.at(here())
-  let active = sid != ""
-  // Cell takes an explicit width (not 100%) because `region(...)`'s
-  // measure(body) ignores percentage widths — `size.width` from the surrounding
-  // `layout` is the concrete laid-out cell width, so recovery yields a real
-  // (non-zero-width) rect that a pen strike can be classified against.
-  let cell(label, w) = box(
-    width: w,
-    height: 28pt,
-    stroke: 0.6pt + luma(60),
-    inset: 4pt,
-    align(center + horizon, text(
-      size: 9pt,
-      weight: "medium",
-      tracking: 0.15em,
-      fill: if active { luma(34) } else { luma(150) },
-      upper(label),
-    )),
-  )
-  grid(
-    columns: (1fr,) * labels.len(),
-    column-gutter: 6pt,
-    ..labels.map(label => layout(size => {
-      if active {
-        // Wrap in a region so a pen strike on the cell can be attributed
-        // back to (label, section_id) by the Rust decode.
-        region("action-" + label + "-" + sid, cell(label, size.width))
-      } else {
-        // Same visual cell on Index / cover pages, but no region: the band
-        // is inert there (no article to act on). Decode sees nothing.
-        cell(label, size.width)
-      }
-    })),
-  )
+  if sid == "" {
+    // No section yet (e.g. the Library/Feed Index page): render nothing.
+    // The action band is article-only by intent — there's nothing to act on
+    // from a contents/landing page. The page-header slot the framework
+    // allocates still reserves vertical space, so other page-header
+    // components (e.g. a NavBand) can sit in it consistently.
+    none
+  } else {
+    // Cell takes an explicit width (not 100%) because `region(...)`'s
+    // measure(body) ignores percentage widths — `size.width` from the
+    // surrounding `layout` is the concrete laid-out cell width, so recovery
+    // yields a real (non-zero-width) rect a pen strike can be classified against.
+    let cell(label, w) = box(
+      width: w,
+      height: 28pt,
+      stroke: 0.6pt + luma(60),
+      inset: 4pt,
+      align(center + horizon, text(
+        size: 9pt,
+        weight: "medium",
+        tracking: 0.15em,
+        fill: luma(34),
+        upper(label),
+      )),
+    )
+    grid(
+      columns: (1fr,) * labels.len(),
+      column-gutter: 6pt,
+      ..labels.map(label => layout(size => region(
+        // A pen strike on the cell is attributed back to (label, section_id)
+        // by the Rust decode via the region name.
+        "action-" + label + "-" + sid,
+        cell(label, size.width),
+      ))),
+    )
+  }
 }
