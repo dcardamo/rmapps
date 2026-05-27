@@ -1100,6 +1100,29 @@ Tracks the layered testing program from
     referenced — proving the optimistic overlay propagates through to
     the next `view`.
 
+- **Layer 6 — full agent-driven loop (partial).** Covered 2026-05-27.
+  - `apps/reader/tests/loop_emitted.rs::happy_path_tap_archive_then_step`:
+    publish reader through the harness, locate `action-Archive-a1` in
+    the published manifest, drive `ink_draw` with a non-highlighter pen
+    strike spanning the region, `Session::step_app` decodes
+    `Msg::Move{to: Archive}` (JSON: `{"Move":{"article":"a1","to":"archive"}}`),
+    the connector overlay reflects the archive, and the post-step
+    Library re-render no longer references `a1` (while `a2` remains).
+    Exercises the full publish → tap → decode → mutate → re-render
+    pipeline through `Session::step_app`.
+  - **Deferred** (separate plans, not blockers): (a) Index → article
+    navigation via `link_follow` — Typst's `#link(<label>)` renders as
+    a `/GoTo` annotation with a NAMED destination, which the harness's
+    `pdf_links::extract` currently skips; resolving named destinations
+    is framework work, not a Layer-6 test concern. (b) Stale-manifest
+    full-loop sequence — `guard_version` is already pinned at Layer 3.
+    (c) Offline-connector full-loop sequence — Layer 5 already covers
+    `view` over the warm cache without network calls. (d) `inkctl
+    session step` CLI wiring — the spec's "first known inkctl bug" is
+    real but unblocks live agent-driven recording sessions, which are
+    not part of the committed test coverage; the in-process
+    `Session::step_app` is what `loop_emitted.rs` exercises.
+
 ---
 
 ## Open questions parking lot

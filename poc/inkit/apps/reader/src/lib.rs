@@ -19,7 +19,7 @@ use inkapp_readwise_reader::{Article as ApiArticle, ArticleId, Location, Readwis
 pub struct App;
 
 /// The things a user can do.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum Msg {
     Highlighted { article: ArticleId, text: String },
     Move { article: ArticleId, to: Location },
