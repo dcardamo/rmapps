@@ -4167,6 +4167,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "reader"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "inkapp",
+ "inkapp-config",
+ "inkapp-content",
+ "inkapp-core",
+ "inkapp-readwise-reader",
+ "serde",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "reading-queue"
 version = "0.1.0"
 dependencies = [

@@ -9,14 +9,43 @@
 
 use crate::component::{Component, RenderCx};
 use crate::components::esc_typst_str;
-use crate::ink::RegionInk;
-use crate::manifest::Manifest;
+use crate::ink::{RegionInk, Stroke};
+use crate::manifest::{Manifest, Region};
 use crate::render::is_valid_region_name;
 
 /// A non-highlighter gesture whose combined bbox spans at least this fraction of
 /// the region width reads as a deliberate strike/scribble (the action) rather than
 /// an incidental mark. A strike/scribble fills the line; a tick or dot does not.
-const STRIKE_WIDTH_RATIO: f64 = 0.6;
+pub(crate) const STRIKE_WIDTH_RATIO: f64 = 0.6;
+
+/// Whether the non-highlighter strokes whose bounding boxes are attributed to
+/// `region` together span at least `ratio * region.width` in X.
+///
+/// Only strokes with **at least one point inside the region rect** are counted
+/// (the Checkbox two-stage filter). Their bounding boxes are unioned so a
+/// multi-stroke scribble is treated as a single gesture — consistent with
+/// [`GestureAction::read`].
+pub(crate) fn strike_spans_region(strokes: &[Stroke], region: &Region, ratio: f64) -> bool {
+    let region_w = region.rect.x1 - region.rect.x0;
+    if region_w <= 0.0 {
+        return false;
+    }
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    for bbox in strokes
+        .iter()
+        .filter(|s| !s.highlighter)
+        .filter(|s| s.points.iter().any(|p| region.rect.contains(p.x, p.y)))
+        .filter_map(|s| s.bbox())
+    {
+        min_x = min_x.min(bbox.x0);
+        max_x = max_x.max(bbox.x1);
+    }
+    if min_x > max_x {
+        return false; // no qualifying pen strokes
+    }
+    (max_x - min_x) >= ratio * region_w
+}
 
 /// A Control bound to one named region that fires `on_gesture` when struck through.
 /// `M` defaults to `()` for a presence-only control.
@@ -55,30 +84,15 @@ impl<M> GestureAction<M> {
         let Some(region) = manifest.regions.iter().find(|r| r.name == self.name) else {
             return false;
         };
-        let region_w = region.rect.x1 - region.rect.x0;
-        if region_w <= 0.0 {
-            return false;
-        }
-        // Non-highlighter strokes attributed to this region with a point inside
-        // the rect (the Checkbox two-stage filter); union their bounding boxes so
-        // a multi-stroke scribble is handled as a single gesture.
-        let mut min_x = f64::INFINITY;
-        let mut max_x = f64::NEG_INFINITY;
-        for bbox in ink
+        // Collect all non-highlighter strokes attributed to this region and
+        // delegate to the shared helper that unions bbox spans.
+        let strokes: Vec<_> = ink
             .iter()
             .filter(|ri| ri.region == self.name)
-            .flat_map(|ri| &ri.strokes)
-            .filter(|s| !s.highlighter)
-            .filter(|s| s.points.iter().any(|p| region.rect.contains(p.x, p.y)))
-            .filter_map(|s| s.bbox())
-        {
-            min_x = min_x.min(bbox.x0);
-            max_x = max_x.max(bbox.x1);
-        }
-        if min_x > max_x {
-            return false; // no qualifying pen strokes
-        }
-        (max_x - min_x) >= STRIKE_WIDTH_RATIO * region_w
+            .flat_map(|ri| ri.strokes.iter())
+            .cloned()
+            .collect();
+        strike_spans_region(&strokes, region, STRIKE_WIDTH_RATIO)
     }
 }
 

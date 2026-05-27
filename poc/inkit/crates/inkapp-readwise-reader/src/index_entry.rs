@@ -24,6 +24,10 @@ impl From<&Article> for IndexEntry {
             // never a number; do not parse or reformat it.
             reading_time: a.reading_time.clone(),
             summary: (!a.summary.is_empty()).then(|| a.summary.clone()),
+            // Match the id used by `Section::new(&a.id.0, ...)` in the app's
+            // view, so an Index row's #link to `<art-{id}>` lands on the right
+            // Section's anchor.
+            link_id: Some(a.id.0.clone()),
         }
     }
 }

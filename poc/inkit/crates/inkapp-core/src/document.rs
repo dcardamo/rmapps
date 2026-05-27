@@ -16,11 +16,13 @@ impl DocKey {
 }
 
 /// One document: a key plus an ordered flow of components, plus optional
-/// app-owned document-level state carried in the sealed manifest.
+/// app-owned document-level state carried in the sealed manifest, plus an
+/// optional per-page header component (rendered on every page).
 pub struct Document<M> {
     pub key: DocKey,
     pub flow: Vec<Box<dyn Component<Msg = M>>>,
     pub state: Option<serde_json::Value>,
+    pub page_header: Option<Box<dyn Component<Msg = M>>>,
 }
 
 impl<M> Document<M> {
@@ -29,6 +31,7 @@ impl<M> Document<M> {
             key: DocKey::new(key),
             flow,
             state: None,
+            page_header: None,
         }
     }
 
@@ -42,7 +45,16 @@ impl<M> Document<M> {
             key: DocKey::new(key),
             flow,
             state: Some(state),
+            page_header: None,
         }
+    }
+
+    /// Attach a per-page header component. The framework wires its render into
+    /// `#set page(header: ...)` and calls its `decode` alongside the flow decode.
+    #[must_use]
+    pub fn page_header(mut self, header: impl Component<Msg = M> + 'static) -> Self {
+        self.page_header = Some(Box::new(header));
+        self
     }
 }
 

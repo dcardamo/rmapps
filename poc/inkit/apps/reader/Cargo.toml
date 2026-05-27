@@ -1,0 +1,19 @@
+[package]
+name = "reader"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "inkapp Reader app: Library + Feed PDFs with per-page ActionBand"
+
+[dependencies]
+inkapp = { path = "../../crates/inkapp" }
+inkapp-config = { path = "../../crates/inkapp-config" }
+inkapp-content = { path = "../../crates/inkapp-content" }
+inkapp-core = { path = "../../crates/inkapp-core" }
+inkapp-readwise-reader = { path = "../../crates/inkapp-readwise-reader" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+
+[dev-dependencies]
+tempfile = "3"

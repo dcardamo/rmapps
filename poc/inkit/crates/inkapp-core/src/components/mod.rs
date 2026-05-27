@@ -1,10 +1,15 @@
+pub mod action_band;
 pub mod calendar_view;
 pub mod checkbox;
 pub mod gesture;
+pub mod heading;
 pub mod highlight_text;
 pub mod index;
+pub mod nav_band;
 pub mod notice;
 pub mod passage;
+pub mod section;
+pub mod stack;
 pub mod stepper;
 
 use crate::ink::RegionInk;

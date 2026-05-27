@@ -40,6 +40,22 @@
 > and grayscale palette, injected via `Theme::prelude()`, with `Theme::reader()` as
 > the zero-config default and a builder for per-app overrides.
 >
+> **Layout & interaction primitives for composed apps.** Five new framework
+> components and a transport method now compose the reader's front-end. A `Heading`
+> component renders title + byline + reading-time with theme-aware typography; a
+> `Section<M>` wrapper opens per-section Typst state and a weak pagebreak, holding
+> the section body; an `ActionBand<M>` component emits a N-cell per-page action band
+> reading the current section id, decoding pen strikes per cell with dedicated closures
+> — matching the old fulgur reader's four-cell (Inbox / Archive / Later / Delete) UX.
+> A `Document::page_header()` builder carries an optional header component, the
+> framework wires its render into `#set page(header:)` and calls its decode per cycle,
+> so page-spanning regions (like an action band) render on every page cleanly. A
+> second `push_replace_ink` transport method replaces (rather than preserves)
+> on-device ink post-fold, implementing the Readwise fulgur behaviour where a synced
+> action rewrites the device slate. `apps/reader` composes them into Library + Feed
+> PDFs with a per-page `ActionBand` header, delivering the old reading queue UX on
+> inkapp's Typst pipeline with no postprocess.
+>
 > **Build order** (making this doc true): **S** secrets → **E** encryption →
 > **C** connector plugin trait → **M** mode axis → **T** Typst authoring →
 > state field → **pagination** *(all done)*. Simultaneous per-device fan-out,

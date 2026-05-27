@@ -41,11 +41,19 @@ fn assets_as_slice(assets: &AssetMap) -> Vec<(String, Vec<u8>)> {
 
 /// Collect the Typst sources to register for this document: the prelude plus each
 /// component's declared sources, deduplicated by path (first occurrence wins).
+/// Includes sources from the page header if one is set.
 pub fn collect_typst_sources<M>(doc: &Document<M>) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> =
         vec![(REGION_PRELUDE.0.to_string(), REGION_PRELUDE.1.to_string())];
     for c in &doc.flow {
         for src in c.typst_sources() {
+            if !out.iter().any(|(p, _)| p == &src.0) {
+                out.push(src);
+            }
+        }
+    }
+    if let Some(h) = &doc.page_header {
+        for src in h.typst_sources() {
             if !out.iter().any(|(p, _)| p == &src.0) {
                 out.push(src);
             }
@@ -70,11 +78,36 @@ pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom, theme: &Theme) -
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));
     }
+    // When a per-page header is set we widen the top margin so the header
+    // doesn't overflow above the page. The default Typst page model places
+    // the header *inside* the top margin, so a tall header (e.g. the reader's
+    // four-cell action band, ~28pt) overflows a 16pt margin and gets clipped.
+    // We allocate `HEADER_RESERVE` pts of extra top margin when a header is
+    // declared; per-document headers haven't yet needed taller than this.
+    // Enough for a typical reader page-header stack: NavBand (~18pt) +
+    // ActionBand (~28pt) + a small gap. Apps with a smaller header (just one
+    // band) pay a few extra pt of unused top margin; apps with a taller
+    // custom header should override via PageGeom margin once the framework
+    // exposes that knob explicitly.
+    const HEADER_RESERVE_PT: f64 = 60.0;
+    let top_margin = if doc.page_header.is_some() {
+        geom.margin + HEADER_RESERVE_PT
+    } else {
+        geom.margin
+    };
     src.push_str(&format!(
-        "#set page(width: {}pt, height: {}pt, margin: {}pt)\n",
-        geom.w, geom.h, geom.margin
+        "#set page(width: {}pt, height: {}pt, \
+         margin: (top: {}pt, bottom: {}pt, x: {}pt))\n",
+        geom.w, geom.h, top_margin, geom.margin, geom.margin
     ));
     src.push_str(&theme.prelude());
+    // Emit the per-page header slot AFTER the theme prelude so theme font/text
+    // defaults are in scope inside the header, but BEFORE body components so
+    // Typst applies it from the first page.
+    if let Some(h) = &doc.page_header {
+        let header_typst = h.render(&mut cx);
+        src.push_str(&format!("#set page(header: [{header_typst}])\n"));
+    }
     for c in &doc.flow {
         src.push_str(&c.render(&mut cx));
     }
@@ -333,6 +366,12 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
                     pairs.push((asset_key(&url), url));
                 }
             }
+            // Also collect image URLs from the page header, if present.
+            if let Some(h) = &doc.page_header {
+                for url in h.image_urls() {
+                    pairs.push((asset_key(&url), url));
+                }
+            }
         }
         resolve_assets(&pairs, self.asset_cache.as_deref(), &*self.fetcher).await
     }
@@ -400,6 +439,10 @@ impl<M, Msg, Cx: ConnectorSet> App<M, Msg, Cx> {
             // ink carries its own base version (multi-device / vector clock).
             guard_version(entry.version, &entry.manifest)?;
             let region_ink = attribute(pages, &entry.manifest);
+            // Decode header first (before body) so header Msgs are prepended.
+            if let Some(h) = &doc.page_header {
+                decoded.extend(h.decode(&region_ink, &entry.manifest));
+            }
             for c in &doc.flow {
                 decoded.extend(c.decode(&region_ink, &entry.manifest));
             }
