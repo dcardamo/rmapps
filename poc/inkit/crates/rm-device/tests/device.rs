@@ -8,14 +8,45 @@ use rm_device::Remarkable;
 // proportional to page height, so a much taller page would need a looser bound.
 const PAGE_H: f64 = 841.89;
 
+// Conservative width: 0.5 * page_h gives ample interior room at any aspect.
+// The transform inverts at any input, so we don't need the *real* page_w;
+// we just need sample points in a known region.
+fn page_w_for(rm: &Remarkable, page_h: f64) -> f64 {
+    let _ = rm;
+    page_h * 0.5
+}
+
 #[test]
-fn transform_is_invertible() {
+fn transform_is_invertible_across_geometries() {
     let rm = Remarkable::new();
-    let p = PdfPoint { x: 123.0, y: 456.0 };
-    let d = rm.pdf_to_device(p, PAGE_H);
-    let back = rm.device_to_pdf(d, PAGE_H);
-    assert!((back.x - p.x).abs() < 1e-6, "x inverts");
-    assert!((back.y - p.y).abs() < 1e-6, "y inverts");
+    for (page_h, label) in &[(560.0_f64, "inkapp-default"), (841.89_f64, "a4")] {
+        let page_w = page_w_for(&rm, *page_h);
+        let samples: &[(f64, f64, &str)] = &[
+            (page_w / 2.0, *page_h / 2.0, "center"),
+            (0.0, 0.0, "bottom-left"),
+            (page_w, 0.0, "bottom-right"),
+            (0.0, *page_h, "top-left"),
+            (page_w, *page_h, "top-right"),
+            (page_w / 2.0, 0.0, "mid-bottom"),
+        ];
+        for (x, y, name) in samples {
+            let p = PdfPoint { x: *x, y: *y };
+            let d = rm.pdf_to_device(p, *page_h);
+            let back = rm.device_to_pdf(d, *page_h);
+            assert!(
+                (back.x - p.x).abs() < 1e-6,
+                "[{label}/{name}] x inverts: {} vs {}",
+                p.x,
+                back.x
+            );
+            assert!(
+                (back.y - p.y).abs() < 1e-6,
+                "[{label}/{name}] y inverts: {} vs {}",
+                p.y,
+                back.y
+            );
+        }
+    }
 }
 
 #[test]

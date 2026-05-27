@@ -1,0 +1,49 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-27-layer2-device-coord-transform.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Multi-geometry round-trip tests",
+      "status": "pending",
+      "description": "**Goal:** Prove PDF↔device transform inverts at inkapp-default (560pt) and A4 (841.89pt) geometries at multiple sample points.\n\n**Files:** crates/rm-device/tests/device.rs\n\n```json:metadata\n{\"files\": [\"crates/rm-device/tests/device.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-device transform_is_invertible_across_geometries\", \"acceptanceCriteria\": [\"multi-geometry test passes\", \"old single-point test removed\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Fix stale transform_fidelity doc reference",
+      "status": "pending",
+      "description": "**Goal:** Remove the outdated transform_fidelity reference in crates/rm-device/src/lib.rs:28.\n\n```json:metadata\n{\"files\": [\"crates/rm-device/src/lib.rs\"], \"verifyCommand\": \"! grep -r transform_fidelity crates/\", \"acceptanceCriteria\": [\"no transform_fidelity references remain\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Pin out-of-page-stroke contract",
+      "status": "pending",
+      "description": "**Goal:** Document off-page contract on Device trait + Remarkable impl; assert with two new tests.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/device.rs\", \"crates/rm-device/src/lib.rs\", \"crates/rm-device/tests/device.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-device off_page\", \"acceptanceCriteria\": [\"trait doc-comment names policy\", \"2 new tests pass\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Text-highlight (GlyphRange) synthesis test",
+      "status": "pending",
+      "description": "**Goal:** Verify Remarkable::read_ink synthesizes 17-point swipes from GlyphRange items via rmtest-glyph.rmdoc.\n\n```json:metadata\n{\"files\": [\"crates/rm-device/Cargo.toml\", \"crates/rm-device/tests/device.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-device text_highlight_rect_synthesizes_swipe\", \"acceptanceCriteria\": [\"17-point swipe found\", \"constant y, monotonic x\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Calibration fixture decode test",
+      "status": "pending",
+      "description": "**Goal:** Decode calibration.rmdoc page 0 stroke 0, assert PDF-space bbox within 4pt of recorded values.\n\n```json:metadata\n{\"files\": [\"crates/rm-device/tests/device.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-device calibration_fixture_decodes_to_expected_pdf_region\", \"acceptanceCriteria\": [\"bbox values committed (not 0.0 placeholders)\", \"test passes within 4pt tolerance\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: inkctl lens parity at Layer 2 (adds ink load-rm verb)",
+      "status": "pending",
+      "description": "**Goal:** Add inkctl `ink load-rm` verb + Session::ink_apply_rm_bytes; test CLI==library on calibration fixture.\n\n```json:metadata\n{\"files\": [\"crates/inkctl/src/cmd/ink.rs\", \"crates/inkapp-harness/src/session.rs\", \"crates/inkctl/Cargo.toml\", \"crates/inkctl/tests/lens_parity_layer2.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkctl layer2_lens_matches_library\", \"acceptanceCriteria\": [\"ink load-rm verb added\", \"Session::ink_apply_rm_bytes added\", \"parity test passes\", \"existing inkctl smoke tests still pass\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Mark Layer 2 covered in docs/appdx.md",
+      "status": "pending",
+      "blockedBy": [1, 2, 3, 4, 5, 6],
+      "description": "**Goal:** Update appdx.md with Test coverage by layer subsection; workspace tests + clippy clean.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"nix develop -c cargo test --workspace && nix develop -c cargo clippy --all-targets -- -D warnings\", \"acceptanceCriteria\": [\"Layer 2 section added\", \"workspace tests + clippy clean\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-27"
+}
