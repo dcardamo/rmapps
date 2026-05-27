@@ -101,9 +101,6 @@ mod tests {
     fn ids_are_escaped() {
         let n: NavBand<()> = NavBand::new(vec![r#"weird"id"#.into()]);
         let out = n.render(&mut RenderCx::new(0));
-        assert!(
-            out.contains(r#"weird\"id"#),
-            "quote in id escaped: {out}"
-        );
+        assert!(out.contains(r#"weird\"id"#), "quote in id escaped: {out}");
     }
 }

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use inkapp::{flow, Document, Documents};
+use inkapp_content::Article as ContentArticle;
 use inkapp_core::component::Component;
 use inkapp_core::components::action_band::ActionBand;
 use inkapp_core::components::heading::Heading;
@@ -12,7 +13,6 @@ use inkapp_core::components::notice::Notice;
 use inkapp_core::components::section::Section;
 use inkapp_core::components::stack::Stack;
 use inkapp_core::connector::{Connector, ConnectorSet};
-use inkapp_content::Article as ContentArticle;
 use inkapp_readwise_reader::{Article as ApiArticle, ArticleId, Location, Readwise};
 
 /// The Model: no own state — the queue and highlights live in Readwise.
@@ -22,8 +22,8 @@ pub struct App;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Msg {
     Highlighted { article: ArticleId, text: String },
-    Move        { article: ArticleId, to: Location },
-    Delete      { article: ArticleId },
+    Move { article: ArticleId, to: Location },
+    Delete { article: ArticleId },
 }
 
 /// The reader app's own config section.
@@ -83,8 +83,8 @@ impl ConnectorSet for Connectors {
 pub fn update(msg: Msg, _m: &mut App, cx: &Connectors) {
     match msg {
         Msg::Highlighted { article, text } => cx.readwise.add_highlight(&article, &text),
-        Msg::Move        { article, to }   => cx.readwise.move_to(&article, to),
-        Msg::Delete      { article }       => cx.readwise.delete(&article),
+        Msg::Move { article, to } => cx.readwise.move_to(&article, to),
+        Msg::Delete { article } => cx.readwise.delete(&article),
     }
 }
 
@@ -143,12 +143,19 @@ fn heading_for(a: &ApiArticle) -> Heading<Msg> {
     h
 }
 
-/// Build the content Article body wired with an on-highlight closure.
+/// Build the content Article body wired with an on-highlight closure. The
+/// article id (with a trailing `-`) is passed as the token-region prefix so
+/// each article's `tok-N` regions are uniquely namespaced — critical now
+/// that one Document holds many Articles. Without this, the manifest lookup
+/// `find(name == "tok-N")` returns the first Article's region, silently
+/// misattributing every highlight downstream.
 fn article_body(a: &ApiArticle) -> ContentArticle<Msg> {
     let id = a.id.clone();
-    ContentArticle::new(
+    let prefix = format!("{}-", a.id.0);
+    ContentArticle::new_with_prefix(
         a.html_content.as_deref().unwrap_or(""),
         &a.highlights,
+        &prefix,
         move |s| Msg::Highlighted {
             article: id.clone(),
             text: s.to_string(),
@@ -172,10 +179,8 @@ fn collection_doc(key: &str, articles: Vec<ApiArticle>) -> Option<Document<Msg>>
 
     // One Section per article: Heading + Article body.
     for a in &articles {
-        let section_body: Vec<Box<dyn Component<Msg = Msg>>> = vec![
-            Box::new(heading_for(a)),
-            Box::new(article_body(a)),
-        ];
+        let section_body: Vec<Box<dyn Component<Msg = Msg>>> =
+            vec![Box::new(heading_for(a)), Box::new(article_body(a))];
         items.push(Box::new(Section::<Msg>::new(&a.id.0, section_body)));
     }
 

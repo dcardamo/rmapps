@@ -3,11 +3,11 @@
 //! highlighter ink into coalesced span strings, each mapped to an app message.
 
 use inkapp_core::component::{Component, RenderCx};
-use inkapp_core::components::highlighted_token_indices;
+use inkapp_core::components::highlighted_token_indices_with_prefix;
 use inkapp_core::ink::RegionInk;
 use inkapp_core::manifest::Manifest;
 
-use crate::convert::{convert, Converted};
+use crate::convert::{convert_with_prefix, Converted};
 
 /// A highlightable article. `M` is the app message; `on_highlight` builds one
 /// message per coalesced highlighted span (the appdx-sanctioned escape hatch for
@@ -15,18 +15,41 @@ use crate::convert::{convert, Converted};
 pub struct Article<M> {
     converted: Converted,
     on_highlight: Box<dyn Fn(&str) -> M>,
+    /// The prefix passed to `convert_with_prefix` at construction. Used by
+    /// `read`/`decode` so the manifest lookup hits the right token regions
+    /// when multiple Articles live in one Document.
+    name_prefix: String,
 }
 
 impl<M> Article<M> {
     /// Convert `html` once (rendering tokens in `highlights` pre-marked).
+    /// Token region names are bare `tok-{i}` — only safe when this Article is
+    /// the sole token-emitter in its Document. Multi-article Documents must
+    /// use [`new_with_prefix`] (which is what `apps/reader` does).
     pub fn new(
         html: &str,
         highlights: &[String],
         on_highlight: impl Fn(&str) -> M + 'static,
     ) -> Self {
+        Self::new_with_prefix(html, highlights, "", on_highlight)
+    }
+
+    /// Like [`new`], but namespaces this Article's token regions as
+    /// `tok-{name_prefix}{i}`. Required when multiple Articles share one
+    /// Document — without distinct prefixes, every Article's `tok-N`
+    /// collides and `manifest.regions.find(name)` returns the wrong
+    /// Article's region (silently misattributing every highlight). Callers
+    /// typically pass the article id followed by `-` (e.g. `"01abc-"`).
+    pub fn new_with_prefix(
+        html: &str,
+        highlights: &[String],
+        name_prefix: &str,
+        on_highlight: impl Fn(&str) -> M + 'static,
+    ) -> Self {
         Self {
-            converted: convert(html, highlights),
+            converted: convert_with_prefix(html, highlights, name_prefix),
             on_highlight: Box::new(on_highlight),
+            name_prefix: name_prefix.to_string(),
         }
     }
 
@@ -40,7 +63,8 @@ impl<M> Article<M> {
     /// share a block coalesced into one space-joined string.
     pub fn read(&self, ink: &[RegionInk], manifest: &Manifest) -> Vec<String> {
         let tokens = &self.converted.tokens;
-        let hits = highlighted_token_indices(tokens.len(), ink, manifest);
+        let hits =
+            highlighted_token_indices_with_prefix(&self.name_prefix, tokens.len(), ink, manifest);
 
         let mut spans: Vec<String> = Vec::new();
         let mut run: Vec<usize> = Vec::new();

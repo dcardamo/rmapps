@@ -1,10 +1,10 @@
 mod shared;
 
-use inkapp_core::manifest::recover_regions;
-use inkapp_core::runtime::{collect_typst_sources, document_source_in, DocSet};
 use inkapp_core::geometry::PageGeom;
-use inkapp_core::theme::Theme;
+use inkapp_core::manifest::recover_regions;
 use inkapp_core::render::compile_to_document_with_sources;
+use inkapp_core::runtime::{collect_typst_sources, document_source_in, DocSet};
+use inkapp_core::theme::Theme;
 use reader::{view, App, Connectors};
 
 /// The view against the fake cassette produces at least the Library Document
@@ -82,34 +82,31 @@ fn library_compiles_and_recovers_action_plus_token_regions() {
 /// both region families appear.
 #[test]
 fn library_with_html_content_recovers_both_tok_and_action_regions() {
+    use inkapp::Document;
+    use inkapp_content::Article as ContentArticle;
     use inkapp_core::component::Component;
     use inkapp_core::components::action_band::ActionBand;
     use inkapp_core::components::heading::Heading;
     use inkapp_core::components::section::Section;
-    use inkapp::Document;
-    use inkapp_content::Article as ContentArticle;
     use inkapp_readwise_reader::Location;
     use reader::Msg;
 
     // Build an Article component with real HTML content.
     let art_id = inkapp_readwise_reader::ArticleId::new("html-a1");
     let art_id_clone = art_id.clone();
-    let content_article: ContentArticle<Msg> = ContentArticle::new(
-        "<p>the quick brown fox</p>",
-        &[],
-        move |s| Msg::Highlighted {
-            article: art_id_clone.clone(),
-            text: s.to_string(),
-        },
-    );
+    let content_article: ContentArticle<Msg> =
+        ContentArticle::new("<p>the quick brown fox</p>", &[], move |s| {
+            Msg::Highlighted {
+                article: art_id_clone.clone(),
+                text: s.to_string(),
+            }
+        });
 
     // Heading<Msg> — now that Heading is generic, no adaptor or substitute needed.
     let heading = Heading::<Msg>::new("Test Article");
 
-    let section_body: Vec<Box<dyn Component<Msg = Msg>>> = vec![
-        Box::new(heading),
-        Box::new(content_article),
-    ];
+    let section_body: Vec<Box<dyn Component<Msg = Msg>>> =
+        vec![Box::new(heading), Box::new(content_article)];
 
     let band = ActionBand::<Msg>::new([
         (
@@ -141,9 +138,8 @@ fn library_with_html_content_recovers_both_tok_and_action_regions() {
         ),
     ]);
 
-    let flow: Vec<Box<dyn Component<Msg = Msg>>> = vec![
-        Box::new(Section::<Msg>::new("html-a1", section_body)),
-    ];
+    let flow: Vec<Box<dyn Component<Msg = Msg>>> =
+        vec![Box::new(Section::<Msg>::new("html-a1", section_body))];
 
     let doc = Document::keyed("TestLib", flow).page_header(band);
 

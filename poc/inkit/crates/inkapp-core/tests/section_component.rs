@@ -9,17 +9,20 @@ use inkapp_core::theme::Theme;
 
 fn sources() -> Vec<(String, String)> {
     vec![
-        ("/inkapp/region.typ".into(), include_str!("../typst/region.typ").into()),
-        ("/inkapp/section.typ".into(), include_str!("../typst/section.typ").into()),
+        (
+            "/inkapp/region.typ".into(),
+            include_str!("../typst/region.typ").into(),
+        ),
+        (
+            "/inkapp/section.typ".into(),
+            include_str!("../typst/section.typ").into(),
+        ),
     ]
 }
 
 #[test]
 fn render_emits_section_call_with_id() {
-    let s: Section<()> = Section::new(
-        "art-1",
-        vec![Box::new(Notice::line("hello"))],
-    );
+    let s: Section<()> = Section::new("art-1", vec![Box::new(Notice::line("hello"))]);
     let mut cx = RenderCx::new(0).with_theme(Theme::reader());
     let out = s.render(&mut cx);
     assert!(out.contains("section(\"art-1\""), "id in call: {out}");
@@ -39,7 +42,11 @@ fn two_sections_produce_multiple_pages() {
         s2.render(&mut cx),
     );
     let doc = compile_to_document_with_sources(&src, &sources()).unwrap();
-    assert!(doc.pages.len() >= 2, "two sections should paginate to ≥2 pages; got {}", doc.pages.len());
+    assert!(
+        doc.pages.len() >= 2,
+        "two sections should paginate to ≥2 pages; got {}",
+        doc.pages.len()
+    );
 }
 
 #[test]

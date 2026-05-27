@@ -69,10 +69,7 @@ impl<M> Component for Heading<M> {
 
         // Build the #heading-block(...) call, passing optional named args only
         // when present to keep the output clean.
-        let mut call = format!(
-            "#heading-block(\"{}\"",
-            title
-        );
+        let mut call = format!("#heading-block(\"{}\"", title);
 
         if let Some(b) = &self.byline {
             call.push_str(&format!(", byline: \"{}\"", esc_typst_str(b)));

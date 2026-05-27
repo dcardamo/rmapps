@@ -45,9 +45,7 @@ impl<M> Component for Section<M> {
         // sides stay in sync. The `art-` prefix is load-bearing: Typst labels
         // forbid leading digits and reader article ids are ULIDs starting
         // with a digit.
-        format!(
-            "#section(\"{id}\", [#metadata(\"section-anchor\")<art-{id}>\n{body_src}])\n"
-        )
+        format!("#section(\"{id}\", [#metadata(\"section-anchor\")<art-{id}>\n{body_src}])\n")
     }
 
     fn typst_sources(&self) -> Vec<(String, String)> {

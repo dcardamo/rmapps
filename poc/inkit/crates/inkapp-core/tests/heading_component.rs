@@ -31,7 +31,9 @@ fn all_fields_render() {
 
 #[test]
 fn heading_typst_compiles() {
-    let h = Heading::<()>::new("Compilable").byline("Author").reading_time("3 min");
+    let h = Heading::<()>::new("Compilable")
+        .byline("Author")
+        .reading_time("3 min");
     let theme = Theme::reader();
     let mut cx = RenderCx::new(0).with_theme(theme.clone());
     let body = h.render(&mut cx);
@@ -40,8 +42,14 @@ fn heading_typst_compiles() {
         theme.prelude()
     );
     let sources = vec![
-        ("/inkapp/region.typ".into(), include_str!("../typst/region.typ").into()),
-        ("/inkapp/heading.typ".into(), include_str!("../typst/heading.typ").into()),
+        (
+            "/inkapp/region.typ".into(),
+            include_str!("../typst/region.typ").into(),
+        ),
+        (
+            "/inkapp/heading.typ".into(),
+            include_str!("../typst/heading.typ").into(),
+        ),
     ];
     compile_to_document_with_sources(&src, &sources).expect("Heading typst compiles");
 }

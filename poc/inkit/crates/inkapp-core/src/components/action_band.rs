@@ -28,10 +28,7 @@ impl<M> ActionBand<M> {
     pub fn new(cells: impl IntoIterator<Item = (String, Handler<M>)>) -> Self {
         let cells: Vec<_> = cells.into_iter().collect();
         for (label, _) in &cells {
-            assert!(
-                !label.is_empty(),
-                "ActionBand cell label must not be empty"
-            );
+            assert!(!label.is_empty(), "ActionBand cell label must not be empty");
             assert!(
                 !label.contains('-'),
                 "ActionBand cell label must not contain '-' (label: {label:?})"

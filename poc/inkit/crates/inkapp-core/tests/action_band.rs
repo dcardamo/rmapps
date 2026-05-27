@@ -174,7 +174,8 @@ fn multi_stroke_scribble_fires_action() {
         Stroke {
             points: (0..=5)
                 .map(|i| inkapp_core::geometry::PdfPoint {
-                    x: target.rect.x0 + w * (frac_start + (frac_end - frac_start) * (i as f64 / 5.0)),
+                    x: target.rect.x0
+                        + w * (frac_start + (frac_end - frac_start) * (i as f64 / 5.0)),
                     y: y_mid,
                 })
                 .collect(),

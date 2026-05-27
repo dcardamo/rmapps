@@ -62,7 +62,10 @@ impl DeviceTransport for CountingTransport {
     }
 
     async fn push_replace_ink(&self, key: &str, _pdf: &[u8]) -> Result<()> {
-        self.replace_ink_pushes.lock().unwrap().push(key.to_string());
+        self.replace_ink_pushes
+            .lock()
+            .unwrap()
+            .push(key.to_string());
         Ok(())
     }
 
@@ -125,8 +128,15 @@ impl Component for TapTile {
             .to_string()
     }
 
-    fn decode(&self, ink: &[RegionInk], _manifest: &inkapp_core::manifest::Manifest) -> Vec<InkMsg> {
-        if ink.iter().any(|r| r.region == "tap" && !r.strokes.is_empty()) {
+    fn decode(
+        &self,
+        ink: &[RegionInk],
+        _manifest: &inkapp_core::manifest::Manifest,
+    ) -> Vec<InkMsg> {
+        if ink
+            .iter()
+            .any(|r| r.region == "tap" && !r.strokes.is_empty())
+        {
             vec![InkMsg::Tapped]
         } else {
             vec![]
@@ -146,10 +156,7 @@ fn tap_view(m: &CountModel, _cx: &NoCx) -> Documents<InkMsg> {
     // so the re-render produces a new content hash, triggering an Update op.
     Documents(vec![Document::keyed(
         "doc-a",
-        inkapp_core::flow![
-            TapTile,
-            Notice::line(&format!("taps: {}", m.taps))
-        ],
+        inkapp_core::flow![TapTile, Notice::line(&format!("taps: {}", m.taps))],
     )])
 }
 

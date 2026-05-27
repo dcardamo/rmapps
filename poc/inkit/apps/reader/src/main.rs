@@ -88,6 +88,15 @@ async fn main() {
                 cycle.decoded.len(),
                 cycle.ops.len()
             );
+            // Tell the operator WHAT was decoded — useful when manually verifying
+            // a device round-trip ("did the device pick up my strike?"). Prints
+            // each decoded Msg in Debug form, and each reconcile op.
+            for (i, msg) in cycle.decoded.iter().enumerate() {
+                println!("  msg[{i}]: {msg:?}");
+            }
+            for op in &cycle.ops {
+                println!("  op: {op:?}");
+            }
         }
         Some(Cmd::Run { interval }) => {
             let store = ConfigStore::open(&cfg_path).expect("open config");

@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use ego_tree::NodeRef;
-use inkapp_core::components::{esc_typst_str, token_region};
+use inkapp_core::components::{esc_typst_str, token_region_with_prefix};
 use scraper::{Html, Node};
 use sha2::{Digest, Sha256};
 
@@ -75,10 +75,15 @@ struct Conv<'a> {
     seen_keys: HashSet<String>,
     highlights: &'a [String],
     block: usize,
+    /// Per-Article region-name prefix — inserted between `tok-` and the index
+    /// so multiple Articles in one Document don't collide on `tok-N`. Empty
+    /// for single-Article documents (back-compat); the reader passes the
+    /// article id (suffixed with `-`).
+    name_prefix: &'a str,
 }
 
 impl<'a> Conv<'a> {
-    fn new(highlights: &'a [String]) -> Self {
+    fn new(highlights: &'a [String], name_prefix: &'a str) -> Self {
         Self {
             out: String::new(),
             tokens: Vec::new(),
@@ -86,6 +91,7 @@ impl<'a> Conv<'a> {
             seen_keys: HashSet::new(),
             highlights,
             block: 0,
+            name_prefix,
         }
     }
 
@@ -100,7 +106,12 @@ impl<'a> Conv<'a> {
         let expr = style_expr(&esc, style);
         let highlighted = self.highlights.iter().any(|h| h == text);
         let i = self.tokens.len();
-        self.out.push_str(&token_region(i, &expr, highlighted));
+        self.out.push_str(&token_region_with_prefix(
+            self.name_prefix,
+            i,
+            &expr,
+            highlighted,
+        ));
         self.tokens.push(Token {
             text: text.to_string(),
             block: self.block,
@@ -318,10 +329,21 @@ fn collect_text_into(node: NodeRef<Node>, out: &mut String) {
 }
 
 /// Convert sanitized, structured HTML into Typst. `highlights` (matched by token
-/// string) renders matching tokens pre-marked.
+/// string) renders matching tokens pre-marked. Token region names are bare
+/// `tok-{i}` — appropriate when the resulting Typst is the only token-emitter
+/// in a document.
 pub fn convert(html: &str, highlights: &[String]) -> Converted {
+    convert_with_prefix(html, highlights, "")
+}
+
+/// Like [`convert`], but emits token region names as `tok-{name_prefix}{i}`.
+/// Required when a Document holds multiple Articles (one per Section, say): a
+/// bare `tok-N` namespace would collide across articles. The reader passes the
+/// article id followed by `-` (e.g. `"01abc-"`) so names look like
+/// `tok-01abc-0`, `tok-01abc-1`, …
+pub fn convert_with_prefix(html: &str, highlights: &[String], name_prefix: &str) -> Converted {
     let doc = Html::parse_fragment(html);
-    let mut conv = Conv::new(highlights);
+    let mut conv = Conv::new(highlights, name_prefix);
     conv.walk_children(doc.tree.root(), Style::default());
     conv.finish()
 }

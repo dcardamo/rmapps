@@ -43,7 +43,9 @@ fn config_uses_defaults_when_section_omitted() {
     // Without [app.reader.<instance>], resolve falls back to derive-default values.
     let td = tempfile::tempdir().unwrap();
     let path = td.path().join("config.toml");
-    write(&path, r#"
+    write(
+        &path,
+        r#"
 [device]
 backend = "remarkable"
 sync_interval_secs = 30
@@ -55,7 +57,9 @@ margin = 16.0
 
 [connector.readwise.main]
 token = "readwise"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     let store = ConfigStore::open(&path).unwrap();
     let cfg: AppConfig = store.resolve("default").unwrap_or_default();
     assert_eq!(cfg.device_folder, "/Reader");
