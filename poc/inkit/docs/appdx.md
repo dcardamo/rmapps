@@ -1078,6 +1078,28 @@ Tracks the layered testing program from
     No divergence found — the publish→disk→describe round-trip is
     lossless within 0.01pt on every page.
 
+- **Layer 5 — reader composition (`apps/reader/src/lib.rs`).** Covered 2026-05-27.
+  - `update` exhaustively pinned per Msg variant in
+    `apps/reader/tests/app.rs`: `Highlighted` records the highlight via
+    the connector's overlay; `Move{to: Archive}` and `Delete` each move
+    the article id into the optimistic-archived overlay and remove it
+    from the next `library()` snapshot.
+  - `view` branches covered: (a) canonical Library state (already pinned
+    by the existing `view_yields_library_document` and the end-to-end
+    region-recovery tests); (b) empty connector state — after deleting
+    both seeded articles, `view` returns an empty `Documents`, with no
+    spurious banner; (c) banner branch — with `ScriptedTransport::
+    always_failing` injected, a `Move` enqueued, and `flush` called
+    `MAX_ATTEMPTS` times, `failed_writes` is non-empty and the first
+    document `view` returns has key `_banner`.
+  - Connector-wiring contract (the reader has no internal model state,
+    so the spec's "RefreshDone produces expected model delta" simplifies
+    to "`view` reflects `update` mutations"): after
+    `update(Move{to: Archive})` on article `a1`, the Library document's
+    compiled Typst source no longer mentions `a1`, while `a2` is still
+    referenced — proving the optimistic overlay propagates through to
+    the next `view`.
+
 ---
 
 ## Open questions parking lot
