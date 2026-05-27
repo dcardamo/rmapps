@@ -103,4 +103,40 @@ mod tests {
         let out = n.render(&mut RenderCx::new(0));
         assert!(out.contains(r#"weird\"id"#), "quote in id escaped: {out}");
     }
+
+    #[test]
+    fn decode_is_noop_even_with_matching_ink() {
+        use crate::geometry::PdfPoint;
+        use crate::ink::{RegionInk, Stroke};
+
+        let n: NavBand<()> = NavBand::new(vec!["a".into(), "b".into()]);
+        let ink = vec![RegionInk {
+            region: "a".into(),
+            strokes: vec![Stroke {
+                points: vec![PdfPoint { x: 0.0, y: 0.0 }, PdfPoint { x: 10.0, y: 0.0 }],
+                highlighter: false,
+            }],
+        }];
+        let msgs = n.decode(&ink, &Manifest::default());
+        assert!(
+            msgs.is_empty(),
+            "NavBand::decode must remain a no-op even with ink on its regions; got: {msgs:?}"
+        );
+    }
+
+    #[test]
+    fn empty_order_still_renders_valid_call() {
+        let n: NavBand<()> = NavBand::new(vec![]);
+        let out = n.render(&mut RenderCx::new(0));
+        assert!(out.contains("#nav-band("), "expected nav-band call: {out}");
+        assert!(out.contains(", )"), "expected trailing-comma guard: {out}");
+    }
+
+    #[test]
+    fn typst_sources_is_deterministic() {
+        let n: NavBand<()> = NavBand::new(vec!["a".into()]);
+        let a = n.typst_sources();
+        let b = n.typst_sources();
+        assert_eq!(a, b, "typst_sources must be deterministic across calls");
+    }
 }

@@ -217,3 +217,86 @@ fn empty_label_panics_on_construction() {
         Box::new(|_id: &str| ()) as Box<dyn Fn(&str) + Send + Sync>,
     )]);
 }
+
+#[test]
+fn pen_strike_on_inbox_art2_fires_the_inbox_closure() {
+    let (band, _log) = band_with_recorder();
+    let (doc, manifest, _) = compile_doc_with_band(band);
+    let header = doc.page_header.as_ref().unwrap();
+
+    let target = manifest
+        .regions
+        .iter()
+        .find(|r| r.name == "action-Inbox-art-2")
+        .expect("Inbox/art-2 region present in recovered manifest");
+    let region_ink = vec![RegionInk {
+        region: "action-Inbox-art-2".into(),
+        strokes: vec![strike_across(&target.rect)],
+    }];
+    let msgs = header.decode(&region_ink, &manifest);
+    assert_eq!(msgs, vec![TestMsg::Inbox("art-2".into())]);
+}
+
+#[test]
+fn each_section_has_full_action_set_on_its_own_page() {
+    let (band, _log) = band_with_recorder();
+    let (_doc, manifest, _) = compile_doc_with_band(band);
+
+    let by_name: std::collections::HashMap<&str, usize> = manifest
+        .regions
+        .iter()
+        .map(|r| (r.name.as_str(), r.page))
+        .collect();
+
+    for section in ["art-1", "art-2"] {
+        for label in ["Inbox", "Archive"] {
+            let name = format!("action-{label}-{section}");
+            assert!(
+                by_name.contains_key(name.as_str()),
+                "missing region {name}; saw: {:?}",
+                by_name.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    let page_art1 = by_name["action-Inbox-art-1"];
+    let page_art2 = by_name["action-Inbox-art-2"];
+    assert_ne!(
+        page_art1, page_art2,
+        "art-1 and art-2 must land on different pages; both on {page_art1}"
+    );
+}
+
+#[test]
+fn sub_threshold_strike_does_not_fire() {
+    let (band, _log) = band_with_recorder();
+    let (doc, manifest, _) = compile_doc_with_band(band);
+    let header = doc.page_header.as_ref().unwrap();
+
+    let target = manifest
+        .regions
+        .iter()
+        .find(|r| r.name == "action-Archive-art-1")
+        .unwrap();
+    let w = target.rect.x1 - target.rect.x0;
+    let y_mid = (target.rect.y0 + target.rect.y1) / 2.0;
+    let stroke = Stroke {
+        points: (0..=5)
+            .map(|i| inkapp_core::geometry::PdfPoint {
+                x: target.rect.x0 + w * 0.4 + w * 0.2 * (i as f64 / 5.0),
+                y: y_mid,
+            })
+            .collect(),
+        highlighter: false,
+    };
+
+    let region_ink = vec![RegionInk {
+        region: "action-Archive-art-1".into(),
+        strokes: vec![stroke],
+    }];
+    let msgs = header.decode(&region_ink, &manifest);
+    assert!(
+        msgs.is_empty(),
+        "20%-width strike must not fire; got: {msgs:?}"
+    );
+}

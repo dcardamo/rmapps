@@ -11,6 +11,7 @@ pub fn build(app_name: &str) -> Result<PublishedApp, String> {
             "r1",
             "https://example.org",
         )),
+        "multi" => Ok(tests_common::multi_component_app("multi")),
         other => Err(format!("unknown_app: {other}")),
     }
 }

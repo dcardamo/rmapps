@@ -1033,7 +1033,7 @@ Tracks the layered testing program from
     regions were attributed only to the first one. Both divergences
     are now eliminated.
 
-- **Layer 4 — components in isolation (partial).** Covered 2026-05-27.
+- **Layer 4 — components in isolation.** Covered 2026-05-27.
   - `GestureAction` already pinned by 8 tests in
     `crates/inkapp-core/tests/gesture_action.rs` (wide pen strike fires,
     tap doesn't, narrow doesn't, highlighter doesn't, empty doesn't,
@@ -1050,15 +1050,33 @@ Tracks the layered testing program from
     decode forwards a child's `Msg`, `typst_sources` aggregates,
     `image_urls` aggregates, two children's regions both recover under
     one Stack-rendered doc (no collisions).
+  - `ActionBand` extended to 10 tests in
+    `crates/inkapp-core/tests/action_band.rs`: pen-strike on art-2
+    fires Inbox closure, each section has full action set on its own
+    page (cross-page consistency), sub-threshold strike does not fire.
+  - `NavBand` extended to 7 inline tests in
+    `crates/inkapp-core/src/components/nav_band.rs`: decode is a no-op
+    even with matching ink, empty order still renders a valid call,
+    `typst_sources` is deterministic.
+  - `HeadingComponent` extended to 8 tests in
+    `crates/inkapp-core/tests/heading_component.rs`: titles with quotes
+    and backslashes escape and compile, absent optional fields do not
+    pollute output, `typst_sources` contract pinned.
+  - `Section` extended to 7 tests in
+    `crates/inkapp-core/tests/section_component.rs`: decode forwards a
+    Msg-emitting child's messages (via `GestureAction`),
+    `typst_sources` aggregates section.typ + body deps,
+    `image_urls` forwards from body, `<art-{id}>` anchor label present
+    in render output.
   - `inkctl page describe` returns the same region set as the library
-    manifest persisted at publish time
-    (`crates/inkctl/tests/lens_parity_layer4.rs::layer4_page_describe_matches_recovered_regions`).
+    manifest persisted at publish time, for two fixtures: a single-
+    region smoke
+    (`crates/inkctl/tests/lens_parity_layer4.rs::layer4_page_describe_matches_recovered_regions`)
+    and a multi-page, multi-component fixture spanning ActionBand,
+    Section, Heading, and GestureAction regions
+    (`crates/inkctl/tests/lens_parity_layer4_followup.rs::layer4_followup_page_describe_matches_recovered_regions_all_pages`).
     No divergence found — the publish→disk→describe round-trip is
-    lossless within 0.01pt.
-  - **Deferred to a Layer-4 follow-up plan** (current user WIP touches
-    these components): `ActionBand`, `NavBand`, `HeadingComponent`,
-    `Section`. They get coverage after the WIP lands so the tests
-    target the final shape, not a moving target.
+    lossless within 0.01pt on every page.
 
 ---
 
