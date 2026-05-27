@@ -1033,6 +1033,33 @@ Tracks the layered testing program from
     regions were attributed only to the first one. Both divergences
     are now eliminated.
 
+- **Layer 4 — components in isolation (partial).** Covered 2026-05-27.
+  - `GestureAction` already pinned by 8 tests in
+    `crates/inkapp-core/tests/gesture_action.rs` (wide pen strike fires,
+    tap doesn't, narrow doesn't, highlighter doesn't, empty doesn't,
+    presence-only constructor, render declares region + content,
+    end-to-end render→recover→attribute→decode).
+  - `HighlightText` already pinned by 6 tests in
+    `crates/inkapp-core/tests/highlight_text.rs` (token-per-region,
+    multi-token swipe, real-attribution discrimination, non-highlighter
+    ignored, markup-char safety, `highlighted_token_indices` correctness).
+  - `Index` already pinned by 13 inline tests in
+    `crates/inkapp-core/src/components/index.rs` (compact-row layout,
+    masthead, title→link emission, `decode_is_always_empty`).
+  - `Stack` extended to 6 tests in `crates/inkapp-core/src/components/stack.rs`:
+    decode forwards a child's `Msg`, `typst_sources` aggregates,
+    `image_urls` aggregates, two children's regions both recover under
+    one Stack-rendered doc (no collisions).
+  - `inkctl page describe` returns the same region set as the library
+    manifest persisted at publish time
+    (`crates/inkctl/tests/lens_parity_layer4.rs::layer4_page_describe_matches_recovered_regions`).
+    No divergence found — the publish→disk→describe round-trip is
+    lossless within 0.01pt.
+  - **Deferred to a Layer-4 follow-up plan** (current user WIP touches
+    these components): `ActionBand`, `NavBand`, `HeadingComponent`,
+    `Section`. They get coverage after the WIP lands so the tests
+    target the final shape, not a moving target.
+
 ---
 
 ## Open questions parking lot
