@@ -50,7 +50,7 @@
     {
       "id": 7,
       "subject": "Task 7: appdx — record what landed",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** Per project convention, mark Heading, Section, ActionBand, page_header, push_replace_ink, and apps/reader as built in docs/appdx.md.\n\n**Files:**\n- Modify: docs/appdx.md\n\n**Verify:** `grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md` produces hits for each term.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md\", \"acceptanceCriteria\": [\"appdx mentions all five framework primitives\", \"appdx mentions apps/reader\", \"prose style matches existing 'beyond the spine' paragraphs\"]}\n```"
     }
