@@ -18,11 +18,9 @@ fn sample_entries(n: usize) -> Vec<IndexEntry> {
             title: format!("Article number {i}: a reasonably long headline"),
             byline: Some(format!("Author {i}")),
             reading_time: Some(format!("{} min", i + 2)),
-            summary: Some(
-                "A concise standfirst describing the piece in a sentence or two so the \
-                 reader can decide whether to open it."
-                    .into(),
-            ),
+            // The compact Index layout drops summaries — leaving the field
+            // populated would be misleading in the fixture.
+            summary: None,
         })
         .collect()
 }
@@ -30,8 +28,9 @@ fn sample_entries(n: usize) -> Vec<IndexEntry> {
 #[test]
 fn index_renders_and_paginates() {
     // Enough entries to overflow one 420×560 page and force a second, under the
-    // default reader theme. Calibrated to land on exactly 2 pages at default geometry.
-    let n = 9;
+    // default reader theme. The compact row layout fits ~15 rows per page at the
+    // default geometry, so 22 forces a clean two-page split.
+    let n = 22;
     let doc: Document<()> = Document::keyed("contents", flow![Index::<()>::new(sample_entries(n))]);
     let compiled = compile_document_in(&doc, PageGeom::default(), &Theme::reader()).unwrap();
     assert_eq!(compiled.pages.len(), 2, "{n} entries paginate to two pages");
