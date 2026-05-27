@@ -78,9 +78,22 @@ pub fn document_source_in<M>(doc: &Document<M>, geom: PageGeom, theme: &Theme) -
     for (path, _) in collect_typst_sources(doc) {
         src.push_str(&format!("#import \"{path}\": *\n"));
     }
+    // When a per-page header is set we widen the top margin so the header
+    // doesn't overflow above the page. The default Typst page model places
+    // the header *inside* the top margin, so a tall header (e.g. the reader's
+    // four-cell action band, ~28pt) overflows a 16pt margin and gets clipped.
+    // We allocate `HEADER_RESERVE` pts of extra top margin when a header is
+    // declared; per-document headers haven't yet needed taller than this.
+    const HEADER_RESERVE_PT: f64 = 36.0;
+    let top_margin = if doc.page_header.is_some() {
+        geom.margin + HEADER_RESERVE_PT
+    } else {
+        geom.margin
+    };
     src.push_str(&format!(
-        "#set page(width: {}pt, height: {}pt, margin: {}pt)\n",
-        geom.w, geom.h, geom.margin
+        "#set page(width: {}pt, height: {}pt, \
+         margin: (top: {}pt, bottom: {}pt, x: {}pt))\n",
+        geom.w, geom.h, top_margin, geom.margin, geom.margin
     ));
     src.push_str(&theme.prelude());
     // Emit the per-page header slot AFTER the theme prelude so theme font/text
