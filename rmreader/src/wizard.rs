@@ -93,7 +93,7 @@ pub fn run_wizard(
     let (library_folder, feed_folder) = if deploy_backend == "rmapi" {
         let lf: String = Input::new()
             .with_prompt("reMarkable folder for Library")
-            .default("/RMDev/Reader".into())
+            .default("/Readwise".into())
             .interact_text()?;
         let ff: String = Input::new()
             .with_prompt("reMarkable folder for Feed")

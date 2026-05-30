@@ -130,19 +130,19 @@ token = "t"
 }
 
 #[test]
-fn deploy_folders_default_under_rmdev() {
+fn deploy_folders_default_to_readwise() {
     let toml = "device=\"paper-pro-move\"\noutput_dir=\".\"\n[readwise]\ntoken=\"x\"\n[deploy]\nbackend=\"rmapi\"\n";
     let cfg: Config = toml::from_str(toml).unwrap();
-    assert_eq!(cfg.deploy.library_folder, "/RMDev/Reader");
-    assert_eq!(cfg.deploy.feed_folder, "/RMDev/Reader");
+    assert_eq!(cfg.deploy.library_folder, "/Readwise");
+    assert_eq!(cfg.deploy.feed_folder, "/Readwise");
     // Also verify Default impl matches
     assert_eq!(
         rmreader::config::DeployConfig::default().library_folder,
-        "/RMDev/Reader"
+        "/Readwise"
     );
     assert_eq!(
         rmreader::config::DeployConfig::default().feed_folder,
-        "/RMDev/Reader"
+        "/Readwise"
     );
 }
 

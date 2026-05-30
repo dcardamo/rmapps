@@ -102,7 +102,7 @@ fn default_backend() -> String {
     "none".into()
 }
 fn default_reader_folder() -> String {
-    "/RMDev/Reader".into()
+    "/Readwise".into()
 }
 impl Default for DeployConfig {
     fn default() -> Self {

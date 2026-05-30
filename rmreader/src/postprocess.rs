@@ -48,6 +48,35 @@ pub fn finalize_pdf(
     Ok(())
 }
 
+/// Width of `text` in PDF points when set in Helvetica at `font_size`, using the
+/// standard Helvetica AFM advance widths (per-1000-em). A flat 0.5em-per-glyph
+/// estimate is wrong for Helvetica's proportional glyphs (`I` is 278, `W` is 944)
+/// and visibly off-centres stamped words like "ARCHIVE", so measure properly.
+fn helvetica_text_width(text: &str, font_size: f32) -> f32 {
+    let advance = |c: char| -> u16 {
+        match c {
+            ' ' => 278, '!' => 278, '"' => 355, '#' => 556, '$' => 556, '%' => 889,
+            '&' => 667, '\'' => 191, '(' => 333, ')' => 333, '*' => 389, '+' => 584,
+            ',' => 278, '-' => 333, '.' => 278, '/' => 278,
+            '0'..='9' => 556,
+            ':' => 278, ';' => 278, '<' => 584, '=' => 584, '>' => 584, '?' => 556, '@' => 1015,
+            'A' => 667, 'B' => 667, 'C' => 722, 'D' => 722, 'E' => 667, 'F' => 611, 'G' => 778,
+            'H' => 722, 'I' => 278, 'J' => 500, 'K' => 667, 'L' => 556, 'M' => 833, 'N' => 722,
+            'O' => 778, 'P' => 667, 'Q' => 778, 'R' => 722, 'S' => 667, 'T' => 611, 'U' => 722,
+            'V' => 667, 'W' => 944, 'X' => 667, 'Y' => 667, 'Z' => 611,
+            '[' => 278, '\\' => 278, ']' => 278, '^' => 469, '_' => 556, '`' => 333,
+            'a' => 556, 'b' => 556, 'c' => 500, 'd' => 556, 'e' => 556, 'f' => 278, 'g' => 556,
+            'h' => 556, 'i' => 222, 'j' => 222, 'k' => 500, 'l' => 222, 'm' => 833, 'n' => 556,
+            'o' => 556, 'p' => 556, 'q' => 556, 'r' => 333, 's' => 500, 't' => 278, 'u' => 556,
+            'v' => 500, 'w' => 722, 'x' => 500, 'y' => 500, 'z' => 500,
+            '{' => 334, '|' => 260, '}' => 334, '~' => 584,
+            _ => 556,
+        }
+    };
+    let units: u32 = text.chars().map(|c| advance(c) as u32).sum();
+    units as f32 / 1000.0 * font_size
+}
+
 /// Parse "#RRGGBB" into PDF rgb components (0.0..1.0).
 fn hex_rgb(s: &str) -> Option<(f32, f32, f32)> {
     let h = s.trim().trim_start_matches('#');
@@ -170,7 +199,7 @@ fn try_finalize_pdf(
     });
 
     let home = pages[0];
-    let home_x = page_w * 0.5 - 14.0; // ~"Home" centered at midpage
+    let home_x = page_w * 0.5 - helvetica_text_width("Home", 8.5) / 2.0; // "Home" centred at midpage
     let next_x = page_w * 0.80;
     // A filled nav bar in the top band — below the ~36pt the device toolbar overlays
     // and above the content (which starts at the @page top margin, 92pt). The device's
@@ -249,7 +278,7 @@ fn try_finalize_pdf(
             let col_x = col_w * i as f32;
             // Uppercase so it reads clearly on a small device.
             let label = kind.to_uppercase();
-            let text_w = 0.5 * label_font_size * label.len() as f32;
+            let text_w = helvetica_text_width(&label, label_font_size);
             let text_x = col_x + (col_w - text_w) / 2.0;
             content.push_str(&format!(
                 "q {br:.3} {bg:.3} {bb:.3} rg BT /NAVF {label_font_size:.1} Tf {text_x:.2} {label_baseline_y:.2} Td ({label}) Tj ET Q\n"

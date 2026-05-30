@@ -151,8 +151,8 @@ enabled = true                     # fetch + embed content images (color)
 
 [deploy]
 backend = "rmapi"                  # or "none" to just write PDFs locally
-library_folder = "/RMDev/Reader"   # reMarkable cloud folder for Library.pdf
-feed_folder = "/RMDev/Reader"      # reMarkable cloud folder for Feed.pdf
+library_folder = "/Readwise"       # reMarkable cloud folder for Library.pdf
+feed_folder = "/Readwise"          # reMarkable cloud folder for Feed.pdf
 ```
 
 Set `backend = "none"` to generate the PDFs on disk without touching the
