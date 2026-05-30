@@ -19,6 +19,12 @@ struct Cli {
     /// Re-fetch ICS feeds (otherwise cached feeds are reused on regenerate).
     #[arg(long = "refresh-feeds")]
     refresh_feeds: bool,
+    /// Override the rmapi destination folder for the whole-year regenerate
+    /// (e.g. `/2026`). Defaults to the year subfolder under deploy.base_folder.
+    /// Mirrors `month --target`; the saturn job uses it to publish each year
+    /// into its own root folder.
+    #[arg(long)]
+    target: Option<String>,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -79,7 +85,25 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
             let out_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
             // Reuse cached feeds unless --refresh-feeds was passed.
             let paths = generate::generate_year(&config, &out_dir, refresh_feeds)?;
-            deploy::get_deployer(&config)?.refresh(&paths)?;
+            // Upsert ALL of the year's PDFs (future log, 12 months, collection,
+            // reference): create on first run, content-only refresh afterwards so
+            // on-device handwriting is preserved, and mkdir the folder lazily.
+            // `--target` overrides the cloud folder (e.g. `/2026`); otherwise the
+            // year subfolder under deploy.base_folder.
+            match config.deploy.backend.as_str() {
+                "none" => {}
+                "rmapi" => {
+                    let target_folder = match cli.target.as_deref() {
+                        Some(t) => t.to_string(),
+                        None => {
+                            deploy::rmapi::cloud_target(&config.deploy.base_folder, config.year)
+                        }
+                    };
+                    let runner = deploy::rmapi::ProcessRmapi::new()?;
+                    deploy::rmapi::RmapiDeployer::new(target_folder, runner).upsert(&paths)?;
+                }
+                other => anyhow::bail!("unsupported deploy backend: {other:?}"),
+            }
             println!("Regenerated {} PDFs in {}", paths.len(), out_dir.display());
             Ok(())
         }
@@ -130,4 +154,21 @@ fn run_month(
 
 pub fn main() -> anyhow::Result<()> {
     run(std::env::args().collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn bare_config_parses_target_override() {
+        // The whole-year regenerate path accepts `--target` to force the cloud
+        // folder (saturn job publishes each year into /<year>).
+        let cli =
+            Cli::try_parse_from(["rmbujo", "/tmp/x/rmbujo.toml", "--target", "/2026"]).unwrap();
+        assert!(cli.command.is_none());
+        assert_eq!(cli.config.as_deref(), Some(Path::new("/tmp/x/rmbujo.toml")));
+        assert_eq!(cli.target.as_deref(), Some("/2026"));
+    }
 }
