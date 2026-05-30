@@ -25,8 +25,26 @@ struct Cli {
     /// into its own root folder.
     #[arg(long)]
     target: Option<String>,
+    /// Only upload monthly notebooks for this month (1..=12) and later; earlier
+    /// months are skipped on upload so they stop syncing once they're in the
+    /// past (they stay on-device, nothing is deleted). The future log,
+    /// collection, and reference are always uploaded. The saturn job passes the
+    /// current month so only the current + future months sync.
+    #[arg(long)]
+    from_month: Option<u32>,
     #[command(subcommand)]
     command: Option<Command>,
+}
+
+/// The month number of a generated monthly notebook PDF, or `None` for the
+/// non-monthly notebooks (future log, collection, reference). Monthly files are
+/// named `"YYYY.MM <Month>.pdf"` (see `generate::generate_year`), so the digits
+/// between the first `.` and the following space are the month.
+fn monthly_pdf_month(path: &Path) -> Option<u32> {
+    let name = path.file_name()?.to_str()?;
+    let rest = name.split_once('.')?.1; // "MM <Month>.pdf"
+    let mm = rest.split_once(' ')?.0; // "MM"
+    mm.parse::<u32>().ok().filter(|m| (1..=12).contains(m))
 }
 
 #[derive(Subcommand)]
@@ -84,12 +102,23 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
             config.validate()?;
             let out_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
             // Reuse cached feeds unless --refresh-feeds was passed.
-            let paths = generate::generate_year(&config, &out_dir, refresh_feeds)?;
-            // Upsert ALL of the year's PDFs (future log, 12 months, collection,
-            // reference): create on first run, content-only refresh afterwards so
-            // on-device handwriting is preserved, and mkdir the folder lazily.
-            // `--target` overrides the cloud folder (e.g. `/2026`); otherwise the
-            // year subfolder under deploy.base_folder.
+            let mut paths = generate::generate_year(&config, &out_dir, refresh_feeds)?;
+            // `--from-month N` drops monthly notebooks before month N from the
+            // UPLOAD set only (they are still generated on disk). Past months
+            // thus stop syncing once they're behind the current month, while the
+            // existing on-device copies are left untouched. Non-monthly notebooks
+            // (future log, collection, reference) are always kept.
+            if let Some(from) = cli.from_month {
+                anyhow::ensure!(
+                    (1..=12).contains(&from),
+                    "--from-month must be 1..=12 (got {from})"
+                );
+                paths.retain(|p| monthly_pdf_month(p).is_none_or(|m| m >= from));
+            }
+            // Upsert the remaining PDFs: create on first run, content-only refresh
+            // afterwards so on-device handwriting is preserved, and mkdir the
+            // folder lazily. `--target` overrides the cloud folder (e.g. `/2026`);
+            // otherwise the year subfolder under deploy.base_folder.
             match config.deploy.backend.as_str() {
                 "none" => {}
                 "rmapi" => {
@@ -170,5 +199,58 @@ mod tests {
         assert!(cli.command.is_none());
         assert_eq!(cli.config.as_deref(), Some(Path::new("/tmp/x/rmbujo.toml")));
         assert_eq!(cli.target.as_deref(), Some("/2026"));
+    }
+
+    #[test]
+    fn from_month_parses() {
+        let cli =
+            Cli::try_parse_from(["rmbujo", "/tmp/x/rmbujo.toml", "--from-month", "5"]).unwrap();
+        assert_eq!(cli.from_month, Some(5));
+    }
+
+    #[test]
+    fn monthly_pdf_month_classifies_files() {
+        // Monthly notebooks yield their month; everything else yields None.
+        assert_eq!(monthly_pdf_month(Path::new("2026.01 January.pdf")), Some(1));
+        assert_eq!(
+            monthly_pdf_month(Path::new("2026.12 December.pdf")),
+            Some(12)
+        );
+        assert_eq!(monthly_pdf_month(Path::new("/x/2026.05 May.pdf")), Some(5));
+        assert_eq!(monthly_pdf_month(Path::new("2026 Future Log.pdf")), None);
+        assert_eq!(
+            monthly_pdf_month(Path::new("2026 Collection Template.pdf")),
+            None
+        );
+        assert_eq!(monthly_pdf_month(Path::new("2026 Reference.pdf")), None);
+    }
+
+    #[test]
+    fn from_month_filter_keeps_current_future_and_non_monthly() {
+        // Simulate the upload-set filter for from_month = 5 (May).
+        let all = [
+            "2026 Future Log.pdf",
+            "2026.01 January.pdf",
+            "2026.04 April.pdf",
+            "2026.05 May.pdf",
+            "2026.12 December.pdf",
+            "2026 Collection Template.pdf",
+            "2026 Reference.pdf",
+        ];
+        let kept: Vec<&str> = all
+            .iter()
+            .copied()
+            .filter(|n| monthly_pdf_month(Path::new(n)).is_none_or(|m| m >= 5))
+            .collect();
+        assert_eq!(
+            kept,
+            vec![
+                "2026 Future Log.pdf",
+                "2026.05 May.pdf",
+                "2026.12 December.pdf",
+                "2026 Collection Template.pdf",
+                "2026 Reference.pdf",
+            ]
+        );
     }
 }
