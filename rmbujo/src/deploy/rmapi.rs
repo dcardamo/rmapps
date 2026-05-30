@@ -11,6 +11,13 @@ use super::Deployer;
 pub trait RmapiRunner: std::fmt::Debug {
     /// Run `rmapi <args...>`; `args` never includes the binary name.
     fn run(&self, args: &[&str]) -> anyhow::Result<()>;
+    /// Probe whether a document exists at the given cloud path. Default returns
+    /// `false` so test recorders need no changes; `ProcessRmapi` overrides to
+    /// shell out to `rmapi stat`. Used by `upsert` to decide between a fresh
+    /// `put` and a content-only refresh.
+    fn exists(&self, _path: &str) -> anyhow::Result<bool> {
+        Ok(false)
+    }
 }
 
 /// Uploads / refreshes a year of PDFs via an [`RmapiRunner`].
@@ -59,6 +66,46 @@ impl<R: RmapiRunner> Deployer for RmapiDeployer<R> {
     fn refresh(&self, paths: &[PathBuf]) -> anyhow::Result<()> {
         for p in paths {
             self.runner.run(&self.put_args(path_str(p)?, true))?;
+        }
+        Ok(())
+    }
+}
+
+impl<R: RmapiRunner> RmapiDeployer<R> {
+    /// Upload each PDF, choosing per-file between "create" (`put`) and "replace
+    /// content" (`put --content-only`) so existing on-device handwriting is
+    /// preserved when the doc already exists. Used by the `month` subcommand
+    /// where the same monthly PDF is re-pushed hourly: the first run creates
+    /// it; every subsequent run updates the background without touching ink.
+    ///
+    /// rmapi names the cloud doc after the PDF's file stem (no `.pdf`), so the
+    /// existence probe checks `<target_folder>/<stem>`. mkdir-chain runs lazily
+    /// on the first miss; if every doc already exists it never fires.
+    pub fn upsert(&self, paths: &[PathBuf]) -> anyhow::Result<()> {
+        let target = self.target_folder.as_str();
+        let mut mkdir_done = false;
+        for p in paths {
+            let pdf = path_str(p)?;
+            let stem = p
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .ok_or_else(|| anyhow::anyhow!("no file stem: {}", p.display()))?;
+            let probe = if target == "/" {
+                format!("/{stem}")
+            } else {
+                format!("{}/{}", target.trim_end_matches('/'), stem)
+            };
+            if self.runner.exists(&probe)? {
+                self.runner.run(&self.put_args(pdf, true))?;
+            } else {
+                if !mkdir_done {
+                    for dir in folder_chain(target) {
+                        let _ = self.runner.run(&["-ni", "mkdir", dir.as_str()]);
+                    }
+                    mkdir_done = true;
+                }
+                self.runner.run(&self.put_args(pdf, false))?;
+            }
         }
         Ok(())
     }
@@ -164,6 +211,14 @@ impl RmapiRunner for ProcessRmapi {
             }
         }
         anyhow::bail!("rmapi {:?} failed", args);
+    }
+
+    fn exists(&self, path: &str) -> anyhow::Result<bool> {
+        // `rmapi stat <path>` exits 0 when the doc exists, non-zero otherwise.
+        // We treat any non-zero as "missing" (creates a fresh doc) — a transient
+        // auth failure here would just cause the subsequent `put` to fail too,
+        // surfacing the real error.
+        self.attempt(&["-ni", "stat", path])
     }
 }
 

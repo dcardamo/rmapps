@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
-use crate::{config, deploy, generate, wizard};
+use crate::{calendar, config, deploy, generate, ics, notebooks, wizard};
 
 #[derive(Parser)]
 #[command(
@@ -27,6 +27,24 @@ struct Cli {
 enum Command {
     /// Create a new year interactively.
     New,
+    /// Regenerate a single month and upload it. Used by the saturn hourly job
+    /// (current month + next month → cloud root) so on-device handwriting on
+    /// the current monthly notebook stays current with calendar edits without
+    /// rebuilding the whole year.
+    Month {
+        /// Path to rmbujo.toml.
+        config: PathBuf,
+        /// Month number, 1..=12. The year comes from the config.
+        #[arg(long)]
+        month: u32,
+        /// Override the rmapi destination folder (e.g. `/` for cloud root).
+        /// Defaults to the year subfolder under `deploy.base_folder`.
+        #[arg(long)]
+        target: Option<String>,
+        /// Re-fetch ICS feeds (otherwise the cached snapshot is reused).
+        #[arg(long = "refresh-feeds")]
+        refresh_feeds: bool,
+    },
 }
 
 pub fn run(args: Vec<String>) -> anyhow::Result<()> {
@@ -34,6 +52,16 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
     // e.exit() handles those correctly (print + exit 0) instead of propagating as anyhow::Error.
     let cli = Cli::try_parse_from(args).unwrap_or_else(|e| e.exit());
     match (cli.command, cli.config, cli.refresh_feeds) {
+        (
+            Some(Command::Month {
+                config: cfg_path,
+                month,
+                target,
+                refresh_feeds,
+            }),
+            _,
+            _,
+        ) => run_month(&cfg_path, month, target.as_deref(), refresh_feeds),
         (Some(Command::New), _, _) => {
             let (config, out_dir, config_path) = wizard::run_wizard()?;
             config.validate()?;
@@ -62,6 +90,42 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
             Ok(())
         }
     }
+}
+
+fn run_month(
+    cfg_path: &Path,
+    month: u32,
+    target: Option<&str>,
+    refresh_feeds: bool,
+) -> anyhow::Result<()> {
+    if !(1..=12).contains(&month) {
+        anyhow::bail!("--month must be 1..=12 (got {month})");
+    }
+    let config = config::load(cfg_path)?;
+    config.validate()?;
+    let out_dir = cfg_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+    std::fs::create_dir_all(&out_dir)?;
+    let events = ics::build_event_map(&config, &out_dir, refresh_feeds, &ics::fetch::UreqFetcher)?;
+    let y = config.year;
+    let name = calendar::MONTH_NAMES[month as usize];
+    let pdf = out_dir.join(format!("{y}.{month:02} {name}.pdf"));
+    notebooks::month::build_month_pdf(&config, month, &events, &pdf)?;
+
+    match config.deploy.backend.as_str() {
+        "none" => {}
+        "rmapi" => {
+            let target_folder = match target {
+                Some(t) => t.to_string(),
+                None => deploy::rmapi::cloud_target(&config.deploy.base_folder, y),
+            };
+            let runner = deploy::rmapi::ProcessRmapi::new()?;
+            deploy::rmapi::RmapiDeployer::new(target_folder, runner)
+                .upsert(std::slice::from_ref(&pdf))?;
+        }
+        other => anyhow::bail!("unsupported deploy backend: {other:?}"),
+    }
+    println!("Regenerated 1 PDF: {}", pdf.display());
+    Ok(())
 }
 
 pub fn main() -> anyhow::Result<()> {

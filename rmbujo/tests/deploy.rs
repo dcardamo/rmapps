@@ -12,6 +12,10 @@ use rmbujo::deploy::Deployer;
 #[derive(Clone, Default, Debug)]
 struct Recorder {
     calls: Rc<RefCell<Vec<Vec<String>>>>,
+    /// Cloud paths that the probe should report as already existing. Lets
+    /// upsert tests exercise both the create and refresh branches without
+    /// changing the run() behavior.
+    existing: Rc<RefCell<std::collections::HashSet<String>>>,
 }
 impl RmapiRunner for Recorder {
     fn run(&self, args: &[&str]) -> anyhow::Result<()> {
@@ -19,6 +23,9 @@ impl RmapiRunner for Recorder {
             .borrow_mut()
             .push(args.iter().map(|s| s.to_string()).collect());
         Ok(())
+    }
+    fn exists(&self, path: &str) -> anyhow::Result<bool> {
+        Ok(self.existing.borrow().contains(path))
     }
 }
 
@@ -219,6 +226,81 @@ fn get_deployer_routes_backends() {
     };
     let err = get_deployer(&no_folder).unwrap_err();
     assert!(err.to_string().contains("base_folder"), "got: {err}");
+}
+
+#[test]
+fn upsert_creates_when_missing() {
+    let rec = Recorder::default();
+    let d = RmapiDeployer::new("/".into(), rec.clone());
+    d.upsert(&[PathBuf::from("/out/2026.05 May.pdf")]).unwrap();
+    let c = rec.calls.borrow();
+    // No mkdir for "/" (folder_chain is empty), then a plain put.
+    assert_eq!(c[0], vec!["-ni", "put", "/out/2026.05 May.pdf", "/"]);
+    assert_eq!(c.len(), 1);
+}
+
+#[test]
+fn upsert_refreshes_when_present() {
+    let rec = Recorder::default();
+    rec.existing.borrow_mut().insert("/2026.05 May".to_string());
+    let d = RmapiDeployer::new("/".into(), rec.clone());
+    d.upsert(&[PathBuf::from("/out/2026.05 May.pdf")]).unwrap();
+    let c = rec.calls.borrow();
+    assert_eq!(
+        c[0],
+        vec!["-ni", "put", "--content-only", "/out/2026.05 May.pdf", "/"]
+    );
+    assert_eq!(c.len(), 1, "mkdir must not run when refreshing");
+}
+
+#[test]
+fn upsert_nested_target_mkdir_then_put_when_missing() {
+    let rec = Recorder::default();
+    let d = RmapiDeployer::new("/rmbujo/2026".into(), rec.clone());
+    d.upsert(&[PathBuf::from("/out/2026.05 May.pdf")]).unwrap();
+    let c = rec.calls.borrow();
+    assert_eq!(c[0], vec!["-ni", "mkdir", "/rmbujo"]);
+    assert_eq!(c[1], vec!["-ni", "mkdir", "/rmbujo/2026"]);
+    assert_eq!(
+        c[2],
+        vec!["-ni", "put", "/out/2026.05 May.pdf", "/rmbujo/2026"]
+    );
+    assert_eq!(c.len(), 3);
+}
+
+#[test]
+fn upsert_mkdir_runs_only_once_across_mixed_paths() {
+    let rec = Recorder::default();
+    // First doc exists (refresh, no mkdir), second doesn't (mkdir, then put).
+    rec.existing
+        .borrow_mut()
+        .insert("/rmbujo/2026/2026.05 May".to_string());
+    let d = RmapiDeployer::new("/rmbujo/2026".into(), rec.clone());
+    d.upsert(&[
+        PathBuf::from("/out/2026.05 May.pdf"),
+        PathBuf::from("/out/2026.06 June.pdf"),
+    ])
+    .unwrap();
+    let c = rec.calls.borrow();
+    // Refresh of May — no mkdir yet.
+    assert_eq!(
+        c[0],
+        vec![
+            "-ni",
+            "put",
+            "--content-only",
+            "/out/2026.05 May.pdf",
+            "/rmbujo/2026"
+        ]
+    );
+    // Now June is missing → mkdir chain runs, then plain put.
+    assert_eq!(c[1], vec!["-ni", "mkdir", "/rmbujo"]);
+    assert_eq!(c[2], vec!["-ni", "mkdir", "/rmbujo/2026"]);
+    assert_eq!(
+        c[3],
+        vec!["-ni", "put", "/out/2026.06 June.pdf", "/rmbujo/2026"]
+    );
+    assert_eq!(c.len(), 4);
 }
 
 #[test]
