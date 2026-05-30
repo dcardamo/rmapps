@@ -83,8 +83,11 @@ impl FutureLog<'_> {
         let mut blocks = String::new();
         for name in self.months {
             blocks.push_str(&format!(
+                // Divider is ink (near-black), matching the deployed fulgur look:
+                // fulgur didn't resolve `var(--rule)` in the border shorthand and
+                // fell back to currentColor (the block's inherited body ink).
                 "#block(width: 100%, height: (page-h - toolbar-pt - margin-pt) / 3, \
-                 inset: (top: 4pt), stroke: (bottom: 0.6pt + rule-col), \
+                 inset: (top: 4pt), stroke: (bottom: 0.6pt + ink), \
                  spacing: 0pt, fill: dot-tile)[\n\
                  #text(font: \"Fraunces 72pt\", size: 12pt, weight: 600, fill: primary)[{name}]\n\
                  ]\n",
@@ -226,7 +229,7 @@ impl DailyPage<'_> {
              #box(width: 100%)[\
              #link(label(\"monthly\"))[#box(fill: paper, \
              inset: (left: 3pt, right: 3pt, top: 1pt, bottom: 2pt), \
-             stroke: (bottom: 0.75pt + rule-col))[\
+             stroke: (bottom: 0.75pt + primary))[\
              #text(font: \"Fraunces 72pt\", size: 13pt, weight: 600, fill: primary)[{date}]]] \
              #label(\"day-{day}\")\
              #h(1fr){badge}]\n\
