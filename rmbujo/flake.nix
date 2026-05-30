@@ -10,25 +10,22 @@
         pkgs = import nixpkgs { inherit system overlays; };
       in {
         devShells.default = pkgs.mkShell {
-          # python3: the `stylo` build script (pulled in transitively via
-          # fulgur/blitz) generates CSS-property code from .mako.rs templates and
-          # shells out to python3. Declared here so the dev shell is self-contained
-          # rather than relying on a system Python being on PATH.
-          nativeBuildInputs = [ pkgs.rustc pkgs.cargo pkgs.clippy pkgs.rustfmt pkgs.pkg-config pkgs.python3 ];
-          # rmapi: reMarkable cloud client, shelled out to by the rmapi deploy
-          # backend (v4-patched via overlays/rmapi.nix).
-          buildInputs = [ pkgs.libiconv pkgs.fontconfig pkgs.poppler-utils pkgs.dejavu_fonts pkgs.rmapi ];
+          nativeBuildInputs = [ pkgs.rustc pkgs.cargo pkgs.clippy pkgs.rustfmt pkgs.pkg-config ];
+          # poppler-utils: pdftoppm for the visual-regression tests. rmapi:
+          # reMarkable cloud client, shelled out to by the rmapi deploy backend
+          # (v4-patched via overlays/rmapi.nix). Typst renders with vendored fonts,
+          # so no system font/CSS toolchain is needed.
+          buildInputs = [ pkgs.libiconv pkgs.poppler-utils pkgs.rmapi ];
         };
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "rmbujo";
           version = "0.1.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
-          # python3: stylo build script (see dev shell note). poppler-utils:
-          # provides pdftoppm for the visual-regression tests that buildRustPackage
-          # runs in its check phase.
-          nativeBuildInputs = [ pkgs.pkg-config pkgs.python3 pkgs.poppler-utils ];
-          buildInputs = [ pkgs.libiconv pkgs.fontconfig ];
+          # poppler-utils: pdftoppm for the visual-regression tests that
+          # buildRustPackage runs in its check phase.
+          nativeBuildInputs = [ pkgs.pkg-config pkgs.poppler-utils ];
+          buildInputs = [ pkgs.libiconv ];
         };
       });
 }

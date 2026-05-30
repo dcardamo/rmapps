@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use askama::Template;
 use rmbujo::calendar::build_month;
 use rmbujo::device::get_device;
 use rmbujo::geometry::{default_grid, monthly_row_pt, TOOLBAR_SAFE_PT};
@@ -152,13 +151,35 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
     ]
 }
 
-/// Render one fragment to a single-page PDF, then rasterize page 1 to PNG via pdftoppm.
+/// A hidden page that defines every cross-page link target. Fragments are
+/// rendered in isolation here, so their `link(label("day-N"))` etc. would
+/// otherwise reference labels that only exist on sibling pages in a real
+/// notebook. Appended as a second page; `-singlefile` only rasterizes page 1, so
+/// it never shows up in the golden.
+fn label_sink() -> String {
+    let mut anchors = String::from("#box[x]#label(\"monthly\")");
+    for n in 1..=31 {
+        anchors.push_str(&format!("#box[x]#label(\"day-{n}\")"));
+        anchors.push_str(&format!("#box[x]#label(\"agenda-{n}\")"));
+    }
+    format!("#plain-page[#hide[{anchors}]]\n")
+}
+
+/// Render one fragment to a PDF (plus a hidden label-sink page so cross-page
+/// links resolve), then rasterize page 1 to PNG via pdftoppm.
 fn render_png(fragment: &str, png: &Path) {
     let dev = get_device("paper-pro-move").unwrap();
     let grid = default_grid(&dev);
     let theme = load_theme("library").unwrap();
     let pdf = tmp("page", "pdf");
-    render_pdf(&dev, &grid, &theme, &[fragment.to_string()], &pdf).unwrap();
+    render_pdf(
+        &dev,
+        &grid,
+        &theme,
+        &[fragment.to_string(), label_sink()],
+        &pdf,
+    )
+    .unwrap();
 
     // pdftoppm writes "<prefix>.png" with -singlefile; use prefix without extension.
     let prefix = png.with_extension("");

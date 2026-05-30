@@ -13,8 +13,13 @@ name = "rmbujo"
 path = "src/main.rs"
 
 [dependencies]
-fulgur = "0.6"
-askama = "0.13"
+# Typst as a library renders the journal PDFs (replacing fulgur/krilla): a clean
+# per-glyph text layer round-trips on the reMarkable, and all chrome (dot grid,
+# cover gradient, links) is drawn in-flow. See src/render/.
+typst = "0.14"
+typst-pdf = "0.14"
+typst-assets = { version = "0.14", features = ["fonts"] }
+comemo = "0.5"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -31,6 +36,5 @@ rrule = "0.14"
 ureq = "2"
 
 [dev-dependencies]
-fulgur = "0.6"
 lopdf = "0.36"
 image = "0.25"

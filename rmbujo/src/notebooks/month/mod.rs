@@ -3,7 +3,6 @@ pub mod agenda;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use askama::Template;
 use chrono::NaiveDate;
 
 use crate::calendar::build_month;

@@ -1,9 +1,9 @@
-use askama::Template;
 use lopdf::Document;
 use rmbujo::device::get_device;
 use rmbujo::geometry::default_grid;
-use rmbujo::render::{build_css, render_pdf};
-use rmbujo::templates::DotGrid;
+use rmbujo::render::doc::build_preamble;
+use rmbujo::render::render_pdf;
+use rmbujo::templates::{DayRow, DotGrid, MonthlyView};
 use rmbujo::theme::load_theme;
 
 fn tmp(name: &str) -> std::path::PathBuf {
@@ -51,22 +51,41 @@ fn month_index_shares_device_dot_grid() {
     // The monthly page uses the SAME device-aligned dot grid as the daily/tasks
     // pages (so an inserted "Dots Small" page lines up on every page), and each day
     // label gets a paper knockout so it stays crisp over the dots. The visual golden
-    // covers the rendered result; this guards the CSS that makes it work.
+    // covers the rendered result; this guards the Typst that makes it work.
     let dev = get_device("paper-pro-move").unwrap();
     let grid = default_grid(&dev);
-    let css = build_css(&dev, &grid, &load_theme("library").unwrap());
-    let sp = grid.spacing_pt;
+    let pre = build_preamble(&dev, &grid, &load_theme("library").unwrap());
+    // A single device-aligned dot tiling, reused as the background of every dot page.
     assert!(
-        css.contains(".dotpage, .month-index {"),
-        "month index must share the device dot grid with .dotpage:\n{css}"
+        pre.contains("#let dot-tile = tiling"),
+        "preamble must define the dot tiling:\n{pre}"
     );
     assert!(
-        css.contains(&format!("background-size: {sp}pt {sp}pt")),
-        "dots must tile at the full device pitch (matching the template):\n{css}"
+        pre.contains(&format!("#let sp = {}pt", grid.spacing_pt)),
+        "dots must tile at the full device pitch:\n{pre}"
     );
     assert!(
-        css.contains("width: 44pt; background: var(--paper)"),
-        "day labels need a paper knockout to stay crisp over the dots:\n{css}"
+        pre.contains("#let dot-page(body) = page(background: dot-bg"),
+        "dot pages must share the device dot background:\n{pre}"
+    );
+    // Day rows knock out a paper strip so the label stays crisp over the dots.
+    let m = MonthlyView {
+        month_name: "May",
+        year: 2026,
+        month_num: 5,
+        row_pt: 12.0,
+        days: &[DayRow {
+            day: 1,
+            weekday: "Fri",
+            week_start: false,
+            event_count: 0,
+        }],
+    }
+    .render()
+    .unwrap();
+    assert!(
+        m.contains("box(fill: paper, width: 44pt)"),
+        "day labels need a paper knockout to stay crisp over the dots:\n{m}"
     );
 }
 

@@ -9,7 +9,6 @@ pub mod geometry;
 pub mod ics;
 pub mod notebooks;
 pub mod render;
-pub mod svg;
 pub mod templates;
 pub mod theme;
 pub mod wizard;

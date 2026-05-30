@@ -1,7 +1,5 @@
 use std::path::Path;
 
-use askama::Template;
-
 use crate::config::Config;
 use crate::templates::{Cover, DotGrid};
 

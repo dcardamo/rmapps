@@ -1,7 +1,5 @@
 use std::path::Path;
 
-use askama::Template;
-
 use crate::calendar::MONTH_NAMES;
 use crate::config::Config;
 use crate::templates::{Cover, FutureLog};

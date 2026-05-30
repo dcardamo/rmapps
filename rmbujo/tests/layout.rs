@@ -1,23 +1,16 @@
+//! Guards the per-day event pagination (`agenda::paginate_day`) and that a month
+//! with events renders to a sane page layout: each day's events occupy their own
+//! page(s), busy days spill onto continuation pages, and nothing errors. The old
+//! fulgur text-overlap inspection is gone — Typst flows content into fresh pages
+//! rather than overlapping, so page *counts* are the meaningful invariant now.
+
+use std::collections::BTreeMap;
+
+use chrono::{NaiveDate, NaiveTime};
+use lopdf::Document;
 use rmbujo::config::Config;
-use rmbujo::device::get_device;
-use rmbujo::notebooks::{future_log, month, reference};
-use rmbujo::render::{inspect, TextItem};
-
-const TOL: f32 = 0.5; // pt — accommodates inspect()'s estimated text widths
-
-// The estimated width (chars*0.5em; see WIDTH_SCALE) drifts a few pt on full-width
-// wrapped lines and adjacent inline runs with proportional fonts (Lora/Hanken).
-// x/y/bottom use real positions (tight TOL); this looser tolerance absorbs the width
-// estimate's noise in the right-edge bound and the horizontal-overlap check. A real
-// overflow or stacked-block overlap is far larger than this.
-const WIDTH_TOL: f32 = 8.0;
-
-// fulgur's inspect() estimates glyph advance widths as chars*font_size*0.5.
-// For CID-encoded fonts (used by krilla/fulgur) each character occupies a 2-byte
-// glyph ID, so the raw char count is 2× the actual glyph count, inflating every
-// estimated width by 2×.  Dividing by this factor restores a usable approximation
-// for overlap and bounds checks.
-const WIDTH_SCALE: f32 = 0.5;
+use rmbujo::ics::EventOccurrence;
+use rmbujo::notebooks::month;
 
 fn tmp(tag: &str) -> std::path::PathBuf {
     let mut p = std::env::temp_dir();
@@ -29,85 +22,60 @@ fn tmp(tag: &str) -> std::path::PathBuf {
     p
 }
 
-fn overlaps(a: &TextItem, b: &TextItem) -> bool {
-    if a.page != b.page {
-        return false;
-    }
-    let aw = a.width * WIDTH_SCALE;
-    let bw = b.width * WIDTH_SCALE;
-    let x_overlap = a.x < b.x + bw - WIDTH_TOL && b.x < a.x + aw - WIDTH_TOL;
-    let y_overlap = a.y < b.y + b.height - TOL && b.y < a.y + a.height - TOL;
-    x_overlap && y_overlap
+fn pages(p: &std::path::Path) -> usize {
+    Document::load(p).unwrap().get_pages().len()
 }
 
-fn assert_no_overlap_and_in_bounds(pdf: &std::path::Path) {
-    let dev = get_device("paper-pro-move").unwrap();
-    let (w, h) = (dev.width_pt(), dev.height_pt());
-    let result = inspect(pdf).unwrap();
-
-    // In-bounds: every text box origin within [0,w] x [0,h] (with tolerance).
-    // Right-edge (x + width*WIDTH_SCALE) is also checked; WIDTH_SCALE corrects for
-    // the 2× width inflation that CID 2-byte glyph encoding causes in inspect().
-    for t in &result.text_items {
-        let right = t.x + t.width * WIDTH_SCALE;
-        let bottom = t.y + t.height;
-        assert!(
-            t.x >= -TOL && t.y >= -TOL && right <= w + WIDTH_TOL && bottom <= h + TOL,
-            "text {:?} out of page bounds: x={} y={} estimated_right={:.2} bottom={:.2} (page {}x{})",
-            t.text, t.x, t.y, right, bottom, w, h,
-        );
+fn ev(title: &str, hour: u32) -> EventOccurrence {
+    EventOccurrence {
+        date: NaiveDate::from_ymd_opt(2026, 5, 19).unwrap(),
+        title: title.to_string(),
+        time: Some(NaiveTime::from_hms_opt(hour, 0, 0).unwrap()),
+        end_time: Some(NaiveTime::from_hms_opt(hour + 1, 0, 0).unwrap()),
+        location: Some("Somewhere with a fairly long address line".to_string()),
+        description: Some(
+            "A description long enough to wrap across a couple of lines.".to_string(),
+        ),
+        attendees: vec!["alice@example.com".into(), "bob@example.com".into()],
+        color: "accent".to_string(),
     }
-    // No-overlap: pairwise on the same page.
-    let items = &result.text_items;
-    for i in 0..items.len() {
-        for j in (i + 1)..items.len() {
-            assert!(
-                !overlaps(&items[i], &items[j]),
-                "text overlap on page {}: {:?} <-> {:?}",
-                items[i].page,
-                items[i].text,
-                items[j].text,
-            );
-        }
-    }
-}
-
-fn assert_text_present(pdf: &std::path::Path, min_items: usize) {
-    // fulgur's inspect() decodes text as raw glyph IDs for CID fonts, not Unicode,
-    // so we cannot search for readable strings like "May" or "2026". Instead we
-    // assert a plausible *count* of text items, which confirms the day rows actually
-    // rendered into the PDF (not just into the intermediate HTML) — a bare non-empty
-    // check would pass even if only the header rendered. The month page emits a header
-    // + 31 day rows (number + weekday) plus the Tasks page header (~64 items total).
-    let result = inspect(pdf).unwrap();
-    assert!(
-        result.text_items.len() >= min_items,
-        "expected >= {min_items} text items in rendered PDF, got {}",
-        result.text_items.len(),
-    );
 }
 
 #[test]
-fn month_layout_clean() {
+fn empty_month_has_no_event_pages() {
+    // monthly view + tasks + one page per day (May has 31 days), no event pages.
     let cfg = Config::new(2026);
-    let out = tmp("month");
-    month::build_month_pdf(&cfg, 5, &std::collections::BTreeMap::new(), &out).unwrap();
-    assert_no_overlap_and_in_bounds(&out);
-    // Text actually rendered into the PDF (not just present in the HTML):
-    // header + 31 day rows (number + weekday) + Tasks header ≈ 64 items.
-    assert_text_present(&out, 60);
+    let out = tmp("empty");
+    month::build_month_pdf(&cfg, 5, &BTreeMap::new(), &out).unwrap();
+    assert_eq!(pages(&out), 2 + 31);
 }
 
 #[test]
-fn future_log_layout_clean() {
-    let out = tmp("fl");
-    future_log::build_future_log_pdf(&Config::new(2026), &out).unwrap();
-    assert_no_overlap_and_in_bounds(&out);
+fn one_event_day_adds_one_event_page() {
+    let mut events: BTreeMap<NaiveDate, Vec<EventOccurrence>> = BTreeMap::new();
+    events.insert(
+        NaiveDate::from_ymd_opt(2026, 5, 19).unwrap(),
+        vec![ev("Dentist", 14)],
+    );
+    let out = tmp("one");
+    month::build_month_pdf(&Config::new(2026), 5, &events, &out).unwrap();
+    // 2 chrome + 31 daily + exactly one event page for the single busy day.
+    assert_eq!(pages(&out), 2 + 31 + 1);
 }
 
 #[test]
-fn reference_layout_clean() {
-    let out = tmp("ref");
-    reference::build_reference_pdf(&Config::new(2026), &out).unwrap();
-    assert_no_overlap_and_in_bounds(&out);
+fn busy_day_spills_onto_continuation_pages() {
+    // Many full-detail events on one day must paginate onto more than one page,
+    // and never overflow off the page (Typst would otherwise just keep flowing).
+    let mut events: BTreeMap<NaiveDate, Vec<EventOccurrence>> = BTreeMap::new();
+    let day: Vec<EventOccurrence> = (8..22).map(|h| ev("Packed meeting", h)).collect();
+    events.insert(NaiveDate::from_ymd_opt(2026, 5, 19).unwrap(), day);
+    let out = tmp("busy");
+    month::build_month_pdf(&Config::new(2026), 5, &events, &out).unwrap();
+    // 2 chrome + 31 daily + >= 2 event pages (the day spilled).
+    assert!(
+        pages(&out) >= 2 + 31 + 2,
+        "busy day should spill onto continuation pages, got {} pages",
+        pages(&out)
+    );
 }

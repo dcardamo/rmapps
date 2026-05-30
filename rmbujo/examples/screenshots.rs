@@ -8,7 +8,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use askama::Template;
 use rmbujo::calendar::build_month;
 use rmbujo::device::get_device;
 use rmbujo::geometry::{default_grid, monthly_row_pt, TOOLBAR_SAFE_PT};
@@ -20,13 +19,33 @@ fn out_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/images")
 }
 
+/// Hidden second page defining every cross-page link target, so a fragment
+/// rendered in isolation (here, for a single screenshot) doesn't reference labels
+/// that only exist on sibling pages in a full notebook. `-singlefile` rasterizes
+/// only page 1, so this never appears in the screenshot.
+fn label_sink() -> String {
+    let mut anchors = String::from("#box[x]#label(\"monthly\")");
+    for n in 1..=31 {
+        anchors.push_str(&format!("#box[x]#label(\"day-{n}\")"));
+        anchors.push_str(&format!("#box[x]#label(\"agenda-{n}\")"));
+    }
+    format!("#plain-page[#hide[{anchors}]]\n")
+}
+
 fn render_png(fragment: &str, png: &Path) {
     let dev = get_device("paper-pro-move").unwrap();
     let grid = default_grid(&dev);
     let theme = load_theme("library").unwrap();
     let mut pdf = std::env::temp_dir();
     pdf.push("rmbujo-shot.pdf");
-    render_pdf(&dev, &grid, &theme, &[fragment.to_string()], &pdf).unwrap();
+    render_pdf(
+        &dev,
+        &grid,
+        &theme,
+        &[fragment.to_string(), label_sink()],
+        &pdf,
+    )
+    .unwrap();
 
     let prefix = png.with_extension("");
     let status = Command::new("pdftoppm")
