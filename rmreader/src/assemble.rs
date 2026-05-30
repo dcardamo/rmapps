@@ -9,9 +9,12 @@ use crate::manifest::{Manifest, ManifestItem};
 use crate::readwise::Document;
 
 pub struct Built {
-    pub fragments: Vec<String>, // page fragments (wrapped by render::Base)
+    pub fragments: Vec<String>, // page fragments (wrapped by render::Base) — fulgur path
     pub assets: Vec<(String, Vec<u8>)>,
     pub manifest: Manifest,
+    // Typst path: the same content as `fragments`, as structured render inputs.
+    pub typst_rows: Vec<crate::render::typst_doc::Row>,
+    pub typst_articles: Vec<crate::render::typst_doc::Article>,
 }
 
 struct IndexRow {
@@ -138,6 +141,7 @@ pub fn assemble_document(
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     let mut items: Vec<ManifestItem> = Vec::new();
     let mut fragments: Vec<String> = Vec::new();
+    let mut typst_articles: Vec<crate::render::typst_doc::Article> = Vec::new();
 
     // Index — each row links straight to the full article.
     let rows: Vec<IndexRow> = docs
@@ -149,6 +153,16 @@ pub fn assemble_document(
             author: d.author.clone(),
             reading_time: rt(d),
             anchor: format!("article-{}", d.id),
+        })
+        .collect();
+    let typst_rows: Vec<crate::render::typst_doc::Row> = rows
+        .iter()
+        .map(|r| crate::render::typst_doc::Row {
+            num: r.num.clone(),
+            title: r.title.clone(),
+            author: r.author.clone(),
+            reading_time: r.reading_time.clone(),
+            anchor: r.anchor.clone(),
         })
         .collect();
     fragments.push(
@@ -182,6 +196,12 @@ pub fn assemble_document(
             .render()
             .unwrap(),
         );
+        typst_articles.push(crate::render::typst_doc::Article {
+            anchor: article_anchor.clone(),
+            title: title.clone(),
+            byline: bl.clone(),
+            body: crate::render::html2typst::convert(&content),
+        });
         items.push(ManifestItem {
             id: d.id.clone(),
             title,
@@ -201,6 +221,8 @@ pub fn assemble_document(
             collection: collection.to_string(),
             items,
         },
+        typst_rows,
+        typst_articles,
     }
 }
 

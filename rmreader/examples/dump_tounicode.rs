@@ -6,10 +6,12 @@
 use lopdf::{Document, Object};
 
 fn main() -> anyhow::Result<()> {
-    let path = std::env::args().nth(1).expect("usage: dump_tounicode <pdf>");
+    let path = std::env::args()
+        .nth(1)
+        .expect("usage: dump_tounicode <pdf>");
     let doc = Document::load(&path)?;
     let mut shown = 0;
-    for (_id, obj) in &doc.objects {
+    for obj in doc.objects.values() {
         if let Object::Stream(s) = obj {
             let bytes = s
                 .decompressed_content()

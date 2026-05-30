@@ -205,32 +205,43 @@ fn build_one(
     let theme = crate::theme::load_theme(&config.theme)?;
     let pdf_path = out_dir.join(format!("{collection}.pdf"));
     eprintln!(
-        "[rmreader] {collection}: rendering {} fragments...",
-        built.fragments.len()
+        "[rmreader] {collection}: rendering {} article(s) via Typst...",
+        built.typst_articles.len()
     );
     let t = Instant::now();
-    crate::render::render_pdf(&device, &theme, &built.fragments, &built.assets, &pdf_path)?;
+    // Typst references images at /assets/{key}; serve them there.
+    let assets: Vec<(String, Vec<u8>)> = built
+        .assets
+        .iter()
+        .map(|(k, b)| (format!("/assets/{k}"), b.clone()))
+        .collect();
+    let rendered = crate::render::render_collection(
+        &device,
+        &theme,
+        collection,
+        &built.typst_rows,
+        &built.typst_articles,
+        &assets,
+    )?;
     eprintln!(
-        "[rmreader] {collection}: wrote {} in {:.1}s",
-        pdf_path.display(),
+        "[rmreader] {collection}: rendered in {:.1}s",
         t.elapsed().as_secs_f32()
     );
-    // Paint the full-page paper background, stamp the clickable nav bar and action
-    // labels, fill page ranges, and embed the manifest in the PDF.
-    let paper = theme.get("paper").map(|s| s.as_str()).unwrap_or("#F3F1EA");
-    let navbg = theme.get("navbg").map(|s| s.as_str()).unwrap_or("#2A2F6B");
-    let navfg = theme.get("navfg").map(|s| s.as_str()).unwrap_or("#F4F1E8");
+
+    // Fill the embedded manifest with the recovered read-back geometry, embed it
+    // in the PDF catalog, and write the PDF. Typst draws the chrome (paper fill,
+    // nav bar, action band, links) in-flow, so no lopdf post-processing is needed
+    // beyond the manifest embed.
     let mut embedded = built.manifest.to_embedded();
-    crate::postprocess::finalize_pdf(
-        &pdf_path,
-        docs.len(),
-        device.width_pt(),
-        device.height_pt(),
-        paper,
-        navbg,
-        navfg,
-        &mut embedded,
-    )?;
+    for d in &mut embedded.docs {
+        if let Some(pr) = rendered.page_ranges.get(&format!("article-{}", d.id)) {
+            d.page_range = *pr;
+        }
+    }
+    embedded.label_rects = rendered.label_rects;
+    let mut pdf_doc = lopdf::Document::load_mem(&rendered.pdf)?;
+    crate::embed::write(&mut pdf_doc, &embedded)?;
+    pdf_doc.save(&pdf_path)?;
     // Sidecar JSON: non-authoritative debug artifact (the PDF embed is canonical).
     built
         .manifest
