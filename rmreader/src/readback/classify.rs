@@ -2,7 +2,7 @@
 use std::collections::BTreeMap;
 
 use crate::manifest::EmbeddedManifest;
-use crate::readback::coords::PdfRect;
+use rmfiles::coords::PdfRect;
 use crate::readwise::{ActionKind, HighlightCreate};
 
 /// Map a Readwise Reader category to a valid v2 highlights category.

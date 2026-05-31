@@ -1,4 +1,4 @@
-use rmreader::readback::coords::Transform;
+use rmfiles::coords::Transform;
 
 #[test]
 fn maps_fixture_strokes_into_expected_pdf_regions() {

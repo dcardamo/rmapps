@@ -1,4 +1,4 @@
-use rmreader::readback::coords::PdfRect;
+use rmfiles::coords::PdfRect;
 use rmreader::readback::textlayer::TextLayer;
 
 fn source_pdf() -> Vec<u8> {

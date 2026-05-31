@@ -22,13 +22,11 @@ use std::process::Command;
 
 use anyhow::Context;
 use image::{ImageBuffer, Rgb, RgbImage};
+use rmfiles::coords::{PdfRect, Transform};
 use rmreader::{
     embed,
     manifest::EmbeddedManifest,
-    readback::{
-        coords::{PdfRect, Transform},
-        textlayer::TextLayer,
-    },
+    readback::textlayer::TextLayer,
 };
 
 const RENDER_DPI: f64 = 150.0;

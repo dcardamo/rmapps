@@ -77,8 +77,8 @@ pub struct ManifestRect {
 
 impl ManifestRect {
     /// Convert to a `PdfRect` for geometric comparisons in the readback module.
-    pub fn to_pdf_rect(&self) -> crate::readback::coords::PdfRect {
-        crate::readback::coords::PdfRect {
+    pub fn to_pdf_rect(&self) -> rmfiles::coords::PdfRect {
+        rmfiles::coords::PdfRect {
             x0: self.x0,
             y0: self.y0,
             x1: self.x1,

@@ -3,7 +3,7 @@
 //! origin BOTTOM-LEFT (matching readback::coords).
 use std::io::Write as IoWrite;
 
-use crate::readback::coords::PdfRect;
+use rmfiles::coords::PdfRect;
 
 #[derive(Debug, Clone)]
 pub struct Word {
