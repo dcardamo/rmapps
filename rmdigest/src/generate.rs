@@ -90,23 +90,28 @@ fn process_doc(
     let meta = digest_meta(&ing.bundle, &marks);
     let (digest_pdf, annotated_pdf) = build_both(&meta, &marks, &ing.bundle)?;
 
-    if !opts.dry_run {
-        let stage = tempfile::tempdir()?;
-
-        // Stage and put the digest PDF.
-        let digest_name = format!("{}{}", meta.title, cfg.output.digest_suffix);
-        let digest_file = stage.path().join(format!("{}.pdf", digest_name));
-        std::fs::write(&digest_file, &digest_pdf)?;
-        backend.put(&digest_file, &doc.folder, &digest_name)?;
-
-        // Stage and put the annotated PDF.
-        let annot_name = format!("{}{}", meta.title, cfg.output.annotated_suffix);
-        let annot_file = stage.path().join(format!("{}.pdf", annot_name));
-        std::fs::write(&annot_file, &annotated_pdf)?;
-        backend.put(&annot_file, &doc.folder, &annot_name)?;
+    if opts.dry_run {
+        // Generate but neither upload nor persist state: a dry run must not poison
+        // the hash cache, or the next real run would skip and never upload.
+        eprintln!("rmdigest: [dry-run] generated digests for {}", doc.path);
+        return Ok(());
     }
 
-    // Persist state only after a fully successful run.
+    let stage = tempfile::tempdir()?;
+
+    // Stage and put the digest PDF.
+    let digest_name = format!("{}{}", meta.title, cfg.output.digest_suffix);
+    let digest_file = stage.path().join(format!("{}.pdf", digest_name));
+    std::fs::write(&digest_file, &digest_pdf)?;
+    backend.put(&digest_file, &doc.folder, &digest_name)?;
+
+    // Stage and put the annotated PDF.
+    let annot_name = format!("{}{}", meta.title, cfg.output.annotated_suffix);
+    let annot_file = stage.path().join(format!("{}.pdf", annot_name));
+    std::fs::write(&annot_file, &annotated_pdf)?;
+    backend.put(&annot_file, &doc.folder, &annot_name)?;
+
+    // Persist state only after both uploads succeed, so a crash re-processes.
     prev.cloud_version = doc.version.clone();
     prev.page_hashes = ing.new_hashes;
     state.save(state_path)?;
@@ -364,6 +369,66 @@ mod tests {
             0,
             "expected 0 puts on unchanged second run, got {}",
             second_puts.len()
+        );
+    }
+
+    #[test]
+    fn dry_run_does_not_poison_state() {
+        let fixture = fixture_path();
+        let puts = Arc::new(Mutex::new(Vec::new()));
+        let doc = CloudDoc {
+            path: "/Books/StampedLabels".to_string(),
+            name: "stamped-labels".to_string(),
+            folder: "/Books".to_string(),
+            version: None,
+        };
+        let backend = FakeBackend {
+            fixture: doc,
+            fixture_path: fixture,
+            puts: puts.clone(),
+        };
+        let cfg = fake_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+
+        // Dry run: generates but uploads nothing and must NOT persist hashes.
+        run(
+            &cfg,
+            &backend,
+            &state_path,
+            &Opts {
+                dry_run: true,
+                local_output: None,
+            },
+        )
+        .expect("dry run");
+        assert_eq!(puts.lock().unwrap().len(), 0, "dry run must not upload");
+        if let Ok(state) = State::load(&state_path) {
+            assert!(
+                state
+                    .docs
+                    .get("/Books/StampedLabels")
+                    .map(|d| d.page_hashes.is_empty())
+                    .unwrap_or(true),
+                "dry run must not persist page hashes"
+            );
+        }
+
+        // A subsequent REAL run must still upload (proving state wasn't poisoned).
+        run(
+            &cfg,
+            &backend,
+            &state_path,
+            &Opts {
+                dry_run: false,
+                local_output: None,
+            },
+        )
+        .expect("real run");
+        assert_eq!(
+            puts.lock().unwrap().len(),
+            2,
+            "real run after a dry run must upload both digests"
         );
     }
 }
