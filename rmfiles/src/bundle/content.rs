@@ -38,6 +38,15 @@ pub struct Content {
     /// Canvas height in device pixels.
     #[serde(default, rename = "customZoomPageHeight")]
     pub page_height: Option<f64>,
+
+    /// Legacy per-page source mapping (older firmware): bundle page index →
+    /// source PDF page (0-based), or `-1` for an inserted page.
+    #[serde(
+        default,
+        rename = "redirectionPageMap",
+        deserialize_with = "null_to_default"
+    )]
+    pub redirection_page_map: Vec<i64>,
 }
 
 /// Container for the newer `cPages` page list.
@@ -54,6 +63,17 @@ pub struct CPages {
 pub struct CPage {
     /// The page UUID.
     pub id: String,
+    /// Redirect to the backing source PDF page (newer firmware). Absent for an
+    /// inserted page that has no source page.
+    #[serde(default)]
+    pub redir: Option<Redir>,
+}
+
+/// A timestamped value wrapper (reMarkable CRDT field). We only need `value`.
+#[derive(Debug, Deserialize)]
+pub struct Redir {
+    /// 0-based source PDF page index this page redirects to (`-1` if none).
+    pub value: i64,
 }
 
 impl Content {
@@ -65,6 +85,35 @@ impl Content {
             }
         }
         self.pages.clone()
+    }
+
+    /// Map each bundle page (in reading order) to its backing source PDF page
+    /// (0-based), or `None` for an inserted page with no source.
+    ///
+    /// Prefers the `cPages` `redir` fields (newer firmware), then the legacy
+    /// `redirectionPageMap`, and finally falls back to the identity mapping
+    /// (bundle page i ⇒ source page i) for simple unedited documents.
+    pub fn source_pages(&self, n: usize) -> Vec<Option<usize>> {
+        if let Some(cp) = &self.c_pages {
+            if cp.pages.iter().any(|p| p.redir.is_some()) {
+                return cp
+                    .pages
+                    .iter()
+                    .map(|p| match &p.redir {
+                        Some(r) if r.value >= 0 => Some(r.value as usize),
+                        _ => None,
+                    })
+                    .collect();
+            }
+        }
+        if !self.redirection_page_map.is_empty() {
+            return self
+                .redirection_page_map
+                .iter()
+                .map(|&v| if v >= 0 { Some(v as usize) } else { None })
+                .collect();
+        }
+        (0..n).map(Some).collect()
     }
 }
 

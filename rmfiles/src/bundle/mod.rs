@@ -39,6 +39,9 @@ pub struct Bundle {
     /// Page IDs in reading order (from `.content`).
     page_ids: Vec<String>,
 
+    /// Per-page backing source PDF page (0-based), or `None` for inserted pages.
+    source_pages: Vec<Option<usize>>,
+
     /// Device canvas dimensions `(width, height)` in pixels.
     canvas: (f64, f64),
 }
@@ -72,6 +75,7 @@ impl Bundle {
         };
 
         let page_ids = content.page_ids();
+        let source_pages = content.source_pages(page_ids.len());
 
         let canvas = (
             content.page_width.unwrap_or(1404.0),
@@ -83,6 +87,7 @@ impl Bundle {
             uuid,
             meta,
             page_ids,
+            source_pages,
             canvas,
         })
     }
@@ -137,6 +142,12 @@ pub struct Page<'a> {
 }
 
 impl Page<'_> {
+    /// The 0-based source PDF page this page is backed by, or `None` for an
+    /// inserted page (added on-device, with no underlying PDF page).
+    pub fn source_page(&self) -> Option<usize> {
+        self.bundle.source_pages.get(self.index).copied().flatten()
+    }
+
     /// Parse the `.rm` scene for this page, if one exists.
     ///
     /// Returns `Ok(None)` when no `.rm` file is present for this page (common
