@@ -8,10 +8,9 @@
 
 use std::path::Path;
 
-use crate::annotate::assemble;
 use crate::config::Config;
 use crate::deploy::{Backend, CloudDoc};
-use crate::digest_doc::{build_digest, DigestMeta};
+use crate::digest_doc::DigestMeta;
 use crate::extract::{extract, Mark};
 use crate::ingest::ingest;
 use crate::render::compile;
@@ -90,27 +89,16 @@ fn process_doc(
     let marks = extract(&ing.bundle, &all_pages)?;
     let meta = digest_meta(&ing.bundle, &marks);
 
-    // The Digest is always producible from the marks alone. The Annotated PDF
-    // flattens ink into the SOURCE PDF via lopdf, which can fail on complex
-    // real-world PDFs (page trees lopdf can't manipulate). Treat it as
-    // best-effort: never let an Annotated-assembly failure block the Digest.
-    let (digest_src, assets) = build_digest(&meta, &marks, &device);
-    let digest_pdf = compile(&digest_src, &assets)?;
-    let annotated_pdf = match assemble(&ing.bundle, &meta, &marks, &device) {
-        Ok(pdf) => Some(pdf),
-        Err(e) => {
-            eprintln!(
-                "rmdigest: annotated assembly failed for {} ({e:#}); deploying digest only",
-                doc.path
-            );
-            None
-        }
-    };
+    // Single pure-typst output: the hyperlinked digest followed by a rasterized
+    // image of each annotated page (highlights painted on). No lopdf page-tree
+    // surgery, so it works on any source PDF and carries real #link jumps.
+    let (src, assets) = crate::linked_doc::build_linked(&meta, &marks, &ing.bundle, &device)?;
+    let digest_pdf = compile(&src, &assets)?;
 
     if opts.dry_run {
         // Generate but neither upload nor persist state: a dry run must not poison
         // the hash cache, or the next real run would skip and never upload.
-        eprintln!("rmdigest: [dry-run] generated digests for {}", doc.path);
+        eprintln!("rmdigest: [dry-run] generated digest for {}", doc.path);
         return Ok(());
     }
 
@@ -122,15 +110,7 @@ fn process_doc(
     std::fs::write(&digest_file, &digest_pdf)?;
     backend.put(&digest_file, &doc.folder, &digest_name)?;
 
-    // Stage and put the annotated PDF (only if assembly succeeded).
-    if let Some(annotated_pdf) = &annotated_pdf {
-        let annot_name = format!("{}{}", meta.title, cfg.output.annotated_suffix);
-        let annot_file = stage.path().join(format!("{}.pdf", annot_name));
-        std::fs::write(&annot_file, annotated_pdf)?;
-        backend.put(&annot_file, &doc.folder, &annot_name)?;
-    }
-
-    // Persist state only after both uploads succeed, so a crash re-processes.
+    // Persist state only after the upload succeeds, so a crash re-processes.
     prev.cloud_version = doc.version.clone();
     prev.page_hashes = ing.new_hashes;
     state.save(state_path)?;
@@ -175,27 +155,6 @@ pub fn digest_meta(bundle: &rmfiles::Bundle, marks: &[Mark]) -> DigestMeta {
         n_notes,
         date_range: String::new(),
     }
-}
-
-// ---------------------------------------------------------------------------
-// build_both: compile digest + annotated PDFs — testable unit
-// ---------------------------------------------------------------------------
-
-/// Build both output PDFs from the pipeline intermediates.
-///
-/// Returned as `(digest_pdf_bytes, annotated_pdf_bytes)`.
-/// Exposed as a public helper so unit tests can verify PDF validity without
-/// exercising the full I/O pipeline.
-pub fn build_both(
-    meta: &DigestMeta,
-    marks: &[Mark],
-    bundle: &rmfiles::Bundle,
-    device: &crate::device::Device,
-) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
-    let (digest_src, assets) = build_digest(meta, marks, device);
-    let digest_pdf = compile(&digest_src, &assets)?;
-    let annotated_pdf = assemble(bundle, meta, marks, device)?;
-    Ok((digest_pdf, annotated_pdf))
 }
 
 // ---------------------------------------------------------------------------
@@ -349,22 +308,18 @@ mod tests {
         let first_puts = puts.lock().unwrap().clone();
         assert_eq!(
             first_puts.len(),
-            2,
-            "expected 2 puts on first run, got {}",
+            1,
+            "expected 1 put (the single linked digest) on first run, got {}",
             first_puts.len()
         );
 
-        // One name must end with the digest suffix, one with the annotated suffix.
+        // The single output ends with the digest suffix.
         let has_digest = first_puts
             .iter()
             .any(|(_, name, _)| name.ends_with(&cfg.output.digest_suffix));
-        let has_annot = first_puts
-            .iter()
-            .any(|(_, name, _)| name.ends_with(&cfg.output.annotated_suffix));
         assert!(has_digest, "expected a put ending with digest suffix");
-        assert!(has_annot, "expected a put ending with annotated suffix");
 
-        // Both must be valid PDFs.
+        // It must be a valid PDF.
         for (_, name, bytes) in &first_puts {
             lopdf::Document::load_mem(bytes)
                 .unwrap_or_else(|e| panic!("put '{}' is not a valid PDF: {e}", name));
@@ -447,8 +402,8 @@ mod tests {
         .expect("real run");
         assert_eq!(
             puts.lock().unwrap().len(),
-            2,
-            "real run after a dry run must upload both digests"
+            1,
+            "real run after a dry run must upload the digest"
         );
     }
 }

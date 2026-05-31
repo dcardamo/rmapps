@@ -2,8 +2,7 @@
 //! Digest + Annotated PDFs to /tmp/rmd-inspect-out/ for manual QA.
 //!
 //! Usage: nix develop -c cargo run --example inspect -- /path/to/doc.rmdoc
-use rmdigest::annotate::assemble;
-use rmdigest::digest_doc::{build_digest, DigestMeta};
+use rmdigest::digest_doc::DigestMeta;
 use rmdigest::extract::{extract, Mark};
 use rmdigest::render::compile;
 use rmfiles::Bundle;
@@ -64,27 +63,18 @@ fn main() -> anyhow::Result<()> {
 
     let out = PathBuf::from("/tmp/rmd-inspect-out");
     std::fs::create_dir_all(&out)?;
-    let (src, assets) = build_digest(&meta, &marks, &rmdigest::device::MOVE);
+    let (src, assets) =
+        rmdigest::linked_doc::build_linked(&meta, &marks, &bundle, &rmdigest::device::MOVE)?;
     std::fs::write(out.join("Digest.pdf"), compile(&src, &assets)?)?;
-    let mut rendered = vec![("digest", "Digest.pdf")];
-    match assemble(&bundle, &meta, &marks, &rmdigest::device::MOVE) {
-        Ok(pdf) => {
-            std::fs::write(out.join("Annotated.pdf"), pdf)?;
-            rendered.push(("annotated", "Annotated.pdf"));
-        }
-        Err(e) => eprintln!("annotated assembly failed (digest still produced): {e:#}"),
-    }
-    for (label, f) in rendered {
-        let _ = Command::new("pdftoppm")
-            .args([
-                "-r",
-                "150",
-                "-png",
-                out.join(f).to_str().unwrap(),
-                out.join(label).to_str().unwrap(),
-            ])
-            .status();
-    }
+    let _ = Command::new("pdftoppm")
+        .args([
+            "-r",
+            "150",
+            "-png",
+            out.join("Digest.pdf").to_str().unwrap(),
+            out.join("digest").to_str().unwrap(),
+        ])
+        .status();
     eprintln!("wrote PDFs + PNGs to {out:?}");
     Ok(())
 }

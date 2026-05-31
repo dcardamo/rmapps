@@ -4,8 +4,7 @@
 //!
 //! Usage (from ~/git/wt/rmdigest):
 //!   nix develop -c cargo run --example full_sample
-use rmdigest::annotate::assemble;
-use rmdigest::digest_doc::{build_digest, DigestMeta};
+use rmdigest::digest_doc::DigestMeta;
 use rmdigest::extract::{extract, Mark};
 use rmdigest::render::compile;
 use rmfiles::Bundle;
@@ -39,28 +38,26 @@ fn main() -> anyhow::Result<()> {
     };
     eprintln!("marks: {n_highlights} highlights, {n_notes} notes");
 
-    let (src, assets) = build_digest(&meta, &marks, &rmdigest::device::MOVE);
+    let (src, assets) =
+        rmdigest::linked_doc::build_linked(&meta, &marks, &bundle, &rmdigest::device::MOVE)?;
     let digest_pdf = compile(&src, &assets)?;
     let digest_path = out.join("Digest.pdf");
     std::fs::write(&digest_path, &digest_pdf)?;
 
-    let annotated_pdf = assemble(&bundle, &meta, &marks, &rmdigest::device::MOVE)?;
-    let annotated_path = out.join("Annotated.pdf");
-    std::fs::write(&annotated_path, &annotated_pdf)?;
-
-    for (label, path) in [("digest", &digest_path), ("annotated", &annotated_path)] {
-        let prefix = out.join(label);
-        let status = Command::new("pdftoppm")
-            .args([
-                "-r",
-                "150",
-                "-png",
-                path.to_str().unwrap(),
-                prefix.to_str().unwrap(),
-            ])
-            .status()?;
-        eprintln!("{label}: {} -> {prefix:?}-*.png ({status})", path.display());
-    }
+    let prefix = out.join("digest");
+    let status = Command::new("pdftoppm")
+        .args([
+            "-r",
+            "150",
+            "-png",
+            digest_path.to_str().unwrap(),
+            prefix.to_str().unwrap(),
+        ])
+        .status()?;
+    eprintln!(
+        "digest: {} -> {prefix:?}-*.png ({status})",
+        digest_path.display()
+    );
     eprintln!("Sample output in {out:?}");
     Ok(())
 }
