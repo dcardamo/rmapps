@@ -1,7 +1,0 @@
-/target
-/result
-**/*.rs.bk
-
-# macOS metadata
-._*
-.DS_Store

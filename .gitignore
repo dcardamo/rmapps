@@ -1,0 +1,31 @@
+# Build output
+/target
+**/target
+/result
+result
+**/*.rs.bk
+
+# Local end-user config & secrets — these live under ~/.config/rmapps/ in real use;
+# this catches any repo-local copies used for testing. NEVER commit tokens.
+/auth.json
+**/auth.json
+/state.json
+**/state.json
+rmapps.toml
+**/rmapps.toml
+# app configs (legacy per-app, kept ignored during migration)
+rmreader.toml
+**/rmreader.toml
+rmbujo.toml
+**/rmbujo.toml
+rmdigest.toml
+**/rmdigest.toml
+
+# scratch / worktrees
+/danout
+/.worktrees
+.worktrees/
+
+# macOS metadata
+._*
+.DS_Store

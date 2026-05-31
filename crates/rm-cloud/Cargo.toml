@@ -16,7 +16,9 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
-rm-files = { path = "../rm-files" }
+# The single workspace .rm reader is `rmfiles`; alias it to `rm_files` so this
+# crate's `use rm_files::…` stays unchanged.
+rm-files = { path = "../rmfiles", package = "rmfiles" }
 zip = "2"
 tempfile = "3"
 axum = { version = "0.8", optional = true }

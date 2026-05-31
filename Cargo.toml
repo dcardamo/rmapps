@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/rmfiles",
+    "crates/rm-cloud",
+    "crates/rmbujo",
+    "crates/rmreader",
+    "crates/rmdigest",
+    "apps/rmapps",
+]
+# poc/ is reference-only (the inkapp proof-of-concept). It is its own workspace and
+# is deliberately excluded — nothing here depends on it.
+exclude = ["poc"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = true
