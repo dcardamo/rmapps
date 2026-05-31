@@ -1,11 +1,27 @@
 //! Render reMarkable ink strokes to PNG images (tiny-skia).
 use anyhow::anyhow;
-use rmfiles::Stroke;
+use rmfiles::{Pen, Stroke};
 use tiny_skia::{
     Color, LineCap, LineJoin, Paint, PathBuilder, Pixmap, Stroke as SkStroke, Transform,
 };
 
 use crate::theme::pen_rgb;
+
+/// Nominal nib width for a tool, in device scene units (≈ 226 dpi), chosen to
+/// match the on-device appearance (≈ `units / 226` inches).
+fn pen_base_width(tool: Pen) -> f32 {
+    match tool {
+        Pen::Highlighter1 | Pen::Highlighter2 => 18.0,
+        Pen::Marker1
+        | Pen::Marker2
+        | Pen::Paintbrush1
+        | Pen::Paintbrush2
+        | Pen::Calligraphy
+        | Pen::Shader => 6.0,
+        Pen::Fineliner1 | Pen::Fineliner2 => 2.0,
+        _ => 3.0, // ballpoint, pencil, mechanical pencil, unknown
+    }
+}
 
 /// Background for the rendered canvas.
 pub enum Background {
@@ -131,20 +147,12 @@ pub fn render_strokes_on_canvas(
         paint.set_color_rgba8(r, g, b, alpha);
         paint.anti_alias = true;
 
-        // Stroke width: max of sampled widths, else per-tool default.
-        let max_sampled = stroke
-            .points
-            .iter()
-            .filter_map(|p| p.width)
-            .fold(0.0f32, f32::max);
-        let base_width = if max_sampled > 0.0 {
-            max_sampled
-        } else if is_hl {
-            18.0
-        } else {
-            3.0
-        };
-        let width = (base_width * opts.scale).max(1.0);
+        // Stroke width in device scene units (≈ 226 dpi). We use a fixed per-tool
+        // width rather than the per-point `width` telemetry: that field is in a
+        // different, inflated unit (~24–36 for a ballpoint) and renders ~10× too
+        // fat. A few scene units ≈ the real nib (3 units ≈ 0.34 mm at 226 dpi).
+        let base_width = pen_base_width(stroke.tool);
+        let width = (base_width * opts.scale).max(0.75);
 
         let sk_stroke = SkStroke {
             width,

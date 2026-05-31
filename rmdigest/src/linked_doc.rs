@@ -282,7 +282,7 @@ pub fn build_linked(
     // ── Preamble + cover ───────────────────────────────────────────────────
     s.push_str(&format!(
         r##"#set document(title: "{title}", author: "{author}")
-#set page(width: {pw}pt, height: {ph}pt, margin: (x: 7mm, y: 8mm), fill: rgb(250, 249, 246))
+#set page(width: {pw}pt, height: {ph}pt, margin: (top: 15mm, bottom: 8mm, x: 7mm), fill: rgb(250, 249, 246))
 #set text(font: "Newsreader", size: 11pt, fill: rgb(26, 26, 26), lang: "en", hyphenate: false)
 #set par(leading: 0.62em, spacing: 0.7em, justify: false)
 #set heading(outlined: true)
