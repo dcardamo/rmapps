@@ -122,8 +122,18 @@ mod tests {
 
     #[test]
     fn pdfrect_intersect_and_overlap() {
-        let a = PdfRect { x0: 0.0, y0: 0.0, x1: 10.0, y1: 10.0 };
-        let b = PdfRect { x0: 5.0, y0: 5.0, x1: 15.0, y1: 15.0 };
+        let a = PdfRect {
+            x0: 0.0,
+            y0: 0.0,
+            x1: 10.0,
+            y1: 10.0,
+        };
+        let b = PdfRect {
+            x0: 5.0,
+            y0: 5.0,
+            x1: 15.0,
+            y1: 15.0,
+        };
         assert!(a.intersects(&b));
         assert!((a.overlap_area(&b) - 25.0).abs() < 1e-9);
     }

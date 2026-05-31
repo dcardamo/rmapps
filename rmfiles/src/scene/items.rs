@@ -181,8 +181,14 @@ pub struct TextHighlight {
     pub text: String,
     /// Bounding rectangles for the highlight (one per line run), device space.
     pub rectangles: Vec<Rect>,
-    /// Highlight color (typically [`PenColor::Highlight`]).
+    /// Highlight color index (typically [`PenColor::Highlight`], a generic
+    /// marker — the actual chosen RGBA, when the device records it, is in
+    /// [`color_rgba`](Self::color_rgba)).
     pub color: PenColor,
+    /// The exact highlight color as packed `0xAARRGGBB`, when present. Newer
+    /// firmware records the chosen highlighter color here; absent for the
+    /// default highlight.
+    pub color_rgba: Option<u32>,
 }
 
 /// An item in the scene. Additive: more variants will be added over time.
@@ -297,9 +303,14 @@ pub fn read_glyph_range(r: &mut Reader) -> Result<TextHighlight> {
     // Skip any trailing bytes inside the rectangles sub-block (defensive).
     r.seek(rects_end)?;
 
+    // Optional exact color (field 10, `color_rgba`) — present on newer firmware
+    // when a non-default highlighter color was used.
+    let color_rgba = r.read_int_optional(10);
+
     Ok(TextHighlight {
         text,
         rectangles,
         color,
+        color_rgba,
     })
 }
