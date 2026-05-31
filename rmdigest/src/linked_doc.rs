@@ -5,13 +5,15 @@
 //! itself emphasized via typst `#highlight`. This is fast (no page
 //! rasterization), small, and self-contained.
 //!
-//! We do NOT embed the original pages: reMarkable's PDF viewer can't link
-//! between documents, and a full image-copy of the book is far too heavy. The
-//! context window gives you what you highlighted plus enough around it to recall
-//! the passage.
+//! Highlights do NOT embed whole pages (reMarkable can't link between documents,
+//! and a full image-copy of the book is far too heavy) — the context window
+//! recalls the passage instead.
 //!
-//! Notes (pen ink) are still embedded as cropped images. Pen handwriting is not
-//! transcribed (image-only, by design).
+//! Pen notes ARE flattened onto a crop of their source page: the ink is drawn
+//! over the rasterized page and cropped to the vertical span the strokes cover
+//! (full width), so circling/bracketing/underlining content pulls that content
+//! into the digest. Notes on inserted blank pages are ink-only. Handwriting is
+//! not transcribed (image-only, by design).
 use std::path::Path;
 use std::process::Command;
 
@@ -194,9 +196,9 @@ fn rasterize_page(pdf_path: &Path, page_1based: usize) -> anyhow::Result<Vec<u8>
     std::fs::read(prefix.with_extension("png")).context("read page png")
 }
 
-/// Flatten `strokes` onto the source page region they cover: rasterize the page,
-/// draw the ink on top, and crop to the ink bbox (+ margin). Anything the user
-/// circled or underlined comes along, because it's within that region.
+/// Flatten `strokes` onto the source page: rasterize the page, draw the ink on
+/// top, and crop to the vertical span the strokes cover (full page width) so the
+/// circled/bracketed/underlined content between the marks comes along.
 fn flatten_note(
     pdf_path: &Path,
     page_1based: usize,
