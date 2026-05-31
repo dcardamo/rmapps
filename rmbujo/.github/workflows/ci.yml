@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Run the JS actions on Node 24 (checkout/cache are Node-20 by default until
+    # June 2026); silences the deprecation notice and verifies they work on 24.
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      # Cache compiled crates + downloads so the dependency tree (fulgur/blitz/
+      # krilla) isn't rebuilt each run. Keyed on Cargo.lock. (A /nix/store cache
+      # was tried but its tar restore is unreliable and the run is fast without
+      # it — nix re-fetches prebuilt paths from cache.nixos.org quickly.)
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      # All steps run in the flake dev shell so they use the same toolchain as
+      # local dev — including poppler (pdftoppm) for the visual-regression tests.
+      - name: Format
+        run: nix develop -c cargo fmt --check
+      - name: Clippy
+        run: nix develop -c cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: nix develop -c cargo test

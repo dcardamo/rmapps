@@ -1,0 +1,27 @@
+# Editorial palette. Two-color system: indigo (primary) + tomato (accent),
+# with rust as a warm secondary, on warm off-white paper.
+paper = "#F3F1EA"      # page background (warm off-white)
+ink = "#1A1A18"        # body text (near-black)
+primary = "#2A2F6B"    # indigo — headlines, masthead, nav fill
+accent = "#CF3A2B"     # tomato — numbers, links, pills/badges
+rust = "#9C3A1B"       # warm secondary (darker than accent)
+muted = "#5E6166"      # secondary metadata
+faint = "#9D9C93"      # tertiary labels
+rule = "#E0DDD2"       # hairlines / dividers / underlines
+nav = "#F4F1E8"        # light text on the indigo bar / cover
+dot = "#55534C"        # dot-grid color — dark warm grey to match the device "Dots Small"
+cover_to = "#1A1E48"   # darker indigo for the cover gradient
+
+# Calendar swatch palette — up to 10 distinct hues, auto-assigned to ICS feeds in
+# order (feed 1 -> cal1, ...). Users can override a feed's `color` with any of these
+# (or any other theme color). cal1/cal2 reuse the brand indigo/tomato.
+cal1  = "#2A2F6B"      # indigo
+cal2  = "#CF3A2B"      # tomato
+cal3  = "#1F7A6B"      # teal
+cal4  = "#B5651D"      # amber
+cal5  = "#6C3FA0"      # purple
+cal6  = "#4F8A3F"      # green
+cal7  = "#B03060"      # magenta
+cal8  = "#2F6FB5"      # blue
+cal9  = "#9A7B1B"      # gold
+cal10 = "#8A4B2A"      # brown

@@ -1,0 +1,53 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-21-rmbujo-rmapi-sync.md",
+  "tasks": [
+    {
+      "id": 7,
+      "subject": "Task 0: Provision rmapi in the flake",
+      "status": "completed",
+      "description": "**Goal:** Working v4-patched rmapi (with put --content-only) in the dev shell.\n\n**Files:** Create nix/overlays/rmapi.nix (vendored from dotfiles, PR #65 patch); Modify flake.nix (wire overlay, add pkgs.rmapi to dev-shell buildInputs).\n\n**Verify:** nix develop -c sh -c 'command -v rmapi'\n\n```json:metadata\n{\"files\": [\"nix/overlays/rmapi.nix\", \"flake.nix\"], \"verifyCommand\": \"nix develop -c sh -c 'command -v rmapi'\", \"acceptanceCriteria\": [\"rmapi on PATH in dev shell\", \"cargo test still passes\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 1: Lifecycle spike — verify non-destructive refresh (manual, go/no-go gate)",
+      "status": "completed",
+      "blockedBy": [7],
+      "description": "**Goal:** Prove on the real Move that rmapi put --content-only preserves handwriting + a mid-doc inserted page across a regenerate. Manual, Dan-in-the-loop. GO/NO-GO gate.\n\n**Files:** Create docs/superpowers/spikes/2026-05-21-rmapi-lifecycle-spike.md.\n\n**Verify:** manual on-device, captured in committed spike doc.\n\n```json:metadata\n{\"files\": [\"docs/superpowers/spikes/2026-05-21-rmapi-lifecycle-spike.md\"], \"verifyCommand\": \"manual on-device\", \"acceptanceCriteria\": [\"paired+verified no 400\", \"ink+inserted page survive content-only refresh\", \"failure mode recorded\", \"GO decision\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 2: RmapiDeployer command sequences",
+      "status": "completed",
+      "description": "**Goal:** RmapiRunner trait + RmapiDeployer building mkdir/put/put --content-only sequences, unit-tested with a recording runner.\n\n**Files:** Create src/deploy/rmapi.rs; Modify src/deploy/mod.rs (pub mod rmapi;); Test tests/deploy.rs.\n\n**Verify:** nix develop -c cargo test --test deploy\n\n```json:metadata\n{\"files\": [\"src/deploy/rmapi.rs\", \"src/deploy/mod.rs\", \"tests/deploy.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test deploy\", \"acceptanceCriteria\": [\"deploy mkdir+put sequence\", \"refresh content-only\", \"all calls -ni\", \"public API\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 3: ProcessRmapi runner — real binary, preflight, conf guard",
+      "status": "completed",
+      "blockedBy": [9],
+      "description": "**Goal:** ProcessRmapi runner invoking real rmapi non-interactively; preflight errors; restore conf + retry on token-clobber.\n\n**Files:** Modify src/deploy/rmapi.rs; Test tests/deploy.rs (shim-based).\n\n**Verify:** nix develop -c cargo test --test deploy\n\n```json:metadata\n{\"files\": [\"src/deploy/rmapi.rs\", \"tests/deploy.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test deploy\", \"acceptanceCriteria\": [\"missing-bin error\", \"unpaired-conf error\", \"clobber restore+retry\", \"happy path one call\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 4: Wire get_deployer and validate the backend",
+      "status": "completed",
+      "blockedBy": [8, 9, 10],
+      "description": "**Goal:** get_deployer returns RmapiDeployer<ProcessRmapi> for backend=rmapi; Config::validate rejects unknown backends.\n\n**Files:** Modify src/deploy/mod.rs, src/config.rs; Test tests/deploy.rs, tests/config.rs.\n\n**Verify:** nix develop -c cargo test\n\n```json:metadata\n{\"files\": [\"src/deploy/mod.rs\", \"src/config.rs\", \"tests/deploy.rs\", \"tests/config.rs\"], \"verifyCommand\": \"nix develop -c cargo test\", \"acceptanceCriteria\": [\"routing none/unknown\", \"rmapi empty target_folder errors\", \"validate backend\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 5: Wizard prompts for deploy backend + target folder",
+      "status": "completed",
+      "blockedBy": [8],
+      "description": "**Goal:** rmbujo new asks for deploy backend + reMarkable folder, written into rmbujo.toml.\n\n**Files:** Modify src/wizard.rs (Answers fields, assemble, run_wizard prompts); Test tests/cli.rs.\n\n**Verify:** nix develop -c cargo test --test cli\n\n```json:metadata\n{\"files\": [\"src/wizard.rs\", \"tests/cli.rs\"], \"verifyCommand\": \"nix develop -c cargo test --test cli\", \"acceptanceCriteria\": [\"Answers deploy fields\", \"prompts with defaults\", \"assemble round-trip\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 6: Documentation + final green",
+      "status": "completed",
+      "blockedBy": [11, 12],
+      "description": "**Goal:** README documents rmapi sync; full suite + clippy + fmt-check pass.\n\n**Files:** Modify README.md.\n\n**Verify:** make test && make clippy && make fmt-check\n\n```json:metadata\n{\"files\": [\"README.md\"], \"verifyCommand\": \"make test && make clippy && make fmt-check\", \"acceptanceCriteria\": [\"README rmapi section\", \"test+clippy+fmt-check pass\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-21T09:10:00-04:00"
+}

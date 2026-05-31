@@ -1,0 +1,131 @@
+//! Interactive "new year" wizard. `assemble` is pure (testable); `run_wizard` prompts.
+
+use std::path::PathBuf;
+
+use chrono::Datelike;
+
+use crate::config::{Config, DeployConfig};
+
+pub struct Answers {
+    pub year: i32,
+    pub base: String,
+    pub device: String,
+    pub week_start: String,
+    pub pages_per_day: u32,
+    pub collection_pages: u32,
+    pub spacing_mm: f32,
+    pub theme: String,
+    pub deploy_backend: String,
+    pub base_folder: String,
+    pub timezone: String,
+    pub ics: Vec<crate::config::IcsFeed>,
+}
+
+/// Build a Config + paths from gathered answers (no I/O).
+pub fn assemble(a: Answers) -> (Config, PathBuf, PathBuf) {
+    let config = Config {
+        year: a.year,
+        device: a.device,
+        week_start: a.week_start,
+        collection_pages: a.collection_pages,
+        spacing_mm: a.spacing_mm,
+        theme: a.theme,
+        pages_per_day: a.pages_per_day,
+        timezone: a.timezone,
+        ics: a.ics,
+        deploy: DeployConfig {
+            backend: a.deploy_backend,
+            base_folder: a.base_folder,
+        },
+    };
+    let out_dir = PathBuf::from(a.base).join(a.year.to_string());
+    let config_path = out_dir.join("rmbujo.toml");
+    (config, out_dir, config_path)
+}
+
+/// Prompt the user (dialoguer), create the out dir, and return Config + paths.
+pub fn run_wizard() -> anyhow::Result<(Config, PathBuf, PathBuf)> {
+    use dialoguer::{Confirm, Input};
+
+    let year: i32 = Input::new()
+        .with_prompt("Year")
+        .default(chrono::Local::now().year())
+        .interact_text()?;
+    let base: String = Input::new()
+        .with_prompt("Base directory")
+        .default(".".into())
+        .interact_text()?;
+    let device: String = Input::new()
+        .with_prompt("Device")
+        .default("paper-pro-move".into())
+        .interact_text()?;
+    let week_start: String = Input::new()
+        .with_prompt("Week start (sun|mon)")
+        .default("sun".into())
+        .interact_text()?;
+    let pages_per_day: u32 = Input::new()
+        .with_prompt("Daily pages per day")
+        .default(1)
+        .interact_text()?;
+    let collection_pages: u32 = Input::new()
+        .with_prompt("Collection pages")
+        .default(20)
+        .interact_text()?;
+    let spacing_mm: f32 = Input::new()
+        .with_prompt("Dot spacing (mm)")
+        .default(crate::geometry::DEFAULT_SPACING_MM)
+        .interact_text()?;
+    let theme: String = Input::new()
+        .with_prompt("Theme")
+        .default("library".into())
+        .interact_text()?;
+    let deploy_backend: String = Input::new()
+        .with_prompt("Deploy backend (none|rmapi)")
+        .default("none".into())
+        .interact_text()?;
+    let base_folder: String = Input::new()
+        .with_prompt("reMarkable base folder")
+        .default("/rmbujo".into())
+        .interact_text()?;
+    let timezone: String = Input::new()
+        .with_prompt("Timezone")
+        .default(iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into()))
+        .interact_text()?;
+
+    // Optional calendar feeds. Colors auto-assign from the palette by order, so the
+    // wizard only needs a name + URL; edit the toml later to override a color.
+    let mut ics = Vec::new();
+    while Confirm::new()
+        .with_prompt("Add a calendar (ICS) feed?")
+        .default(false)
+        .interact()?
+    {
+        let name: String = Input::new().with_prompt("  Feed name").interact_text()?;
+        let url: String = Input::new()
+            .with_prompt("  Feed URL (https:// or webcal://)")
+            .interact_text()?;
+        ics.push(crate::config::IcsFeed {
+            name,
+            url,
+            color: None,
+        });
+    }
+
+    let (config, out_dir, config_path) = assemble(Answers {
+        year,
+        base,
+        device,
+        week_start,
+        pages_per_day,
+        collection_pages,
+        spacing_mm,
+        theme,
+        deploy_backend,
+        base_folder,
+        timezone,
+        ics,
+    });
+    // The caller validates and creates the directory after this returns, so
+    // invalid input doesn't leave an orphan folder behind.
+    Ok((config, out_dir, config_path))
+}

@@ -1,0 +1,40 @@
+[package]
+name = "rmbujo"
+version = "0.1.0"
+edition = "2021"
+description = "Dot-grid bullet journal PDF generator for reMarkable"
+
+[lib]
+name = "rmbujo"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rmbujo"
+path = "src/main.rs"
+
+[dependencies]
+# Typst as a library renders the journal PDFs (replacing fulgur/krilla): a clean
+# per-glyph text layer round-trips on the reMarkable, and all chrome (dot grid,
+# cover gradient, links) is drawn in-flow. See src/render/.
+typst = "0.14"
+typst-pdf = "0.14"
+typst-assets = { version = "0.14", features = ["fonts"] }
+comemo = "0.5"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono-tz = "0.10"
+iana-time-zone = "0.1"
+clap = { version = "4", features = ["derive"] }
+dialoguer = "0.11"
+anyhow = "1"
+# ICS parsing. ical 0.11 = iCalendar/vCard parser. rrule 0.14 = RFC-5545 recurrence
+# expansion; 0.14 depends on chrono-tz ^0.10 (matches our locked 0.10.4) so it shares
+# the same `chrono_tz::Tz` type we hand it — 0.13 pins chrono-tz ^0.9 and would conflict.
+ical = "0.11"
+rrule = "0.14"
+ureq = "2"
+
+[dev-dependencies]
+lopdf = "0.36"
+image = "0.25"

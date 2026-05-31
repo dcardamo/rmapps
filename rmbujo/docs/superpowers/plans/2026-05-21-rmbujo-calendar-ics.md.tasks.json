@@ -1,0 +1,81 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-21-rmbujo-calendar-ics.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Toolbar safe-area + Dots-Small spacing + regen goldens",
+      "status": "completed",
+      "description": "**Goal:** All non-cover pages start below the toolbar; default dot pitch 4.756mm (Dots Small); regen goldens.\n\n**Files:** src/geometry.rs, src/render.rs, tests/goldens.\n\n**Verify:** nix develop -c cargo test (after RMBUJO_UPDATE_GOLDENS=1 cargo test --test visual)\n\n```json:metadata\n{\"files\":[\"src/geometry.rs\",\"src/render.rs\",\"tests/goldens\"],\"verifyCommand\":\"nix develop -c cargo test\",\"acceptanceCriteria\":[\"DEFAULT_SPACING_MM 4.756 + TOOLBAR_SAFE_PT 36\",\"content below toolbar, cover exempt\",\"dot bg shifted to reserve\",\"goldens regenerated, suite green\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Config pages_per_day + timezone",
+      "status": "completed",
+      "description": "**Goal:** Config gains pages_per_day (default 1) + timezone (default detected), validated.\n\n**Files:** Cargo.toml (chrono-tz, iana-time-zone), src/config.rs, src/wizard.rs (Answers+assemble), tests/config.rs, tests/cli.rs.\n\n**Verify:** nix develop -c cargo test --test config\n\n```json:metadata\n{\"files\":[\"Cargo.toml\",\"src/config.rs\",\"src/wizard.rs\",\"tests/config.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test config\",\"acceptanceCriteria\":[\"pages_per_day+timezone fields/defaults\",\"validate rejects 0 + bad tz\",\"round-trips; wizard Answers carry both\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Monthly fit-to-height row geometry + days_in_month",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** pub days_in_month + geometry::monthly_row_pt fitting all days under the reserve.\n\n**Files:** src/calendar.rs, src/geometry.rs, tests/geometry.rs, tests/calendar.rs.\n\n**Verify:** nix develop -c cargo test --test geometry --test calendar\n\n```json:metadata\n{\"files\":[\"src/calendar.rs\",\"src/geometry.rs\",\"tests/geometry.rs\",\"tests/calendar.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test geometry --test calendar\",\"acceptanceCriteria\":[\"days_in_month pub+correct\",\"monthly_row_pt fits + capped at pitch\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Monthly view template + builder (static)",
+      "status": "completed",
+      "blockedBy": [1, 3],
+      "description": "**Goal:** monthly_view.html: per-day fixed-width date link -> #day-N, fit-to-height via --row var; badge-ready (no badge at count 0).\n\n**Files:** templates/monthly_view.html, src/templates.rs (MonthlyView+DayRow), src/notebooks/month/mod.rs (git mv from month.rs), src/render.rs (CSS), tests/templates_html.rs. Port markup from examples/spike_month_prototype.rs.\n\n**Verify:** nix develop -c cargo test --test templates_html\n\n```json:metadata\n{\"files\":[\"templates/monthly_view.html\",\"src/templates.rs\",\"src/notebooks/month/mod.rs\",\"src/render.rs\",\"tests/templates_html.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test templates_html\",\"acceptanceCriteria\":[\"row per day, #day-N links, id=monthly\",\"--row sizing\",\"no badge at count 0\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Daily pages + Tasks + month assembly (static)",
+      "status": "completed",
+      "blockedBy": [4],
+      "description": "**Goal:** per-day daily pages (id=day-N, date->#monthly), Tasks page, assembled month PDF (2 + days*pages_per_day pages); month<->day links resolve.\n\n**Files:** templates/daily_page.html, src/templates.rs (DailyPage), src/notebooks/month/mod.rs, tests/month.rs. Port header from examples/spike_month_prototype.rs.\n\n**Verify:** nix develop -c cargo test --test month\n\n```json:metadata\n{\"files\":[\"templates/daily_page.html\",\"src/templates.rs\",\"src/notebooks/month/mod.rs\",\"tests/month.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test month\",\"acceptanceCriteria\":[\"page count 2+days*ppd\",\"daily id+header->monthly\",\"links resolve, no dangling anchors\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: ICS parse (all-day/timed, RRULE, multi-day, timezone)",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** src/ics/parse.rs: raw .ics + color + year + tz -> Vec<EventOccurrence> (expanded, year-clipped, tz-converted).\n\n**Files:** src/ics/mod.rs (EventOccurrence + submodules), src/ics/parse.rs, src/lib.rs (pub mod ics), Cargo.toml (ical, rrule), tests/ics_parse.rs, tests/fixtures/*.ics.\n\n**Verify:** nix develop -c cargo test --test ics_parse\n\n```json:metadata\n{\"files\":[\"src/ics/mod.rs\",\"src/ics/parse.rs\",\"tests/ics_parse.rs\",\"tests/fixtures\"],\"verifyCommand\":\"nix develop -c cargo test --test ics_parse\",\"acceptanceCriteria\":[\"EventOccurrence struct\",\"all-day/multiday(DTEND excl)/RRULE/year-clip\",\"timed tz convert + midnight day-shift\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: ICS fetch + cache (--refresh-feeds)",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "**Goal:** src/ics/fetch.rs: Fetcher trait + UreqFetcher; feed_bytes cache read/write/refresh; fail keeps cache else errs.\n\n**Files:** src/ics/fetch.rs, tests/ics_fetch.rs, Cargo.toml (ureq rustls).\n\n**Verify:** nix develop -c cargo test --test ics_fetch\n\n```json:metadata\n{\"files\":[\"src/ics/fetch.rs\",\"tests/ics_fetch.rs\",\"Cargo.toml\"],\"verifyCommand\":\"nix develop -c cargo test --test ics_fetch\",\"acceptanceCriteria\":[\"Fetcher trait+ureq\",\"cache read/write/refresh semantics\",\"fail keeps cache / errs without cache\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: ICS orchestration (year event map)",
+      "status": "completed",
+      "blockedBy": [6, 7],
+      "description": "**Goal:** src/ics/mod.rs build_event_map -> BTreeMap<NaiveDate, Vec<EventOccurrence>>, sorted; failing feed (no cache) skipped not fatal.\n\n**Files:** src/ics/mod.rs, tests/ics_mod.rs.\n\n**Verify:** nix develop -c cargo test --test ics_mod\n\n```json:metadata\n{\"files\":[\"src/ics/mod.rs\",\"tests/ics_mod.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test ics_mod\",\"acceptanceCriteria\":[\"build_event_map merges+sorts (all-day first)\",\"failing feed skipped, others present\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Agenda + details rendering; badges; wire events",
+      "status": "completed",
+      "blockedBy": [5, 8],
+      "description": "**Goal:** agenda + details from event map; monthly/daily badges; thread map generate->month builder. Agenda date-ordered + color swatch + #evt links; details omit-empty; leading page count unchanged by events.\n\n**Files:** templates/agenda.html, templates/details.html, src/notebooks/month/agenda.rs, src/notebooks/month/mod.rs, src/generate.rs, src/templates.rs, tests/month.rs, tests/templates_html.rs. Port from examples/spike_month_prototype.rs.\n\n**Verify:** nix develop -c cargo test --test month --test templates_html\n\n```json:metadata\n{\"files\":[\"templates/agenda.html\",\"templates/details.html\",\"src/notebooks/month/agenda.rs\",\"src/notebooks/month/mod.rs\",\"src/generate.rs\",\"src/templates.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test month --test templates_html\",\"acceptanceCriteria\":[\"agenda date-ordered+swatch+#evt links+title->#monthly\",\"details omit empty Where/Notes/Attendees\",\"badges count+#agenda link\",\"leading page count unchanged by events\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: CLI --refresh-feeds, wizard prompts, README",
+      "status": "completed",
+      "blockedBy": [9, 2],
+      "description": "**Goal:** --refresh-feeds flag (new+config arms) -> generate_year(refresh); wizard prompts pages_per_day+timezone; README ICS/timezone/sync-rule/Dots-Small.\n\n**Files:** src/cli.rs, src/wizard.rs, README.md, tests/cli.rs.\n\n**Verify:** nix develop -c cargo test --test cli\n\n```json:metadata\n{\"files\":[\"src/cli.rs\",\"src/wizard.rs\",\"README.md\",\"tests/cli.rs\"],\"verifyCommand\":\"nix develop -c cargo test --test cli\",\"acceptanceCriteria\":[\"--refresh-feeds wired to generate_year\",\"wizard prompts pages_per_day+timezone\",\"README ICS+timezone+sync rule+Dots Small\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Visual goldens for calendar pages + final green",
+      "status": "completed",
+      "blockedBy": [9, 10],
+      "description": "**Goal:** goldens for monthly-with-badges, daily, agenda, details; full gate green.\n\n**Files:** tests/visual.rs, tests/goldens/*.png.\n\n**Verify:** make test && make clippy && make fmt-check\n\n```json:metadata\n{\"files\":[\"tests/visual.rs\",\"tests/goldens\"],\"verifyCommand\":\"make test && make clippy && make fmt-check\",\"acceptanceCriteria\":[\"goldens for 4 new page types within tolerance\",\"make test+clippy+fmt-check all pass\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-21T12:00:00-04:00"
+}
