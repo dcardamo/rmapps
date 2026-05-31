@@ -1,0 +1,22 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-28-comprehensive-component-tests.md",
+  "tasks": [
+    {"id": 0,  "subject": "Task 0: suite::schema + corpus discovery", "status": "pending"},
+    {"id": 1,  "subject": "Task 1: suite::build manual instruction docs", "status": "pending", "blockedBy": [0]},
+    {"id": 2,  "subject": "Task 2: suite::verify decode+expect+checklist+stale", "status": "pending", "blockedBy": [1]},
+    {"id": 3,  "subject": "Task 3: suite::publish + reset (idempotent)", "status": "pending", "blockedBy": [2]},
+    {"id": 4,  "subject": "Task 4: inkctl suite CLI surface", "status": "pending", "blockedBy": [3]},
+    {"id": 5,  "subject": "Task 5: L3 attribution-boundary worked example", "status": "pending", "blockedBy": [4]},
+    {"id": 6,  "subject": "Task 6: suite::overlay stroke + bbox renderer", "status": "pending", "blockedBy": [5]},
+    {"id": 7,  "subject": "Task 7: suite::selfproof 3-panel PDF + first L3 self-proof doc", "status": "pending", "blockedBy": [5, 6]},
+    {"id": 8,  "subject": "Task 8: suite::report (json + human + device pdf)", "status": "pending", "blockedBy": [2]},
+    {"id": 9,  "subject": "Task 9: L2 corpus (coord-transform + .rm fixture)", "status": "pending", "blockedBy": [2]},
+    {"id": 10, "subject": "Task 10: L4 component corpora", "status": "pending", "blockedBy": [2]},
+    {"id": 11, "subject": "Task 11: L4 self-proof PDF rollup", "status": "pending", "blockedBy": [10, 7]},
+    {"id": 12, "subject": "Task 12: L5 framework corpora", "status": "pending", "blockedBy": [2]},
+    {"id": 13, "subject": "Task 13: L5 self-proof PDF rollup", "status": "pending", "blockedBy": [12, 11]},
+    {"id": 14, "subject": "Task 14: L6 app loops + reader Track-C sample", "status": "pending", "blockedBy": [13]},
+    {"id": 15, "subject": "Task 15: Update docs/appdx.md", "status": "pending", "blockedBy": [14]}
+  ],
+  "lastUpdated": "2026-05-28T00:00:00Z"
+}

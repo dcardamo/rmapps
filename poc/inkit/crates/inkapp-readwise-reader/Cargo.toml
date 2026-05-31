@@ -1,0 +1,20 @@
+[package]
+name = "inkapp-readwise-reader"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Readwise Reader connector for inkapp: live sync + durable cache (cassette mode for tests)"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+inkapp-core = { path = "../inkapp-core" }
+inkapp-config = { path = "../inkapp-config" }
+reqwest = { version = "0.12", features = ["json"] }
+reqwest-middleware = { version = "0.4", features = ["json"] }
+reqwest-retry = "0.7"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

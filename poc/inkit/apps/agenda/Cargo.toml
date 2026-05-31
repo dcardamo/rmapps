@@ -1,0 +1,19 @@
+[package]
+name = "agenda"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "inkapp agenda app: the mode axis made real (read-only ICS feed + editable local calendar)"
+
+[dependencies]
+inkapp = { path = "../../crates/inkapp" }
+inkapp-config = { path = "../../crates/inkapp-config" }
+inkapp-core = { path = "../../crates/inkapp-core" }
+inkapp-ics = { path = "../../crates/inkapp-ics" }
+inkapp-localcal = { path = "../../crates/inkapp-localcal" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[dev-dependencies]
+tempfile = "3"

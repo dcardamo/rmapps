@@ -1,0 +1,59 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-26-reader-app.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Heading Display component",
+      "status": "completed",
+      "description": "**Goal:** A reusable theme-aware Heading component (title + byline + reading-time + optional subtitle).\n\n**Files:**\n- Create: crates/inkapp-core/typst/heading.typ\n- Create: crates/inkapp-core/src/components/heading.rs\n- Modify: crates/inkapp-core/src/components/mod.rs\n- Create: crates/inkapp-core/tests/heading_component.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test heading_component`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/heading.typ\", \"crates/inkapp-core/src/components/heading.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/heading_component.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test heading_component\", \"acceptanceCriteria\": [\"Heading::new(title) renders title only\", \"all four chainable fields render\", \"theme-aware (cx.theme())\", \"decode returns empty\", \"compiles through compile_document_in\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Section<M> component + #section authored module",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "**Goal:** A reusable wrapper that opens per-section Typst state + a weak pagebreak, wraps a body. State name fixed at 'inkapp.section'.\n\n**Files:**\n- Create: crates/inkapp-core/typst/section.typ\n- Create: crates/inkapp-core/src/components/section.rs\n- Modify: crates/inkapp-core/src/components/mod.rs\n- Create: crates/inkapp-core/tests/section_component.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test section_component`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/section.typ\", \"crates/inkapp-core/src/components/section.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/section_component.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test section_component\", \"acceptanceCriteria\": [\"Section::new(id, body) constructor\", \"render emits #section(id, [body])\", \"two sections paginate to >=2 pages\", \"decode delegates to body\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Document::page_header + render & decode wiring",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Document<M> carries an optional page_header component; the framework wires its render into #set page(header:) and calls its decode per cycle.\n\n**Files:**\n- Modify: crates/inkapp-core/src/document.rs\n- Modify: crates/inkapp-core/src/runtime.rs\n- Create: crates/inkapp-core/tests/page_header.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test page_header` and `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/document.rs\", \"crates/inkapp-core/src/runtime.rs\", \"crates/inkapp-core/tests/page_header.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test page_header\", \"acceptanceCriteria\": [\"Document::page_header(c) builder\", \"document_source_in emits #set page(header:)\", \"collect_typst_sources includes header sources\", \"App::step decodes header per cycle\", \"header regions appear on every page\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: ActionBand<M> component + #action-band authored module",
+      "status": "completed",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** A reusable N-cell per-page action band reading the current 'inkapp.section' state, with per-cell Fn(section_id) -> M closures. Decodes pen strikes per cell.\n\n**Files:**\n- Create: crates/inkapp-core/typst/action_band.typ\n- Create: crates/inkapp-core/src/components/action_band.rs\n- Modify: crates/inkapp-core/src/components/mod.rs\n- Create: crates/inkapp-core/tests/action_band.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test action_band`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/typst/action_band.typ\", \"crates/inkapp-core/src/components/action_band.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/action_band.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test action_band\", \"acceptanceCriteria\": [\"ActionBand::new(cells) constructor with closures\", \"render emits #action-band(...) call\", \"per-section per-page action-{label}-{id} regions\", \"pen strike on cell fires closure with section id\", \"highlighter does not fire actions\", \"empty ink fires nothing\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: push_replace_ink on DeviceTransport + CloudTransport impl",
+      "status": "completed",
+      "description": "**Goal:** Second push variant that replaces (not preserves) on-device ink. publish keeps push; sync_once post-fold uses push_replace_ink. CloudTransport strips .rm blobs.\n\n**Files:**\n- Modify: crates/inkapp-core/src/sync.rs\n- Modify: crates/rm-device/src/transport.rs\n- Create: crates/inkapp-core/tests/sync_replace_ink.rs\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test sync_replace_ink` and `nix develop -c cargo test --workspace`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/sync.rs\", \"crates/rm-device/src/transport.rs\", \"crates/inkapp-core/tests/sync_replace_ink.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test sync_replace_ink\", \"acceptanceCriteria\": [\"trait gains async fn push_replace_ink with default = push\", \"sync_once post-fold uses replace\", \"publish keeps push\", \"CloudTransport override strips .rm blobs then put\", \"counting fake transport asserts call shape\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Scaffold apps/reader (CLI + AppConfig, stub view)",
+      "status": "completed",
+      "description": "**Goal:** New app crate that compiles, exposes the same CLI surface as reading-queue, resolves config — empty view. Locks wiring before composition.\n\n**Files:**\n- Modify: Cargo.toml (workspace members)\n- Create: apps/reader/Cargo.toml\n- Create: apps/reader/src/lib.rs\n- Create: apps/reader/src/main.rs\n- Create: apps/reader/tests/config.rs\n\n**Verify:** `nix develop -c cargo test -p reader` and `nix develop -c cargo build -p reader`\n\n```json:metadata\n{\"files\": [\"Cargo.toml\", \"apps/reader/Cargo.toml\", \"apps/reader/src/lib.rs\", \"apps/reader/src/main.rs\", \"apps/reader/tests/config.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p reader\", \"acceptanceCriteria\": [\"cargo build -p reader succeeds\", \"AppConfig default device_folder = /Reader\", \"AppConfig default readwise = readwise.main\", \"CLI mirrors reading-queue (config/op/doctor/preview/sync/run/publish)\", \"config test resolves all sections\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Reader view — Library + Feed Documents with full composition",
+      "status": "completed",
+      "blockedBy": [0, 1, 2, 3, 4, 5],
+      "description": "**Goal:** Replace stub view with Index + per-article (Heading + Article body) inside Sections, ActionBand page header per Document. Library + Feed from connector. Banner Notice when failed_writes non-empty.\n\n**Files:**\n- Modify: apps/reader/src/lib.rs\n- Create: apps/reader/tests/app.rs\n- Create: apps/reader/tests/shared.rs\n\n**Verify:** `nix develop -c cargo test -p reader`\n\n```json:metadata\n{\"files\": [\"apps/reader/src/lib.rs\", \"apps/reader/tests/app.rs\", \"apps/reader/tests/shared.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p reader\", \"acceptanceCriteria\": [\"library-only cassette yields one Library Document\", \"both cassettes yields two Documents, library first\", \"each Doc has ActionBand page header (4 cells)\", \"each Doc flow opens with Index, then Section per article\", \"banner appears when failed_writes non-empty\", \"compile yields token regions AND action regions\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: appdx — record what landed",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "**Goal:** Per project convention, mark Heading, Section, ActionBand, page_header, push_replace_ink, and apps/reader as built in docs/appdx.md.\n\n**Files:**\n- Modify: docs/appdx.md\n\n**Verify:** `grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md` produces hits for each term.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -E 'Heading|Section<M>|ActionBand|page_header|push_replace_ink|apps/reader' docs/appdx.md\", \"acceptanceCriteria\": [\"appdx mentions all five framework primitives\", \"appdx mentions apps/reader\", \"prose style matches existing 'beyond the spine' paragraphs\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-26T20:00:00Z"
+}

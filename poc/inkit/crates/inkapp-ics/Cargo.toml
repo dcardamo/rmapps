@@ -1,0 +1,17 @@
+[package]
+name = "inkapp-ics"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Read-only ICS calendar feed connector for inkapp (the doc's read-only feed archetype)"
+
+[dependencies]
+ical = "0.11"
+serde = { version = "1", features = ["derive"] }
+async-trait = "0.1"
+inkapp-core = { path = "../inkapp-core" }
+inkapp-config = { path = "../inkapp-config" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

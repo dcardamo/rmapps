@@ -1,0 +1,61 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-24-pagination.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: PageGeom — geometry as a per-render input",
+      "status": "completed",
+      "description": "Replace DOC_PAGE_W/H constants with a PageGeom threaded through document_source/compile_document/render_document (default-geom wrappers) and App.geom + builder .page. See plan Task 1.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/geometry.rs\",\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/src/lib.rs\",\"crates/inkapp-core/tests/pagination.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test pagination && cargo build --workspace\",\"acceptanceCriteria\":[\"PageGeom exists\",\"DOC_PAGE_W/H removed\",\"*_in fns + wrappers\",\"App.geom + .page builder\",\"short page paginates more\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Split-aware region recovery (split_rects + role schema)",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "RawRegion gains optional role + optional w/h; split_rects (pure) reconstructs per-frame rects; recover_regions handles atomic + flow. See plan Task 2.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/manifest.rs\",\"crates/inkapp-core/tests/pagination.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --lib manifest && cargo test -p inkapp-core --test pagination && cargo test -p inkapp-core --test regions\",\"acceptanceCriteria\":[\"RawRegion role+optional w/h\",\"split_rects unit-tested 1/2/3-page\",\"recover_regions atomic+flow\",\"flow doc recovers >=2 regions same name\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: #region(breakable:) prelude",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "Add breakable flag to region.typ — default boxed/atomic byte-identical; breakable:true emits flow-start/flow-end markers. See plan Task 3.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/typst/region.typ\",\"crates/inkapp-core/tests/pagination.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test pagination && cargo test -p inkapp-core --test regions && cargo test -p inkapp-harness --test e2e\",\"acceptanceCriteria\":[\"atomic default unchanged\",\"breakable:true splits across pages\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Page-aware attribute + cross-page stitching",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "attribute(&[Vec<Stroke>]) page-aware + stitch by name across pages; attribute_page wrapper; update simulator + readback tests. See plan Task 4.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/readback.rs\",\"crates/inkapp-harness/src/simulator.rs\",\"crates/inkapp-core/tests/readback.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test readback && cargo build --workspace\",\"acceptanceCriteria\":[\"page-aware attribute\",\"stitch by name across pages\",\"attribute_page wrapper\",\"no cross-page attribution\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Runtime + device per-page ink",
+      "status": "completed",
+      "blockedBy": [4],
+      "description": "RenderedDoc/DocEntry page_count; per-page DocSet ink; App::step per-page ink_by_key via page-aware attribute; migrate loop-test callers. See plan Task 5.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/tests/loop_driver.rs\",\"crates/inkapp-core/tests/stepper_loop.rs\",\"crates/inkapp-harness/tests/app_loop.rs\",\"crates/inkapp-harness/tests/agenda_loop.rs\"],\"verifyCommand\":\"cargo test --workspace\",\"acceptanceCriteria\":[\"page_count on RenderedDoc/DocEntry\",\"per-page DocSet ink\",\"step per-page ink\",\"page_count>1 test\",\"loop tests green\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Passage Capture component",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "New Passage<M> Capture component: render #region(name,...,breakable:true); decode fires on_capture once on any stitched ink. Register module. See plan Task 6.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-core/src/components/passage.rs\",\"crates/inkapp-core/src/components/mod.rs\",\"crates/inkapp-core/tests/passage.rs\"],\"verifyCommand\":\"cargo test -p inkapp-core --test passage && cargo build --workspace\",\"acceptanceCriteria\":[\"Passage new/with_msg/render/decode\",\"breakable region emitted\",\"decode fires once on any ink\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Two-profile device-blindness harness test",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "Harness test: identical content on two PageGeom profiles → different page_count, identical decoded Msgs (body highlight + Passage + Checkbox) through real .rm round-trip. See plan Task 7.\n\n```json:metadata\n{\"files\":[\"crates/inkapp-harness/tests/pagination_device_blind.rs\"],\"verifyCommand\":\"cargo test -p inkapp-harness --test pagination_device_blind\",\"acceptanceCriteria\":[\"different page_count A vs B\",\"identical decoded Msgs across profiles\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: appdx update + caveat cleanup + final green",
+      "status": "completed",
+      "blockedBy": [7],
+      "description": "Mark pagination built in docs/appdx.md; remove single-page caveats in code; cargo test --workspace green. See plan Task 8.\n\n```json:metadata\n{\"files\":[\"docs/appdx.md\",\"crates/inkapp-core/src/runtime.rs\",\"crates/inkapp-core/src/readback.rs\",\"crates/inkapp-core/src/render.rs\"],\"verifyCommand\":\"cargo test --workspace && cargo fmt --check\",\"acceptanceCriteria\":[\"appdx pagination built\",\"status banner updated\",\"no stale single-page caveat\",\"workspace green\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-24T23:59:00Z"
+}

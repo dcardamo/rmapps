@@ -1,0 +1,60 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-24-mode-axis-calendar.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Rename widgets/ module → components/",
+      "status": "completed",
+      "description": "**Goal:** Rename inkapp-core widgets/ module to components/ (doc vocabulary; live flow is dyn Component). Behavior-preserving; Widget trait + widget.rs untouched.\n\n**Files:** git mv crates/inkapp-core/src/widgets/→components/; modify crates/inkapp-core/src/lib.rs (mod decl + doc comment); modify crates/inkapp/src/lib.rs (facade re-export); scoped whole-word replace \\bwidgets\\b→components across crates/*/src,tests + apps/*/src,tests .rs.\n\n**Verify:** cargo build --workspace && cargo test --workspace; grep -rn '\\bwidgets\\b' crates apps --include='*.rs' → empty\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/components/\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp/src/lib.rs\"], \"verifyCommand\": \"cargo build --workspace && cargo test --workspace\", \"acceptanceCriteria\": [\"components/ exists, widgets/ gone\", \"no .rs references widgets module path\", \"Widget trait untouched\", \"workspace build+test green\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Mode enum + EventRow type in inkapp-core",
+      "status": "completed",
+      "description": "**Goal:** Add shared Mode { ReadOnly, Editable } axis + EventRow calendar type (used by component and both connectors).\n\n**Files:** create crates/inkapp-core/src/mode.rs, crates/inkapp-core/src/calendar.rs; modify crates/inkapp-core/src/lib.rs (declare + re-export); test crates/inkapp-core/tests/calendar_types.rs.\n\n**Verify:** cargo test -p inkapp-core --test calendar_types → 2 passed\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/mode.rs\", \"crates/inkapp-core/src/calendar.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/calendar_types.rs\"], \"verifyCommand\": \"cargo test -p inkapp-core --test calendar_types\", \"acceptanceCriteria\": [\"Mode is Copy+PartialEq\", \"EventRow has 5 fields, Clone+PartialEq\", \"both re-exported from crate root\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: CalendarView component (mode-branched render + decode)",
+      "status": "completed",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** CalendarView<M> whose render+decode both branch on mode. ReadOnly: inert rows, no regions, decodes nothing. Editable: per-event evt-<i> region + cancel affordance, decodes mark → on_cancel(uid). on_cancel is non-capturing fn(&str)->M (value-message).\n\n**Files:** create crates/inkapp-core/src/components/calendar_view.rs; modify components/mod.rs; test crates/inkapp-core/tests/calendar_view.rs.\n\n**Verify:** cargo test -p inkapp-core --test calendar_view → 4 passed\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/components/calendar_view.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/calendar_view.rs\"], \"verifyCommand\": \"cargo test -p inkapp-core --test calendar_view\", \"acceptanceCriteria\": [\"ReadOnly render no region/affordance\", \"Editable render region+box per event\", \"both compile through Typst\", \"decode: ReadOnly [] / Editable [on_cancel(uid)]\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: inkapp-ics read-only ICS feed connector",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Doc's read-only feed archetype: parse committed .ics → EventRows via ical crate, RwLock cache, single-flighted refresh, no-op flush.\n\n**Files:** create crates/inkapp-ics/{Cargo.toml,src/lib.rs,fixtures/feed.ics,tests/ics.rs}; modify workspace Cargo.toml members.\n\n**Note:** ical API: IcalParser::new(BufReader)→Result<IcalCalendar{events}>, IcalEvent{properties:Vec<Property{name:String,value:Option<String>}>}. Version skew → cargo doc -p ical, fix parse_ics only.\n\n**Verify:** cargo test -p inkapp-ics → all pass\n\n```json:metadata\n{\"files\": [\"crates/inkapp-ics/Cargo.toml\", \"crates/inkapp-ics/src/lib.rs\", \"crates/inkapp-ics/fixtures/feed.ics\", \"crates/inkapp-ics/tests/ics.rs\", \"Cargo.toml\"], \"verifyCommand\": \"cargo test -p inkapp-ics\", \"acceptanceCriteria\": [\"from_ics parses VEVENT fields\", \"events()/refresh() work, concurrent refresh ok\", \"flush() no-op no panic\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: inkapp-localcal writable local calendar connector",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** CalDAV-shaped local writable connector for the Editable branch. Reuses Spec #6 pattern: cancel(uid) optimistic + enqueued; flush persists to local store; no retry.\n\n**Files:** create crates/inkapp-localcal/{Cargo.toml,src/lib.rs,tests/localcal.rs}; modify workspace Cargo.toml members.\n\n**Verify:** cargo test -p inkapp-localcal → 3 passed\n\n```json:metadata\n{\"files\": [\"crates/inkapp-localcal/Cargo.toml\", \"crates/inkapp-localcal/src/lib.rs\", \"crates/inkapp-localcal/tests/localcal.rs\", \"Cargo.toml\"], \"verifyCommand\": \"cargo test -p inkapp-localcal\", \"acceptanceCriteria\": [\"cancel optimistically visible pre-flush\", \"flush persists across reload\", \"refresh preserves pending overlay\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: agenda app — mode chosen by capability",
+      "status": "completed",
+      "blockedBy": [2, 3, 4],
+      "description": "**Goal:** New app: one document holds two CalendarViews; view picks mode from connector capability (ReadOnly ICS feed, Editable local cal).\n\n**Files:** create apps/agenda/{Cargo.toml,src/lib.rs,src/main.rs,src/serve.rs,tests/app.rs}; modify workspace Cargo.toml members. serve.rs = copy reading-queue's, edit FOLDER→/Agenda + pull dir→agenda-pull.\n\n**Verify:** cargo test -p agenda → 2 passed; cargo build -p agenda\n\n```json:metadata\n{\"files\": [\"apps/agenda/Cargo.toml\", \"apps/agenda/src/lib.rs\", \"apps/agenda/src/main.rs\", \"apps/agenda/src/serve.rs\", \"apps/agenda/tests/app.rs\", \"Cargo.toml\"], \"verifyCommand\": \"cargo test -p agenda && cargo build -p agenda\", \"acceptanceCriteria\": [\"view one doc with editable evt-0 region\", \"update routes cancel to cal\", \"binary builds, main renders\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: agenda harness e2e (real-ink, async loop)",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "**Goal:** Prove the axis end-to-end through the device path: real-ink mark on editable event region → EventCancelled → cancels on writable connector; read-only feed contributes no regions.\n\n**Files:** create crates/inkapp-harness/tests/agenda_loop.rs; modify crates/inkapp-harness/Cargo.toml dev-deps (agenda, inkapp-ics, inkapp-localcal).\n\n**Verify:** cargo test -p inkapp-harness --test agenda_loop → 1 passed\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/tests/agenda_loop.rs\", \"crates/inkapp-harness/Cargo.toml\"], \"verifyCommand\": \"cargo test -p inkapp-harness --test agenda_loop\", \"acceptanceCriteria\": [\"manifest has evt-0/evt-1, all regions evt-*\", \"checkmark on evt-0 → EventCancelled mine-1\", \"local cal shows mine-1 cancelled after step\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Reconcile docs/appdx.md (make the doc true)",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "**Goal:** Flip appdx from mode-axis-aspirational to M-built; align prose with shipped code.\n\n**Files:** modify docs/appdx.md (status banner; three-modes section; components-never-talk prose w/ read_only/editable constructors; Connectors section; ergonomics bullet; parking-lot Widget-trait follow-up).\n\n**Verify:** grep -n 'aspirational below\\|wasn.t needed here' docs/appdx.md → empty\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -n 'aspirational below\\\\|wasn.t needed here' docs/appdx.md\", \"acceptanceCriteria\": [\"banner+build-order say M done only T ahead\", \"three-modes + components-never-talk describe real Mode/CalendarView\", \"connectors note ICS built + localcal CalDAV stand-in\", \"ergonomics bullet updated\", \"parking lot Widget-trait follow-up\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-24T12:00:00Z"
+}

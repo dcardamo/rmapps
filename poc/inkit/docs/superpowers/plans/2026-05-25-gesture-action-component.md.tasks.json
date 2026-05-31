@@ -1,0 +1,26 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-25-gesture-action-component.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: GestureAction component + core unit tests",
+      "status": "completed",
+      "description": "**Goal:** The `GestureAction<M>` component exists, renders a single non-breakable region carrying its content, and decodes a striking pen gesture (not taps, not highlighter) into one value-message.\n\n**Files:**\n- Create: `crates/inkapp-core/src/components/gesture.rs`\n- Modify: `crates/inkapp-core/src/components/mod.rs` (add `pub mod gesture;`)\n- Test: `crates/inkapp-core/tests/gesture_action.rs`\n\n**Verify:** `nix develop -c cargo test -p inkapp-core --test gesture_action`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/components/gesture.rs\", \"crates/inkapp-core/src/components/mod.rs\", \"crates/inkapp-core/tests/gesture_action.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test gesture_action\", \"acceptanceCriteria\": [\"new/with_msg compile\", \"wide pen fires; tap & highlighter do not\", \"render emits #region with content\", \"end-to-end strike decodes one message\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Harness exerciser with real captured fixtures",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Prove GestureAction against real recorded gestures through the device write/read byte path via `simulate`: strike-through & scribble-out fire; empty, highlight-swipe (wrong tool), checkmark (pen, wrong shape) do not.\n\n**Files:**\n- Modify: `crates/inkapp-harness/tests/exercisers.rs`\n\n**Verify:** `nix develop -c cargo test -p inkapp-harness --test exercisers gesture_action_exerciser`\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/tests/exercisers.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-harness --test exercisers gesture_action_exerciser\", \"acceptanceCriteria\": [\"strike-through & scribble-out fire\", \"empty, highlight-swipe, checkmark do not fire\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Reconcile docs/appdx.md (definition of done)",
+      "status": "completed",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** Make appdx true by recording the shipped GestureAction fixed-affordance Control.\n\n**Files:**\n- Modify: `docs/appdx.md`\n\n**Verify:** `grep -n \"GestureAction\" docs/appdx.md` and `nix develop -c cargo test --workspace` green.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"nix develop -c cargo test --workspace\", \"acceptanceCriteria\": [\"appdx records GestureAction as built\", \"workspace tests green\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-25T14:45:00Z"
+}

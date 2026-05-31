@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/rm-files",
+    "crates/rm-cloud",
+    "crates/inkapp-core",
+    "crates/rm-device",
+    "crates/inkapp-harness",
+    "crates/inkapp-readwise-reader",
+    "crates/inkapp-ics",
+    "crates/inkapp-localcal",
+    "crates/inkapp",
+    "crates/inkapp-content",
+    "crates/inkapp-config",
+    "crates/inkapp-config-derive",
+    "crates/inkctl",
+    "spikes/typst-readback",
+    "apps/reader",
+    "apps/reading-queue",
+    "apps/agenda",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = true

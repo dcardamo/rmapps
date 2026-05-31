@@ -1,0 +1,89 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-25-rm-cloud-client.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Crate scaffold, error, config",
+      "status": "completed",
+      "description": "**Goal:** A compiling rm-cloud crate wired into the workspace, with the error type and endpoint config.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/Cargo.toml\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/src/error.rs\",\"crates/rm-cloud/src/config.rs\",\"Cargo.toml\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud\",\"acceptanceCriteria\":[\"workspace member builds\",\"Config::from_env honors RM_CLOUD_HOST\",\"Error maps statuses\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Index format + hashing rules",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "**Goal:** Pure encode/decode of root + per-doc indexes and the three hash rules, with golden-hash tests.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/plumbing/mod.rs\",\"crates/rm-cloud/src/plumbing/index.rs\",\"crates/rm-cloud/src/lib.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud plumbing::index\",\"acceptanceCriteria\":[\"sha256 vector\",\"doc_hash concat rule\",\"index round-trips\",\"root_hash rule\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Snapshot + diff",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Immutable Snapshot with a pure diff() reporting added/removed/changed.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/plumbing/snapshot.rs\",\"crates/rm-cloud/src/plumbing/mod.rs\",\"crates/rm-cloud/src/lib.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud plumbing::snapshot\",\"acceptanceCriteria\":[\"from_root_index parses\",\"diff classifies\",\"doc lookup\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Fake cloud server",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** In-process axum server (feature fake) implementing token/root/blob endpoints with CAS + fault injection.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/fake/mod.rs\",\"crates/rm-cloud/src/fake/handlers.rs\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/tests/fake_lifecycle.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake --test fake_lifecycle\",\"acceptanceCriteria\":[\"spawn ephemeral port\",\"root CAS + 412\",\"blob verbatim store\",\"fault injection\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Transport + auth + credentials",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "**Goal:** reqwest wrapper (status->Error, rm-filename), Credentials seam (env), register_device + refresh_user_token.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/transport.rs\",\"crates/rm-cloud/src/auth.rs\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/Cargo.toml\",\"crates/rm-cloud/tests/fake_auth.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake --test fake_auth\",\"acceptanceCriteria\":[\"pairing\",\"user token refresh\",\"status mapping\",\"env credentials\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: BlobStore + Client + snapshot()",
+      "status": "completed",
+      "blockedBy": [4],
+      "description": "**Goal:** BlobStore (get/put over HTTP) + Client with lazy user-token refresh + snapshot() built from the cloud.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/plumbing/blob.rs\",\"crates/rm-cloud/src/client.rs\",\"crates/rm-cloud/src/plumbing/mod.rs\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/Cargo.toml\",\"crates/rm-cloud/tests/fake_snapshot.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake --test fake_snapshot\",\"acceptanceCriteria\":[\"empty snapshot\",\"snapshot reflects root\",\"401 refresh retry\",\"blob round-trip\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Atomic commit with rebase-on-412",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "**Goal:** commit primitive: upload blobs, build+upload root index, CAS-put root, rebase on 412 (bounded). Plus concurrency test.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/plumbing/commit.rs\",\"crates/rm-cloud/src/client.rs\",\"crates/rm-cloud/src/plumbing/mod.rs\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/Cargo.toml\",\"crates/rm-cloud/tests/fake_conflict.rs\",\"crates/rm-cloud/tests/fake_concurrency.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake --test fake_conflict --test fake_concurrency\",\"acceptanceCriteria\":[\"mutation apply\",\"commit advances gen\",\"rebase on 412\",\"exhaustion\",\"concurrency lands\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Porcelain — DocFiles + get/put/mkdir/mv/rm",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "**Goal:** Raw DocFiles representation with rmdoc<->DocFiles conversions + path ops + Bundle round-trip.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/porcelain/mod.rs\",\"crates/rm-cloud/src/porcelain/docfiles.rs\",\"crates/rm-cloud/src/porcelain/fs.rs\",\"crates/rm-cloud/src/porcelain/document.rs\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/src/client.rs\",\"crates/rm-cloud/Cargo.toml\",\"crates/rm-cloud/tests/fake_porcelain.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake --test fake_porcelain\",\"acceptanceCriteria\":[\"rmdoc bundle round-trip\",\"get/put/mkdir\",\"mv metadata-only\",\"rm/ls/stat\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Content-only fidelity test",
+      "status": "completed",
+      "blockedBy": [7],
+      "description": "**Goal:** Prove put_content_only swaps only the .pdf blob; .content and every .rm blob stay byte-identical (mechanics 3).\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/tests/fake_content_only.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake --test fake_content_only\",\"acceptanceCriteria\":[\"ink/content blobs unchanged\",\"pdf blob swapped\",\"get reflects swap\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Declarative working-set sync",
+      "status": "completed",
+      "blockedBy": [8],
+      "description": "**Goal:** Client::sync(working_set, since): reconcile cloud to a target app-owned set in one commit; report changed keys; no-op fast path.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/sync.rs\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/src/client.rs\",\"crates/rm-cloud/Cargo.toml\",\"crates/rm-cloud/tests/fake_sync.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake --test fake_sync\",\"acceptanceCriteria\":[\"reconcile in one commit\",\"changed_keys report\",\"no-op fast path\",\"rmCloudKey identity\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Real-cloud test suite + sweeper",
+      "status": "completed",
+      "blockedBy": [9],
+      "description": "**Goal:** Env-gated, #[ignore]d live-cloud lifecycle inside rmrs-test/<run-id>, leave-on-failure cleanup, + stale-folder sweeper.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/tests/real_cloud.rs\"],\"verifyCommand\":\"nix develop -c cargo test -p rm-cloud --features fake\",\"acceptanceCriteria\":[\"gated + ignored\",\"isolated run folder\",\"leave on failure\",\"sweeper\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Docs reconciliation + dependency-lock commit",
+      "status": "completed",
+      "blockedBy": [10],
+      "description": "**Goal:** Make docs true; land Cargo.lock bump in its own commit.\n\n```json:metadata\n{\"files\":[\"docs/rm-cloud-protocol.md\",\"CLAUDE.md\",\"docs/FUTURE.md\",\"Cargo.lock\"],\"verifyCommand\":\"nix develop -c cargo clippy --all-targets -- -D warnings && nix develop -c cargo fmt --check && nix develop -c cargo test --workspace\",\"acceptanceCriteria\":[\"protocol doc\",\"CLAUDE.md entry\",\"FUTURE note\",\"workspace gates green\",\"lockfile separate commit\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-25"
+}

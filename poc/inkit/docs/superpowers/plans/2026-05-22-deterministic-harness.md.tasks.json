@@ -1,0 +1,96 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-22-deterministic-harness.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Rename rmfiles → rm-files",
+      "status": "completed",
+      "description": "Rename crates/rmfiles → crates/rm-files (package rm-files, import rm_files), update workspace members (add inkapp-core/remarkable/harness), fix test imports.\n\n```json:metadata\n{\"files\": [\"crates/rm-files/Cargo.toml\", \"Cargo.toml\", \"crates/rm-files/tests/strokes.rs\", \"crates/rm-files/tests/highlights.rs\", \"crates/rm-files/tests/bundle.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-files\", \"acceptanceCriteria\": [\"crates/rm-files exists, package rm-files, imports rm_files\", \"cargo test -p rm-files passes\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: rm-files writer primitives",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "Writer struct inverse of scene/reader.rs: varuint, tags, begin/end_subblock + begin/end_block with length back-patching, write_point_v2. Round-trip primitive tests via Reader.\n\n```json:metadata\n{\"files\": [\"crates/rm-files/src/scene/writer.rs\", \"crates/rm-files/src/scene/mod.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-files writer\", \"acceptanceCriteria\": [\"all reader primitives have writer inverses\", \"subblock/block-header lengths back-patched\", \"round-trip primitive tests pass\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: rm-files line-item writer + write_scene + validation",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "write_line_item (block 0x05, item 0x03, v2 points, current_version=2) + write_scene; pen_to_id/color_to_id. Synthetic + real-fixture round-trip tests.\n\n```json:metadata\n{\"files\": [\"crates/rm-files/src/scene/writer.rs\", \"crates/rm-files/src/scene/mod.rs\", \"crates/rm-files/src/lib.rs\", \"crates/rm-files/tests/writer_roundtrip.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p rm-files writer_roundtrip\", \"acceptanceCriteria\": [\"write_scene produces parser-valid v6\", \"synthetic round-trip preserves geometry+tool+color\", \"real fixture strokes round-trip equal\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: inkapp-core scaffold + deterministic World + compile_to_document",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "New inkapp-core crate. InkWorld with typst-assets embedded fonts (deterministic), non-panicking font(). compile_to_document + document_to_pdf. Determinism test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/Cargo.toml\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/src/world.rs\", \"crates/inkapp-core/src/render.rs\", \"crates/inkapp-core/src/error.rs\", \"crates/inkapp-core/tests/render.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test render\", \"acceptanceCriteria\": [\"embedded fonts, deterministic output\", \"World::font non-panicking\", \"identical PDF bytes twice\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Manifest + per-page region recovery",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "geometry (PdfRect contains/overlaps, PdfPoint, DevicePoint, typst_to_pdf_rect) + manifest (Region, Manifest, recover_regions via introspector+MetadataElem+serde, per-page height, with_version). 0-delta test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/manifest.rs\", \"crates/inkapp-core/src/geometry.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/regions.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test regions\", \"acceptanceCriteria\": [\"PdfRect/Region/Manifest defined\", \"recover_regions 0-delta\", \"per-page height conversion\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Embed manifest in PDF + extract",
+      "status": "completed",
+      "blockedBy": [4],
+      "description": "embed_manifest/extract_manifest via lopdf Info dict key InkappManifest. Round-trip test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/embed.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/embed.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test embed\", \"acceptanceCriteria\": [\"embed writes Info dict JSON\", \"extract reads it\", \"round-trip equals original\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Widget trait + region helper + checkbox",
+      "status": "completed",
+      "blockedBy": [4],
+      "description": "ink.rs (Stroke{points,highlighter}+bbox, RegionInk), widget.rs (Widget, RenderCx, region_metadata), checkbox.rs. Tests for read true/false + render declares region.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/widget.rs\", \"crates/inkapp-core/src/ink.rs\", \"crates/inkapp-core/src/widgets/mod.rs\", \"crates/inkapp-core/src/widgets/checkbox.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/checkbox.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test checkbox\", \"acceptanceCriteria\": [\"Stroke/RegionInk defined\", \"Widget trait + region_metadata + RenderCx\", \"Checkbox read/render correct\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Device trait + attribution + diffing + version guard",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "device.rs Device trait (pdf_to_device, device_to_pdf, read_ink, write_ink); readback.rs attribute (containment), diff_new, guard_version. Tests.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/device.rs\", \"crates/inkapp-core/src/readback.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/tests/readback.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test readback\", \"acceptanceCriteria\": [\"Device trait (4 methods)\", \"attribute by containment\", \"diff_new + guard_version\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: inkapp-remarkable Device impl",
+      "status": "completed",
+      "blockedBy": [7, 2],
+      "description": "Remarkable Device: fit-to-width PDF<->scene transform (invertible), read_ink/write_ink via rm_files Scene::parse / write_scene; Highlighter2/Highlight vs Fineliner1/Black. Transform fidelity to real device is Spec 3.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-remarkable/Cargo.toml\", \"crates/inkapp-remarkable/src/lib.rs\", \"crates/inkapp-remarkable/tests/device.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-remarkable\", \"acceptanceCriteria\": [\"transform invertible\", \"ink round-trips through .rm with highlighter flag\", \"uses rm-files reader+writer\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: highlightable-text widget + span-level regions (central risk)",
+      "status": "completed",
+      "blockedBy": [8, 3],
+      "description": "HighlightableText: each token a `tok-<i>` region via #context here().position()/measure metadata; read returns highlighted token strings (pen ignored). CENTRAL RISK: if per-token rects unreliable, record finding in docs/superpowers/spikes/.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/widgets/highlight_text.rs\", \"crates/inkapp-core/src/widgets/mod.rs\", \"crates/inkapp-core/tests/highlight_text.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-core --test highlight_text\", \"acceptanceCriteria\": [\"one region per token, ordered\", \"read returns highlighted token strings\", \"per-token rects recovered or finding recorded\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: inkapp-harness scaffold + layers inspector",
+      "status": "completed",
+      "blockedBy": [7],
+      "description": "inkapp-harness crate. inspect(&PagedDocument,&Manifest,&[Stroke]) -> PNG via typst_render::render + tiny-skia overlays (regions blue, pen red, highlighter yellow), y flipped. Dimensions test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/Cargo.toml\", \"crates/inkapp-harness/src/lib.rs\", \"crates/inkapp-harness/src/inspector.rs\", \"crates/inkapp-harness/tests/inspector.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-harness --test inspector\", \"acceptanceCriteria\": [\"inspect returns PNG\", \"regions+ink composited, y flipped\", \"correct pixel dimensions\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: inkapp-harness loop simulator",
+      "status": "completed",
+      "blockedBy": [8, 9, 10],
+      "description": "Gesture (Tap/Swipe), Scenario(.mark), StepTrace, synthesize, simulate (compile, write_ink->read_ink real path, attribute, inspect). Stroke-in-region read-back test.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/src/simulator.rs\", \"crates/inkapp-harness/src/lib.rs\", \"crates/inkapp-harness/tests/simulator.rs\"], \"verifyCommand\": \"nix develop -c cargo test -p inkapp-harness --test simulator\", \"acceptanceCriteria\": [\"Scenario gestures by region\", \"simulate round-trips through real .rm path\", \"readback contains targeted region\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Exerciser e2e + golden images + green make test",
+      "status": "completed",
+      "blockedBy": [11, 9, 6],
+      "description": "checkbox + highlightable-text exercisers through simulator with assert_golden (bootstrap+review); flake font note; supersede spike findings line; make test + make clippy green.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-harness/tests/exercisers.rs\", \"crates/inkapp-harness/tests/golden/\", \"flake.nix\", \"docs/superpowers/spikes/2026-05-22-typst-readback-findings.md\"], \"verifyCommand\": \"make test\", \"acceptanceCriteria\": [\"checkbox + highlight exercisers pass\", \"golden inspector images match\", \"make test + make clippy green\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-22"
+}

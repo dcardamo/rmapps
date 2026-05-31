@@ -1,0 +1,32 @@
+[package]
+name = "inkapp-harness"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "In-software loop simulator and layers inspector for inkapp"
+
+[dependencies]
+inkapp-core = { path = "../inkapp-core" }
+rm-cloud = { path = "../rm-cloud", features = ["fake"] }
+rm-device = { path = "../rm-device" }
+typst = "0.14"
+typst-render = "0.14"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+fs2 = "0.4"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+lopdf = "0.36"
+
+[dev-dependencies]
+rm-files = { path = "../rm-files" }
+zip = "2"
+tempfile = "3"
+reading-queue = { path = "../../apps/reading-queue" }
+inkapp-readwise-reader = { path = "../inkapp-readwise-reader" }
+agenda = { path = "../../apps/agenda" }
+inkapp-ics = { path = "../inkapp-ics" }
+inkapp-localcal = { path = "../inkapp-localcal" }
+inkapp-content = { path = "../inkapp-content" }

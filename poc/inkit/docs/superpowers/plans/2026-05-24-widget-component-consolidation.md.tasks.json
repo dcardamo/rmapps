@@ -1,0 +1,26 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-24-widget-component-consolidation.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Relocate RenderCx + region helpers out of widget.rs",
+      "status": "completed",
+      "description": "**Goal:** Move RenderCx, region_metadata, is_valid_region_name to permanent homes and repoint all imports, leaving widget.rs holding only the Widget trait. Build stays green; Widget + impls keep working.\n\n**Files:** component.rs (add RenderCx), render.rs (region helpers + tests as mod region_tests), widget.rs (only Widget trait), lib.rs (re-export region_metadata), components/{calendar_view,notice,stepper,checkbox,highlight_text}.rs + runtime.rs (repoint), apps/reading-queue/src/lib.rs (RenderCx path), harness recording.rs + tests/simulator.rs (region_metadata -> crate root).\n\n**Verify:** cargo test --workspace\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/component.rs\", \"crates/inkapp-core/src/render.rs\", \"crates/inkapp-core/src/widget.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/src/runtime.rs\", \"crates/inkapp-core/src/components/calendar_view.rs\", \"crates/inkapp-core/src/components/notice.rs\", \"crates/inkapp-core/src/components/stepper.rs\", \"crates/inkapp-core/src/components/checkbox.rs\", \"crates/inkapp-core/src/components/highlight_text.rs\", \"apps/reading-queue/src/lib.rs\", \"crates/inkapp-harness/src/recording.rs\", \"crates/inkapp-harness/tests/simulator.rs\"], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"RenderCx in component.rs; region helpers+tests in render.rs\", \"widget.rs holds only the Widget trait\", \"region_metadata re-exported at crate root\", \"no crate::widget imports of the 3 moved items\", \"Widget still defined + implemented unchanged\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Delete the Widget trait; collapse component impls to inherent read",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Remove the Widget trait, its module, and all 3 impl Widget blocks, replacing each with one render path + an inherent read; fix the trait-form callers. Atomic core of the refactor — one commit.\n\n**Files:** components/checkbox.rs, components/stepper.rs, components/highlight_text.rs, lib.rs (remove pub mod widget), DELETE widget.rs, apps/reading-queue/src/lib.rs, harness tests/{e2e,exercisers}.rs.\n\n**Verify:** cargo test --workspace; grep -rn 'trait Widget|impl Widget|use .*::Widget|Widget::render|dyn Widget|pub mod widget' crates apps -> no matches.\n\n```json:metadata\n{\"files\": [\"crates/inkapp-core/src/components/checkbox.rs\", \"crates/inkapp-core/src/components/stepper.rs\", \"crates/inkapp-core/src/components/highlight_text.rs\", \"crates/inkapp-core/src/lib.rs\", \"crates/inkapp-core/src/widget.rs\", \"apps/reading-queue/src/lib.rs\", \"crates/inkapp-harness/tests/e2e.rs\", \"crates/inkapp-harness/tests/exercisers.rs\"], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"Widget trait gone; widget.rs deleted; pub mod widget removed\", \"3 components each have one render path + inherent read\", \"no impl Widget / use ::Widget / Widget::render remains\", \"all pre-existing .read() callers pass unchanged, no assertion weakened\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Update appdx.md to the single-Component reality",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Make the DX doc true — remove the resolved open question and any stale two-layer framing.\n\n**Files:** docs/appdx.md.\n\n**Verify:** grep -n 'Widget' docs/appdx.md -> no matches.\n\n```json:metadata\n{\"files\": [\"docs/appdx.md\"], \"verifyCommand\": \"grep -n 'Widget' docs/appdx.md || echo OK-no-matches\", \"acceptanceCriteria\": [\"parking-lot consolidation bullet removed\", \"no two-layer framing remains\", \"grep -n Widget docs/appdx.md empty\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-24T12:00:00Z"
+}

@@ -1,0 +1,25 @@
+[package]
+name = "typst-readback"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+ego-tree = "0.6"
+scraper = "0.20"
+typst = "0.14"
+typst-pdf = "0.14"
+typst-kit = { version = "0.14", features = ["fonts"] }
+comemo = "0.5"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Native reMarkable cloud client for the on-device push step (replaces the rmapi CLI).
+rm-cloud = { path = "../../crates/rm-cloud" }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+[dev-dependencies]
+lopdf = "0.36"
+tempfile = "3"
+image = { version = "0.25", default-features = false, features = ["png"] }

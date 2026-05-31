@@ -1,0 +1,15 @@
+/target
+result
+/apps/reading-queue/.overlay.json
+/apps/agenda/.localcal.json
+
+# Local end-user config (real config lives at $XDG_CONFIG_HOME/inkapp/config.toml;
+# this catches a repo-local one used for testing via $INKAPP_CONFIG_PATH).
+/config.toml
+
+# local `preview --out` output
+/preview/
+
+# brainstorming visual companion mockups
+.superpowers/
+.worktrees/

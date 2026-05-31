@@ -1,0 +1,29 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-26-inkctl-test-harness.md",
+  "tasks": [
+    {"id": 1,  "subject": "Task 1: Persist fake cloud state to disk", "status": "pending"},
+    {"id": 2,  "subject": "Task 2: harness::Session skeleton + state-dir lifecycle", "status": "pending", "blockedBy": [1]},
+    {"id": 3,  "subject": "Task 3: Session::device_new + device_list", "status": "pending", "blockedBy": [2]},
+    {"id": 4,  "subject": "Task 4: Session::document_publish", "status": "pending", "blockedBy": [3]},
+    {"id": 5,  "subject": "Task 5: observe::page_describe + document_describe", "status": "pending", "blockedBy": [4]},
+    {"id": 6,  "subject": "Task 6: PDF link extraction + integration into describe", "status": "pending", "blockedBy": [5]},
+    {"id": 7,  "subject": "Task 7: observe::page_snapshot (PNG render)", "status": "pending", "blockedBy": [5]},
+    {"id": 8,  "subject": "Task 8: observe::page_inspect — layer + link overlays", "status": "pending", "blockedBy": [6, 7]},
+    {"id": 9,  "subject": "Task 9: observe — device_tree + ink_list", "status": "pending", "blockedBy": [5]},
+    {"id": 10, "subject": "Task 10: Session::ink_{tap,swipe,fixture,draw}", "status": "pending", "blockedBy": [9]},
+    {"id": 11, "subject": "Task 11: Session::step — drive the loop one cycle", "status": "pending", "blockedBy": [8, 10]},
+    {"id": 12, "subject": "Task 12: Session::link_follow + Session::device_sync", "status": "pending", "blockedBy": [6, 11]},
+    {"id": 13, "subject": "Task 13: Trace recording in recording.rs", "status": "pending", "blockedBy": [12]},
+    {"id": 14, "subject": "Task 14: harness::emit::to_rust — trace → #[test]", "status": "pending", "blockedBy": [13]},
+    {"id": 15, "subject": "Task 15: inkctl crate scaffolding", "status": "pending", "blockedBy": [14]},
+    {"id": 16, "subject": "Task 16: inkctl session commands", "status": "pending", "blockedBy": [15]},
+    {"id": 17, "subject": "Task 17: inkctl device commands", "status": "pending", "blockedBy": [16]},
+    {"id": 18, "subject": "Task 18: inkctl document commands", "status": "pending", "blockedBy": [17]},
+    {"id": 19, "subject": "Task 19: inkctl page commands", "status": "pending", "blockedBy": [18]},
+    {"id": 20, "subject": "Task 20: inkctl ink + link follow commands", "status": "pending", "blockedBy": [19]},
+    {"id": 21, "subject": "Task 21: inkctl record commands", "status": "pending", "blockedBy": [20]},
+    {"id": 22, "subject": "Task 22: Dogfood test — record→emit→cargo-test loop", "status": "pending", "blockedBy": [21]},
+    {"id": 23, "subject": "Task 23: Update docs/appdx.md (definition of done)", "status": "pending", "blockedBy": [22]}
+  ],
+  "lastUpdated": "2026-05-27T03:15:33Z"
+}

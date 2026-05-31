@@ -1,0 +1,28 @@
+[package]
+name = "inkapp"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "inkapp facade: the app-authoring surface (core + default device)"
+
+[dependencies]
+inkapp-core = { path = "../inkapp-core" }
+inkapp-config = { path = "../inkapp-config", features = ["cli"] }
+rm-device = { path = "../rm-device" }
+rm-cloud = { path = "../rm-cloud" }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+async-trait = "0.1"
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+gethostname = "0.5"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+inkapp-readwise-reader = { path = "../inkapp-readwise-reader" }
+inkapp-content = { path = "../inkapp-content" }
+reading-queue = { path = "../../apps/reading-queue" }

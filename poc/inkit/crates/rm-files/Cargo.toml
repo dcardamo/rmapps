@@ -1,0 +1,15 @@
+[package]
+name = "rm-files"
+version = "0.1.0"
+edition = "2021"
+description = "Pure-Rust reader for reMarkable .rm (v6) scene files; extracts ink strokes"
+license = "MIT"
+
+[dependencies]
+thiserror = "2"
+zip = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
