@@ -1,44 +1,35 @@
-//! Build the single "Digest" output as ONE pure-typst document (no lopdf):
-//! a hyperlinked digest followed by a rasterized image of each annotated source
-//! page (with the highlights painted on). Tapping a digest entry jumps to the
-//! page it came from via a typst `#link` → `#label` anchor; every page is also a
-//! PDF outline bookmark.
+//! Build the "Digest" output: ONE lightweight pure-typst document.
 //!
-//! Why typst-only: typst can't embed an external PDF's vector pages, so we
-//! rasterize the annotated pages with `pdftoppm` and place them as images. This
-//! is robust on ANY source PDF (unlike the old lopdf page-tree surgery) and gives
-//! real in-document hyperlinks + bookmarks, exactly like rmreader.
+//! Each highlight is shown **in context** — the surrounding sentences pulled
+//! from the source PDF's text layer (`pdftotext`), with the highlighted span
+//! itself emphasized via typst `#highlight`. This is fast (no page
+//! rasterization), small, and self-contained.
 //!
-//! Highlight placement: the reMarkable stores snap-to-text highlights as the
-//! verbatim text PLUS rectangles in an opaque customZoom canvas space that does
-//! NOT map linearly onto the source page. So we ignore those rectangles and
-//! instead locate the highlighted text on the page with `pdftotext -bbox` — the
-//! text is exact, so the painted box lands precisely on the words.
+//! We do NOT embed the original pages: reMarkable's PDF viewer can't link
+//! between documents, and a full image-copy of the book is far too heavy. The
+//! context window gives you what you highlighted plus enough around it to recall
+//! the passage.
+//!
+//! Notes (pen ink) are still embedded as cropped images. Pen handwriting is not
+//! transcribed (image-only, by design).
 use std::process::Command;
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use rmfiles::Bundle;
-use tiny_skia::{Paint, Pixmap, Rect as SkRect, Transform};
 
 use crate::device::Device;
 use crate::extract::Mark;
 
-/// Metadata shown on the cover (same shape as the standalone digest).
+/// Metadata shown on the cover.
 pub use crate::digest_doc::DigestMeta;
 
-/// Resolution the source pages are rasterized + text-located at. A point maps to
-/// `pt * RASTER_DPI / 72` pixels, so the page image and the bbox painting share
-/// one coordinate system. 150 dpi is crisp on the Move's e-ink.
-const RASTER_DPI: f32 = 150.0;
+/// Compiled typst source plus its image assets (`(virtual_path, png_bytes)`).
+pub type TypstDoc = (String, Vec<(String, Vec<u8>)>);
 
-/// A word box from `pdftotext -bbox`, in PDF points, TOP-LEFT origin.
-struct WordBox {
-    text: String,
-    x0: f64,
-    y0: f64,
-    x1: f64,
-    y1: f64,
-}
+/// How much context (characters) to try to include before and after a highlight,
+/// snapped outward to sentence boundaries.
+const CTX_BEFORE: usize = 240;
+const CTX_AFTER: usize = 240;
 
 /// Escape for a typst double-quoted string literal.
 fn esc(s: &str) -> String {
@@ -73,163 +64,120 @@ fn esc_markup(s: &str) -> String {
     out
 }
 
-/// Lowercased alphanumerics only — for tolerant token matching
-/// (so `(844)` matches `844`, `24/7` matches `247`).
-fn norm(s: &str) -> String {
-    s.chars()
-        .filter(|c| c.is_alphanumeric())
-        .flat_map(|c| c.to_lowercase())
-        .collect()
+/// Darken a bright pen color so kicker text stays legible on warm paper.
+fn darken(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
+    let bright = (r as u16 + g as u16 + b as u16) / 3;
+    let f = if bright > 200 {
+        0.55
+    } else if bright > 150 {
+        0.75
+    } else {
+        1.0
+    };
+    (
+        (r as f32 * f) as u8,
+        (g as f32 * f) as u8,
+        (b as f32 * f) as u8,
+    )
 }
 
-/// Rasterize one 1-based page of `pdf` to a PNG at `RASTER_DPI`.
-fn rasterize_page(pdf_path: &std::path::Path, page_1based: usize) -> anyhow::Result<Vec<u8>> {
-    let tmp = tempfile::tempdir()?;
-    let prefix = tmp.path().join("page");
-    let n = page_1based.to_string();
-    let dpi = (RASTER_DPI as u32).to_string();
-    let status = Command::new("pdftoppm")
-        .args([
-            "-f",
-            &n,
-            "-l",
-            &n,
-            "-png",
-            "-singlefile",
-            "-r",
-            &dpi,
-            pdf_path.to_str().unwrap(),
-            prefix.to_str().unwrap(),
-        ])
-        .status()
-        .context("spawn pdftoppm")?;
-    if !status.success() {
-        bail!("pdftoppm failed for page {page_1based}");
-    }
-    std::fs::read(prefix.with_extension("png")).context("read rasterized page png")
-}
-
-/// Parse `pdftotext -bbox` word boxes for one page (TOP-LEFT origin points).
-fn word_boxes(pdf_path: &std::path::Path, page_1based: usize) -> anyhow::Result<Vec<WordBox>> {
+/// Whitespace-collapsed plain text of one 1-based page (via `pdftotext`).
+fn page_text(pdf_path: &std::path::Path, page_1based: usize) -> Option<String> {
     let n = page_1based.to_string();
     let out = Command::new("pdftotext")
-        .args(["-bbox", "-f", &n, "-l", &n, pdf_path.to_str().unwrap(), "-"])
+        .args(["-f", &n, "-l", &n, pdf_path.to_str().unwrap(), "-"])
         .output()
-        .context("spawn pdftotext")?;
+        .ok()?;
     if !out.status.success() {
-        bail!("pdftotext -bbox failed for page {page_1based}");
+        return None;
     }
-    let xhtml = String::from_utf8_lossy(&out.stdout);
-    let mut words = Vec::new();
-    let mut rest = xhtml.as_ref();
-    while let Some(i) = rest.find("<word ") {
-        rest = &rest[i..];
-        let Some(tag_end) = rest.find('>') else { break };
-        let tag = &rest[..tag_end];
-        let after = &rest[tag_end + 1..];
-        let Some(close) = after.find("</word>") else {
-            break;
-        };
-        let text = after[..close]
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&#39;", "'")
-            .replace("&quot;", "\"");
-        let attr = |name: &str| -> f64 {
-            tag.find(&format!("{name}=\""))
-                .and_then(|p| {
-                    let v = &tag[p + name.len() + 2..];
-                    v.find('"').and_then(|e| v[..e].parse().ok())
-                })
-                .unwrap_or(0.0)
-        };
-        words.push(WordBox {
-            text,
-            x0: attr("xMin"),
-            y0: attr("yMin"),
-            x1: attr("xMax"),
-            y1: attr("yMax"),
-        });
-        rest = &after[close + 7..];
-    }
-    Ok(words)
+    let raw = String::from_utf8_lossy(&out.stdout);
+    Some(raw.split_whitespace().collect::<Vec<_>>().join(" "))
 }
 
-/// A pixel rectangle `(x, y, w, h)`, top-left origin.
-type PxRect = (f32, f32, f32, f32);
-
-/// Find the px rectangles (TOP-LEFT) that cover `phrase` among `words`.
-///
-/// Locates the contiguous run of words whose normalized tokens match the phrase
-/// tokens; returns each matched word's box scaled to pixels. Falls back to
-/// painting every standalone token match if no contiguous run is found.
-fn phrase_boxes(words: &[WordBox], phrase: &str, dpi: f32) -> Vec<PxRect> {
-    let toks: Vec<String> = phrase
-        .split_whitespace()
-        .map(norm)
-        .filter(|t| !t.is_empty())
-        .collect();
-    if toks.is_empty() {
-        return Vec::new();
+/// Nudge a byte index to the nearest char boundary at or before `i`.
+fn floor_boundary(s: &str, mut i: usize) -> usize {
+    i = i.min(s.len());
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
     }
-    let wn: Vec<String> = words.iter().map(|w| norm(&w.text)).collect();
-    let to_px = |w: &WordBox| {
-        let s = dpi / 72.0;
-        (
-            (w.x0 as f32) * s,
-            (w.y0 as f32) * s,
-            ((w.x1 - w.x0) as f32) * s,
-            ((w.y1 - w.y0) as f32) * s,
-        )
-    };
-    // Contiguous run match.
-    if wn.len() >= toks.len() {
-        for start in 0..=(wn.len() - toks.len()) {
-            if (0..toks.len()).all(|k| wn[start + k] == toks[k]) {
-                return (start..start + toks.len())
-                    .map(|i| to_px(&words[i]))
-                    .collect();
-            }
-        }
-    }
-    // Fallback: every standalone token match.
-    let set: std::collections::HashSet<&String> = toks.iter().collect();
-    words
-        .iter()
-        .zip(&wn)
-        .filter(|(_, n)| set.contains(n))
-        .map(|(w, _)| to_px(w))
-        .collect()
+    i
 }
 
-/// Paint translucent yellow boxes onto a rasterized page for each phrase.
-fn paint_phrases(page_png: &[u8], words: &[WordBox], phrases: &[&str]) -> anyhow::Result<Vec<u8>> {
-    let mut pm = Pixmap::decode_png(page_png).context("decode page png")?;
-    let mut paint = Paint::default();
-    paint.set_color_rgba8(245, 208, 66, 96); // highlighter yellow, translucent
-    paint.anti_alias = true;
-    for phrase in phrases {
-        for (x, y, w, h) in phrase_boxes(words, phrase, RASTER_DPI) {
-            // Pad vertically a touch so the wash covers the glyph ascenders.
-            if let Some(r) = SkRect::from_xywh(x, y - 1.0, w, h + 2.0) {
-                pm.fill_rect(r, &paint, Transform::identity(), None);
-            }
-        }
+/// Nudge a byte index to the nearest char boundary at or after `i`.
+fn ceil_boundary(s: &str, mut i: usize) -> usize {
+    i = i.min(s.len());
+    while i < s.len() && !s.is_char_boundary(i) {
+        i += 1;
     }
-    pm.encode_png().context("encode annotated page png")
+    i
 }
 
-/// Compiled typst source plus its image assets (`(virtual_path, png_bytes)`).
-pub type TypstDoc = (String, Vec<(String, Vec<u8>)>);
+/// Find `highlight` inside `text` and return `(before, highlighted, after)`,
+/// where `before`/`after` are the surrounding sentences (snapped to sentence
+/// boundaries within a character budget). Returns `None` if the highlight text
+/// isn't found in the page text (e.g. an ink highlight with no text layer).
+fn context(text: &str, highlight: &str) -> Option<(String, String, String)> {
+    let hl = highlight.trim();
+    if hl.is_empty() {
+        return None;
+    }
+    // Case-insensitive search; positions hold for ASCII-dominant PDF text.
+    let lower = text.to_lowercase();
+    let start = lower.find(&hl.to_lowercase())?;
+    let end = (start + hl.len()).min(text.len());
+    let end = ceil_boundary(text, end);
 
-/// Build the combined typst source + image assets.
+    // Expand left to a sentence start within the budget.
+    let lo = floor_boundary(text, start.saturating_sub(CTX_BEFORE));
+    let b_start = text[lo..start]
+        .rfind(['.', '!', '?'])
+        .map(|i| lo + i + 1)
+        .unwrap_or(lo);
+    let b_start = ceil_boundary(text, b_start);
+
+    // Expand right to a sentence end within the budget.
+    let hi = ceil_boundary(text, (end + CTX_AFTER).min(text.len()));
+    let a_end = text[end..hi]
+        .find(['.', '!', '?'])
+        .map(|i| end + i + 1)
+        .unwrap_or(hi);
+    let a_end = ceil_boundary(text, a_end);
+
+    let before = text[b_start..start].trim().to_string();
+    let highlighted = text[start..end].to_string();
+    let after = text[end..a_end].trim().to_string();
+    Some((before, highlighted, after))
+}
+
+/// Build the digest typst source + image assets.
 pub fn build_linked(
     meta: &DigestMeta,
     marks: &[Mark],
     bundle: &Bundle,
     device: &Device,
 ) -> anyhow::Result<TypstDoc> {
+    // Stage the source PDF once (if any) for per-page text extraction.
+    let tmp = tempfile::tempdir()?;
+    let pdf_path = if let Some(pdf) = bundle.source_pdf() {
+        let p = tmp.path().join("source.pdf");
+        std::fs::write(&p, pdf).context("stage source pdf")?;
+        Some(p)
+    } else {
+        None
+    };
+    // Cache page text by page index so each page is only extracted once.
+    let mut text_cache: std::collections::HashMap<usize, Option<String>> =
+        std::collections::HashMap::new();
+    let mut page_text_for = |idx: usize| -> Option<String> {
+        if let Some(c) = text_cache.get(&idx) {
+            return c.clone();
+        }
+        let t = pdf_path.as_ref().and_then(|p| page_text(p, idx + 1));
+        text_cache.insert(idx, t.clone());
+        t
+    };
+
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     let mut s = String::new();
 
@@ -238,10 +186,10 @@ pub fn build_linked(
         r##"#set document(title: "{title}", author: "{author}")
 #set page(width: {pw}pt, height: {ph}pt, margin: (x: 7mm, y: 8mm), fill: rgb(250, 249, 246))
 #set text(font: "Newsreader", size: 11pt, fill: rgb(26, 26, 26), lang: "en", hyphenate: false)
-#set par(leading: 0.65em, spacing: 0.8em, justify: false)
+#set par(leading: 0.62em, spacing: 0.7em, justify: false)
 #set heading(outlined: true)
 #let kick(t, c) = text(font: "Hanken Grotesk", size: 7pt, weight: "semibold", tracking: 2pt, fill: c)[#upper(t)]
-#show heading.where(level: 2): it => block(above: 22pt, below: 6pt, width: 100%)[#it.body]
+#show heading.where(level: 2): it => block(above: 20pt, below: 6pt, width: 100%)[#it.body]
 #align(center + horizon)[
   #text(font: "Hanken Grotesk", size: 7.5pt, weight: "semibold", tracking: 3pt, fill: rgb(120,120,120))[DIGEST]
   #v(14pt)
@@ -272,20 +220,43 @@ pub fn build_linked(
         },
     ));
 
-    // ── Digest entries (each highlight links to its page anchor) ───────────
-    let lq = '\u{201C}';
-    let rq = '\u{201D}';
+    // ── One block per mark ─────────────────────────────────────────────────
     for m in marks {
         match m {
             Mark::Highlight { page, text, color } => {
                 let (r, g, b) = crate::theme::pen_rgb(*color);
                 let (kr, kg, kb) = darken(r, g, b);
                 s.push_str(&format!(
-                    "#heading(level: 2, outlined: true)[#link(label(\"p{idx}\"))[#kick(\"page {pg}\", rgb({kr},{kg},{kb}))]]\n\
-                     #block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + rgb({r},{g},{b}).lighten(20%)))[#par(leading: 0.7em)[#text(font: \"Newsreader\", size: 12pt)[{lq}{t}{rq}]]]\n\
-                     #v(8pt)\n#line(length: 22%, stroke: 0.4pt + rgb(200,200,200))\n#v(2pt)\n",
-                    idx = page, pg = page + 1, t = esc_markup(text),
+                    "#heading(level: 2, outlined: true)[#kick(\"page {pg}\", rgb({kr},{kg},{kb}))]\n",
+                    pg = page + 1,
                 ));
+                // Try to render the highlight inside its surrounding sentences.
+                match page_text_for(*page)
+                    .as_deref()
+                    .and_then(|t| context(t, text))
+                {
+                    Some((before, hl, after)) => {
+                        s.push_str(&format!(
+                            "#block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + rgb({r},{g},{b}).lighten(20%)))[\n\
+                             #par(leading: 0.66em)[#text(font: \"Newsreader\", size: 11.5pt, fill: rgb(70,70,70))[{bef} #highlight(fill: rgb({r},{g},{b}).lighten(45%), extent: 1pt)[#text(fill: rgb(26,26,26))[{hl}]] {aft}]]]\n",
+                            bef = esc_markup(&before),
+                            hl = esc_markup(&hl),
+                            aft = esc_markup(&after),
+                        ));
+                    }
+                    None => {
+                        // No text layer match — fall back to the bare quote.
+                        let lq = '\u{201C}';
+                        let rq = '\u{201D}';
+                        s.push_str(&format!(
+                            "#block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + rgb({r},{g},{b}).lighten(20%)))[#par(leading: 0.7em)[#text(font: \"Newsreader\", size: 12pt)[{lq}{t}{rq}]]]\n",
+                            t = esc_markup(text),
+                        ));
+                    }
+                }
+                s.push_str(
+                    "#v(8pt)\n#line(length: 22%, stroke: 0.4pt + rgb(200,200,200))\n#v(2pt)\n",
+                );
             }
             Mark::Note { page, png }
             | Mark::InsertedPage {
@@ -295,134 +266,41 @@ pub fn build_linked(
                 let name = format!("/assets/note-{}.png", assets.len());
                 assets.push((name.clone(), png.clone()));
                 s.push_str(&format!(
-                    "#heading(level: 3, outlined: true)[#link(label(\"p{idx}\"))[#kick(\"page {pg} · note\", rgb(120,120,120))]]\n\
+                    "#heading(level: 3, outlined: true)[#kick(\"page {pg} · note\", rgb(120,120,120))]\n\
                      #block(stroke: 0.5pt + rgb(200,200,200), inset: 5pt, radius: 2pt)[#image(\"{name}\", width: 100%)]\n#v(8pt)\n",
-                    idx = page, pg = page + 1, name = name,
+                    pg = page + 1, name = name,
                 ));
             }
-        }
-    }
-
-    // ── Annotated source pages (rasterized + highlights painted on) ────────
-    let mut pages: Vec<usize> = marks
-        .iter()
-        .map(|m| match m {
-            Mark::Highlight { page, .. } | Mark::Note { page, .. } => *page,
-            Mark::InsertedPage { after_page, .. } => *after_page,
-        })
-        .collect();
-    pages.sort_unstable();
-    pages.dedup();
-
-    if let Some(pdf) = bundle.source_pdf() {
-        // Write the source PDF once for pdftoppm / pdftotext to read.
-        let tmp = tempfile::tempdir()?;
-        let pdf_path = tmp.path().join("source.pdf");
-        std::fs::write(&pdf_path, pdf)?;
-
-        for idx in pages {
-            // bundle page index → 1-based source PDF page (identity redirection).
-            let pdf_page = idx + 1;
-            let raw = match rasterize_page(&pdf_path, pdf_page) {
-                Ok(p) => p,
-                Err(e) => {
-                    eprintln!("rmdigest: rasterize page {pdf_page} failed ({e:#}); skipping image");
-                    continue;
-                }
-            };
-            // Highlight texts on this page, located via the page's own text layer.
-            let phrases: Vec<&str> = marks
-                .iter()
-                .filter_map(|m| match m {
-                    Mark::Highlight { page, text, .. } if *page == idx => Some(text.as_str()),
-                    _ => None,
-                })
-                .collect();
-            let composite = match word_boxes(&pdf_path, pdf_page) {
-                Ok(words) => paint_phrases(&raw, &words, &phrases).unwrap_or(raw),
-                Err(_) => raw,
-            };
-            let name = format!("/assets/p{idx}.png");
-            assets.push((name.clone(), composite));
-            s.push_str(&format!(
-                "#pagebreak()\n#heading(level: 2, outlined: true)[#kick(\"page {pg}\", rgb(120,120,120))] #label(\"p{idx}\")\n#v(4pt)\n#image(\"{name}\", width: 100%)\n",
-                pg = pdf_page, idx = idx, name = name,
-            ));
         }
     }
 
     Ok((s, assets))
 }
 
-/// Darken a bright pen color so kicker text stays legible on warm paper.
-fn darken(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
-    let bright = (r as u16 + g as u16 + b as u16) / 3;
-    let f = if bright > 200 {
-        0.55
-    } else if bright > 150 {
-        0.75
-    } else {
-        1.0
-    };
-    (
-        (r as f32 * f) as u8,
-        (g as f32 * f) as u8,
-        (b as f32 * f) as u8,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn wb(text: &str, x0: f64) -> WordBox {
-        WordBox {
-            text: text.into(),
-            x0,
-            y0: 10.0,
-            x1: x0 + 20.0,
-            y1: 22.0,
-        }
+    #[test]
+    fn context_extracts_surrounding_sentences() {
+        let text = "Intro sentence one. The roadside assistance line is open 24/7 for members. \
+                    Another following sentence here. And one more after that.";
+        let (before, hl, after) = context(text, "roadside assistance line is open 24/7").unwrap();
+        assert!(hl.to_lowercase().contains("roadside assistance"));
+        // `before` should include the start of the containing sentence ("The").
+        assert!(before.starts_with("The"), "before={before:?}");
+        // `after` should carry on to a sentence end ("for members.").
+        assert!(after.contains("members"), "after={after:?}");
     }
 
     #[test]
-    fn norm_strips_punct_and_lowercases() {
-        assert_eq!(norm("(844)"), "844");
-        assert_eq!(norm("24/7"), "247");
-        assert_eq!(norm("Roadside"), "roadside");
+    fn context_none_when_text_absent() {
+        let text = "Nothing relevant here at all.";
+        assert!(context(text, "roadside assistance").is_none());
     }
 
     #[test]
-    fn phrase_boxes_matches_contiguous_run() {
-        // Page has a distractor "Roadside" earlier, then the real run.
-        let words = vec![
-            wb("Roadside", 0.0), // distractor (not followed by Assistance)
-            wb("Service", 30.0),
-            wb("Roadside", 100.0), // start of the real match
-            wb("Assistance", 130.0),
-            wb("24/7", 170.0),
-        ];
-        let boxes = phrase_boxes(&words, "Roadside Assistance 24/7", 72.0);
-        // 72 dpi → 1pt = 1px, so x positions are the run's word x0s.
-        assert_eq!(boxes.len(), 3, "should match the 3-word contiguous run");
-        assert!(
-            (boxes[0].0 - 100.0).abs() < 0.01,
-            "first box at x=100, got {}",
-            boxes[0].0
-        );
-    }
-
-    #[test]
-    fn phrase_boxes_falls_back_to_token_matches() {
-        // No contiguous run; each token appears standalone.
-        let words = vec![wb("alpha", 0.0), wb("zzz", 30.0), wb("beta", 60.0)];
-        let boxes = phrase_boxes(&words, "alpha beta", 72.0);
-        assert_eq!(boxes.len(), 2);
-    }
-
-    #[test]
-    fn build_linked_produces_hyperlinked_multipage_pdf() {
-        // Real fixture: 1 source page, 4 highlighter highlights ("ARCHIVE" + body).
+    fn build_digest_compiles_with_context_and_is_multipage() {
         let bundle = rmfiles::Bundle::open(std::path::Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/tests/fixtures/stamped-labels.rmdoc"
@@ -439,20 +317,14 @@ mod tests {
             date_range: String::new(),
         };
         let (src, assets) =
-            build_linked(&meta, &marks, &bundle, &crate::device::MOVE).expect("build_linked");
+            build_linked(&meta, &marks, &bundle, &crate::device::MOVE).expect("build");
         let pdf = crate::render::compile(&src, &assets).expect("compile");
         let doc = lopdf::Document::load_mem(&pdf).expect("valid pdf");
-        // cover + entries + at least one rasterized source page.
-        assert!(doc.get_pages().len() >= 2, "expected multi-page output");
-        // typst #link must have emitted at least one /Link annotation.
-        let has_link = doc.objects.values().any(|o| {
-            o.as_dict()
-                .ok()
-                .and_then(|d| d.get(b"Subtype").ok())
-                .and_then(|s| s.as_name().ok())
-                .map(|n| n == b"Link")
-                .unwrap_or(false)
-        });
-        assert!(has_link, "digest entries must carry GoTo /Link annotations");
+        assert!(doc.get_pages().len() >= 2);
+        // The stamped-labels body sentence should appear as surrounding context.
+        assert!(
+            src.contains("highlight("),
+            "expected typst #highlight in output"
+        );
     }
 }
