@@ -13,7 +13,6 @@
 //! populates an outline (bookmark list) for quick navigation.
 
 use crate::extract::Mark;
-use crate::theme::pen_rgb;
 
 /// Metadata shown on the digest cover page.
 pub struct DigestMeta {
@@ -156,8 +155,8 @@ pub fn build_digest(
 
     for m in marks {
         match m {
-            Mark::Highlight { page, text, color } => {
-                let (r, g, b) = pen_rgb(*color);
+            Mark::Highlight { page, text, rgb } => {
+                let (r, g, b) = *rgb;
                 // Darken bright highlight colors so the kicker text is legible
                 // on the warm paper background.
                 let (kr, kg, kb) = darken_for_text(r, g, b);
@@ -308,7 +307,7 @@ mod tests {
             Mark::Highlight {
                 page: 0,
                 text: "The quick brown fox jumps over the lazy dog.".into(),
-                color: PenColor::Yellow,
+                rgb: (245, 208, 66),
             },
             Mark::Note { page: 1, png },
         ];
@@ -401,7 +400,7 @@ mod tests {
         let marks = vec![Mark::Highlight {
             page: 0,
             text: adversarial.into(),
-            color: PenColor::Yellow,
+            rgb: (245, 208, 66),
         }];
 
         let (src, assets) = build_digest(&meta, &marks, &crate::device::MOVE);

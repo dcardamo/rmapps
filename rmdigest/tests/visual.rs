@@ -67,19 +67,19 @@ fn fixed_marks() -> Vec<rmdigest::extract::Mark> {
         rmdigest::extract::Mark::Highlight {
             page: 2,
             text: "The quick brown fox jumps over the lazy dog.".into(),
-            color: PenColor::Yellow,
+            rgb: (245, 208, 66),
         },
         rmdigest::extract::Mark::Highlight {
             page: 5,
             text: "We shall not cease from exploration, and the end of all our exploring \
                    will be to arrive where we started and know the place for the first time."
                 .into(),
-            color: PenColor::Green,
+            rgb: (120, 190, 110),
         },
         rmdigest::extract::Mark::Highlight {
             page: 8,
             text: "In the beginning was the Word.".into(),
-            color: PenColor::Pink,
+            rgb: (235, 130, 170),
         },
         rmdigest::extract::Mark::Note { page: 11, png },
     ]

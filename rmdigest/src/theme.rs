@@ -20,6 +20,16 @@ pub fn default_palette() -> Palette {
     }
 }
 
+/// Decode a packed `0xRRGGBBAA` highlight color (the device's `color_rgba`)
+/// to an RGB triple, dropping the alpha.
+pub fn rgba_to_rgb(v: u32) -> (u8, u8, u8) {
+    (
+        ((v >> 24) & 0xff) as u8,
+        ((v >> 16) & 0xff) as u8,
+        ((v >> 8) & 0xff) as u8,
+    )
+}
+
 /// Map a reMarkable pen color to an RGB triple for the digest theme.
 pub fn pen_rgb(c: PenColor) -> (u8, u8, u8) {
     match c {

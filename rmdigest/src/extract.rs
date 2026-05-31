@@ -1,5 +1,5 @@
 //! Turn a bundle's changed pages into an ordered list of digest marks.
-use rmfiles::{Bundle, PenColor, Stroke, TextHighlight};
+use rmfiles::{Bundle, Stroke, TextHighlight};
 
 use crate::ink::{render_strokes, Background, InkOpts};
 use crate::textlayer::TextLayer;
@@ -10,7 +10,9 @@ pub enum Mark {
     Highlight {
         page: usize,
         text: String,
-        color: PenColor,
+        /// The highlight color as RGB — the device's exact `color_rgba` when it
+        /// recorded one, else the palette color for `color`.
+        rgb: (u8, u8, u8),
     },
     /// A handwritten note (pen ink) on an existing page, rendered to PNG.
     Note { page: usize, png: Vec<u8> },
@@ -46,12 +48,17 @@ pub(crate) fn page_marks(
         return Ok(marks);
     }
 
-    // Snap-to-text highlights: verbatim text from the device.
+    // Snap-to-text highlights: verbatim text from the device. Prefer the exact
+    // recorded color (`color_rgba`); fall back to the palette color.
     for h in text_highlights {
+        let rgb = h
+            .color_rgba
+            .map(crate::theme::rgba_to_rgb)
+            .unwrap_or_else(|| crate::theme::pen_rgb(h.color));
         marks.push(Mark::Highlight {
             page: page_index,
             text: h.text.clone(),
-            color: h.color,
+            rgb,
         });
     }
 
@@ -84,7 +91,7 @@ pub(crate) fn page_marks(
                     marks.push(Mark::Highlight {
                         page: page_index,
                         text,
-                        color: stroke.color,
+                        rgb: crate::theme::pen_rgb(stroke.color),
                     });
                 }
             }
@@ -415,6 +422,7 @@ mod tests {
             text: "hello world".into(),
             rectangles: vec![],
             color: PenColor::Highlight,
+            color_rgba: None,
         };
         let highlights = vec![&highlight];
         let transform = dummy_transform();
@@ -530,8 +538,8 @@ mod tests {
 
         eprintln!("stamped-labels: {} highlight marks", highlights.len());
         for h in &highlights {
-            if let Mark::Highlight { text, color, page } = h {
-                eprintln!("  page={page} color={color:?} text={text:?}");
+            if let Mark::Highlight { text, rgb, page } = h {
+                eprintln!("  page={page} rgb={rgb:?} text={text:?}");
             }
         }
 

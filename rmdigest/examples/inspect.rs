@@ -29,9 +29,9 @@ fn main() -> anyhow::Result<()> {
     println!("\n--- extracted marks ({}) ---", marks.len());
     for m in &marks {
         match m {
-            Mark::Highlight { page, text, color } => {
+            Mark::Highlight { page, text, rgb } => {
                 n_h += 1;
-                println!("  [HL p{:>3} {:?}] {:?}", page + 1, color, text);
+                println!("  [HL p{:>3} rgb{:?}] {:?}", page + 1, rgb, text);
             }
             Mark::Note { page, png } => {
                 n_n += 1;

@@ -31,6 +31,10 @@ pub type TypstDoc = (String, Vec<(String, Vec<u8>)>);
 const CTX_BEFORE: usize = 240;
 const CTX_AFTER: usize = 240;
 
+/// Accent colour (typst expression) for the kicker + vertical bar — a clear blue
+/// that pops against the warm paper better than the pale highlight tint.
+const BLUE: &str = "rgb(54, 110, 190)";
+
 /// Escape for a typst double-quoted string literal.
 fn esc(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
@@ -62,23 +66,6 @@ fn esc_markup(s: &str) -> String {
         out.push(c);
     }
     out
-}
-
-/// Darken a bright pen color so kicker text stays legible on warm paper.
-fn darken(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
-    let bright = (r as u16 + g as u16 + b as u16) / 3;
-    let f = if bright > 200 {
-        0.55
-    } else if bright > 150 {
-        0.75
-    } else {
-        1.0
-    };
-    (
-        (r as f32 * f) as u8,
-        (g as f32 * f) as u8,
-        (b as f32 * f) as u8,
-    )
 }
 
 /// Whitespace-collapsed plain text of every page of `pdf_path`, one entry per
@@ -231,35 +218,37 @@ pub fn build_linked(
     // ── One block per mark ─────────────────────────────────────────────────
     for m in marks {
         match m {
-            Mark::Highlight { page, text, color } => {
-                let (r, g, b) = crate::theme::pen_rgb(*color);
-                let (kr, kg, kb) = darken(r, g, b);
+            Mark::Highlight { page, text, rgb } => {
+                // Wash colour = the device's exact highlighter colour. The kicker
+                // and vertical bar use a fixed blue accent (it pops more than the
+                // pale highlight tint).
+                let (r, g, b) = *rgb;
                 // Locate the highlight in the source text → real page + context.
                 // Fall back to the bundle page index if the text isn't found.
                 let found = find_page(&doc_pages, text);
                 let display_page = found.map(|p| p + 1).unwrap_or(page + 1);
                 let ctx = found.and_then(|p| context(&doc_pages[p], text));
                 s.push_str(&format!(
-                    "#heading(level: 2, outlined: true)[#kick(\"page {pg}\", rgb({kr},{kg},{kb}))]\n",
+                    "#heading(level: 2, outlined: true)[#kick(\"page {pg}\", {BLUE})]\n",
                     pg = display_page,
                 ));
                 // Render the highlight inside its surrounding sentences.
                 match ctx {
                     Some((before, hl, after)) => {
                         s.push_str(&format!(
-                            "#block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + rgb({r},{g},{b}).lighten(20%)))[\n\
-                             #par(leading: 0.66em)[#text(font: \"Newsreader\", size: 11.5pt, fill: rgb(70,70,70))[{bef} #highlight(fill: rgb({r},{g},{b}).lighten(45%), extent: 1pt)[#text(fill: rgb(26,26,26))[{hl}]] {aft}]]]\n",
+                            "#block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + {BLUE}))[\n\
+                             #par(leading: 0.66em)[#text(font: \"Newsreader\", size: 11.5pt, fill: rgb(70,70,70))[{bef} #highlight(fill: rgb({r},{g},{b}), extent: 1pt)[#text(fill: rgb(26,26,26))[{hl}]] {aft}]]]\n",
                             bef = esc_markup(&before),
                             hl = esc_markup(&hl),
                             aft = esc_markup(&after),
                         ));
                     }
                     None => {
-                        // No text layer match — fall back to the bare quote.
+                        // No text layer match — wash the bare quote itself.
                         let lq = '\u{201C}';
                         let rq = '\u{201D}';
                         s.push_str(&format!(
-                            "#block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + rgb({r},{g},{b}).lighten(20%)))[#par(leading: 0.7em)[#text(font: \"Newsreader\", size: 12pt)[{lq}{t}{rq}]]]\n",
+                            "#block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + {BLUE}))[#par(leading: 0.7em)[#text(font: \"Newsreader\", size: 12pt)[#highlight(fill: rgb({r},{g},{b}), extent: 1pt)[{lq}{t}{rq}]]]]\n",
                             t = esc_markup(text),
                         ));
                     }
