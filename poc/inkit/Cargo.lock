@@ -4178,6 +4178,7 @@ dependencies = [
  "inkapp-config",
  "inkapp-content",
  "inkapp-core",
+ "inkapp-harness",
  "inkapp-readwise-reader",
  "serde",
  "tempfile",
