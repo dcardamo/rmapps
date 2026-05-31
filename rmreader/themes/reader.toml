@@ -1,0 +1,15 @@
+# Reader theme — "Indigo + Tomato"
+# Tuned for the Paper Pro colour e-ink: blues/reds hold their colour while ambers
+# and greens wash out, so the chrome is indigo + a tomato accent. Mapped to CSS
+# custom properties (--paper, --ink, ...) at render time; navbg/navfg are read by
+# the nav-bar post-processor.
+paper   = "#F3F1EA"   # warm paper
+ink     = "#1A1A18"   # body text (near-black)
+heading = "#2A2F6B"   # indigo — headlines + section titles
+accent  = "#CF3A2B"   # tomato — kicker, numbers, drop caps, links, Feed nameplate
+muted   = "#5E6166"   # secondary metadata
+byline  = "#9C3A1B"   # rust — article byline (author · site · reading time)
+faint   = "#9D9C93"   # tertiary labels
+rule    = "#E0DDD2"   # hairlines
+navbg   = "#2A2F6B"   # indigo nav-bar fill (per-page nav)
+navfg   = "#F4F1E8"   # light text on the nav bar

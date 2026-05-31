@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rmreader · visuals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Lora:ital,wght@0,400;0,600;1,400&family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     PICKER CHROME — warm-paper, editorial, Claude-desktop-inspired
+     ============================================================ */
+  :root{
+    --chrome-bg:#F4F0E7;        /* warm cream */
+    --chrome-panel:#FBF9F3;
+    --chrome-ink:#23201A;
+    --chrome-muted:#7C7261;
+    --chrome-faint:#A79C88;
+    --chrome-line:#E3DBCB;
+    --chrome-line-strong:#D7CCB6;
+    --clay:#C15F3C;            /* signature accent */
+    --clay-soft:#E9D8CD;
+    --shadow:0 1px 2px rgba(40,30,15,.05), 0 18px 50px -22px rgba(40,30,15,.32);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:"Archivo",system-ui,sans-serif;
+    background:var(--chrome-bg);
+    color:var(--chrome-ink);
+    line-height:1.5;
+    background-image:radial-gradient(rgba(120,90,50,.025) 1px, transparent 1px);
+    background-size:4px 4px;
+    min-height:100vh;
+  }
+  a{color:inherit}
+
+  /* ---- masthead ---- */
+  header.mast{
+    max-width:1280px;margin:0 auto;padding:34px 40px 22px;
+    display:flex;align-items:flex-end;justify-content:space-between;gap:24px;
+    border-bottom:1px solid var(--chrome-line);
+  }
+  .mast .lede{display:flex;flex-direction:column;gap:7px}
+  .mast .eyebrow{font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--clay)}
+  .mast h1{
+    font-family:"Fraunces",serif;font-optical-sizing:auto;
+    font-weight:600;font-size:clamp(30px,4.4vw,52px);line-height:.98;
+    letter-spacing:-.015em;color:var(--chrome-ink);
+  }
+  .mast h1 em{font-style:italic;font-weight:500;color:var(--clay)}
+  .mast .sub{font-size:13.5px;color:var(--chrome-muted);max-width:46ch}
+  .mast .colophon{
+    text-align:right;font-size:11px;letter-spacing:.04em;color:var(--chrome-faint);
+    font-family:"IBM Plex Mono",monospace;line-height:1.7;white-space:nowrap;
+  }
+
+  /* ---- layout ---- */
+  main{max-width:1280px;margin:0 auto;padding:28px 40px 80px;
+    display:grid;grid-template-columns:340px 1fr;gap:38px;align-items:start}
+  @media (max-width:980px){main{grid-template-columns:1fr;gap:30px}}
+
+  /* ---- left rail ---- */
+  .rail{position:sticky;top:24px;display:flex;flex-direction:column;gap:26px}
+  @media (max-width:980px){.rail{position:static}}
+  .group .ghead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+  .group .ghead h2{font-family:"Fraunces",serif;font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .group .ghead .hint{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--chrome-faint)}
+
+  /* palette swatch cards */
+  .swatches{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .swatch{
+    cursor:pointer;border:1px solid var(--chrome-line);background:var(--chrome-panel);
+    border-radius:11px;padding:11px 11px 10px;text-align:left;
+    transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    display:flex;flex-direction:column;gap:9px;position:relative;font:inherit;color:inherit;
+  }
+  .swatch:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+  .swatch.sel{border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)}
+  .swatch .chips{display:flex;height:30px;border-radius:7px;overflow:hidden;border:1px solid rgba(0,0,0,.06)}
+  .swatch .chips i{flex:1;display:block}
+  .swatch .nm{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .swatch .nm small{display:block;font-weight:500;color:var(--chrome-muted);font-size:10.5px;letter-spacing:.02em;margin-top:1px}
+
+  /* font pairing cards */
+  .fonts{display:flex;flex-direction:column;gap:9px}
+  .fontcard{
+    cursor:pointer;border:1px solid var(--chrome-line);background:var(--chrome-panel);
+    border-radius:11px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:14px;
+    transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;font:inherit;color:inherit;text-align:left;
+  }
+  .fontcard:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+  .fontcard.sel{border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)}
+  .fontcard .fc-spec{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .fontcard .fc-name{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--clay)}
+  .fontcard .fc-pair{font-size:11px;color:var(--chrome-muted);font-family:"IBM Plex Mono",monospace;letter-spacing:-.01em}
+  .fontcard .fc-Aa{font-size:30px;line-height:1;letter-spacing:-.02em;flex-shrink:0}
+
+  /* selection readout */
+  .readout{border:1px solid var(--chrome-line-strong);background:var(--chrome-panel);border-radius:12px;overflow:hidden}
+  .readout .rt-head{padding:11px 14px;border-bottom:1px solid var(--chrome-line);display:flex;align-items:center;justify-content:space-between}
+  .readout .rt-head span{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--chrome-faint)}
+  .readout pre{margin:0;padding:13px 14px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.65;color:var(--chrome-ink);white-space:pre-wrap;word-break:break-word;background:transparent}
+  .readout pre .cmt{color:var(--chrome-faint)}
+  .readout pre .key{color:var(--clay)}
+  .copybtn{
+    cursor:pointer;border:1px solid var(--chrome-line-strong);background:var(--chrome-bg);
+    color:var(--chrome-ink);font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.04em;
+    padding:5px 10px;border-radius:7px;transition:background .15s ease,color .15s ease;
+  }
+  .copybtn:hover{background:var(--clay);color:#fff;border-color:var(--clay)}
+
+  /* segmented toggles */
+  .segs{display:flex;border:1px solid var(--chrome-line-strong);border-radius:9px;overflow:hidden;background:var(--chrome-panel)}
+  .segs button{
+    flex:1;cursor:pointer;border:0;background:transparent;color:var(--chrome-muted);
+    font-family:inherit;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    padding:8px 10px;transition:background .15s ease,color .15s ease;white-space:nowrap;
+  }
+  .segs button+button{border-left:1px solid var(--chrome-line)}
+  .segs button.on{background:var(--clay);color:#fff}
+
+  /* ============================================================
+     PREVIEW STAGE
+     ============================================================ */
+  .stage{display:flex;flex-direction:column;gap:22px;min-width:0}
+  .stagebar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;justify-content:space-between}
+  .stagebar .views{display:flex;gap:10px;align-items:center}
+  .stagebar .seglabel{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--chrome-faint);margin-right:2px}
+
+  .pagewrap{display:flex;justify-content:center}
+  .page{
+    --aspect:0.5625;             /* Paper Pro Move 954x1696 */
+    width:min(440px,92vw);aspect-ratio:var(--aspect);
+    background:var(--paper);color:var(--ink);border-radius:6px;
+    box-shadow:0 2px 4px rgba(30,22,10,.10), 0 40px 80px -36px rgba(30,22,10,.55);
+    position:relative;overflow:hidden;border:1px solid rgba(0,0,0,.08);
+    transition:background .25s ease,color .25s ease;display:flex;flex-direction:column;
+  }
+  .page.pro{--aspect:0.75}        /* Paper Pro 1620x2160 */
+  .page::after{
+    content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.5;
+    background-image:radial-gradient(rgba(60,45,25,.05) .5px, transparent .6px);background-size:3px 3px;
+  }
+
+  /* nav bar — mirrors the real PDF per-page nav */
+  .navbar{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:13px 22px 11px;border-bottom:1px solid var(--rule);
+    font-family:var(--meta);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .navbar .nleft,.navbar .nright{display:flex;gap:14px}
+  .navbar a{color:var(--muted);text-decoration:none}
+  .navbar a.home{color:var(--accent);font-weight:600}
+  .navbar .pg{font-family:var(--meta);color:var(--faint);letter-spacing:.1em}
+
+  .canvas{flex:1 1 auto;overflow:hidden;padding:26px 30px 30px}
+
+  /* shared reader type */
+  .kicker{font-family:var(--meta);font-size:9.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:13px}
+  .headline{font-family:var(--display);font-weight:600;line-height:1.04;letter-spacing:-.015em;color:var(--heading);font-size:30px}
+  .page.pro .headline{font-size:34px}
+  .byline{font-family:var(--meta);font-size:11px;color:var(--muted);margin-top:14px;letter-spacing:.02em;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .byline .dot{color:var(--faint)}
+  .byline .who{color:var(--ink);font-weight:600}
+  .hr{height:1px;background:var(--rule);margin:18px 0}
+  .body{font-family:var(--body);font-size:13.5px;line-height:1.62;color:var(--ink)}
+  .body p{margin:0 0 11px}
+  .body p a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:.5px}
+  .body.drop p:first-of-type::first-letter{
+    font-family:var(--display);font-weight:600;color:var(--accent);
+    float:left;font-size:3.05em;line-height:.78;padding:6px 8px 0 0;
+  }
+  .pullquote{
+    font-family:var(--display);font-style:italic;font-weight:500;color:var(--heading);
+    font-size:17px;line-height:1.32;margin:16px 0;padding-left:14px;border-left:2px solid var(--accent);
+  }
+
+  /* CARD view */
+  .cardview{display:flex;flex-direction:column;height:100%}
+  .cardview .idx{font-family:var(--meta);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  .cardview .ctitle{font-family:var(--display);font-weight:600;line-height:1.08;letter-spacing:-.012em;color:var(--heading);font-size:26px;margin-bottom:12px}
+  .cardview .summary{font-family:var(--body);font-size:13px;line-height:1.6;color:var(--ink);opacity:.92}
+  .cardview .meta-row{font-family:var(--meta);font-size:11px;color:var(--muted);display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:14px}
+  .cardview .tag{font-family:var(--meta);font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 9px}
+  .cardview .read{margin-top:18px;align-self:flex-start;font-family:var(--meta);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);text-decoration:none;border-bottom:1.5px solid var(--accent);padding-bottom:2px}
+  .cardview .spacer{flex:1}
+
+  /* INDEX view */
+  .indexview .ititle{font-family:var(--display);font-weight:600;font-size:22px;color:var(--heading);letter-spacing:-.01em;margin-bottom:4px}
+  .indexview .isub{font-family:var(--meta);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .indexrow{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .indexrow .n{font-family:var(--meta);font-size:11px;color:var(--accent);width:18px;flex:0 0 auto;font-weight:600}
+  .indexrow .t{font-family:var(--body);font-size:12.5px;color:var(--ink);line-height:1.32;flex:1}
+  .indexrow .t b{font-weight:600}
+  .indexrow .rt{font-family:var(--meta);font-size:10px;color:var(--muted);flex:0 0 auto;white-space:nowrap}
+
+  /* compare strip */
+  .compare{border-top:1px solid var(--chrome-line);padding-top:24px}
+  .compare h3{font-family:"Fraunces",serif;font-weight:600;font-size:15px;margin-bottom:3px}
+  .compare p{font-size:12px;color:var(--chrome-muted);margin-bottom:16px}
+  .minis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media (max-width:760px){.minis{grid-template-columns:repeat(2,1fr)}}
+  .mini{cursor:pointer;display:flex;flex-direction:column;gap:8px;align-items:center;background:none;border:0;font:inherit;color:inherit;padding:0}
+  .minipage{
+    width:100%;aspect-ratio:0.5625;border-radius:5px;overflow:hidden;position:relative;
+    border:1px solid rgba(0,0,0,.08);box-shadow:0 12px 26px -16px rgba(30,22,10,.5);
+    transition:transform .15s ease, box-shadow .15s ease;padding:14px 13px;display:flex;flex-direction:column;
+  }
+  .mini:hover .minipage{transform:translateY(-3px)}
+  .mini.sel .minipage{outline:2px solid var(--clay);outline-offset:2px}
+  .minipage .mk{font-size:6.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;margin-bottom:6px}
+  .minipage .mh{font-weight:600;line-height:1.05;letter-spacing:-.01em;font-size:13px}
+  .minipage .ml{height:1px;margin:7px 0}
+  .minipage .mb i{display:block;height:4px;border-radius:2px;margin-bottom:4px}
+  .mini .mname{font-size:11px;font-weight:600;color:var(--chrome-ink);letter-spacing:.01em}
+  .mini .mname small{color:var(--chrome-muted);font-weight:500}
+</style>
+</head>
+<body>
+  <header class="mast">
+    <div class="lede">
+      <div class="eyebrow">rmreader · type &amp; colour foundry</div>
+      <h1>The Reading <em>Room</em></h1>
+      <p class="sub">Choose a palette and a typeface pairing for your Readwise → reMarkable PDFs. Everything previews on a Paper&nbsp;Pro&nbsp;Move page — nav bar, summary card, and full article.</p>
+    </div>
+    <div class="colophon">EST. 2026<br>NEPTUNE PRESS<br>e-ink · colour</div>
+  </header>
+
+  <main>
+    <aside class="rail">
+      <div class="group">
+        <div class="ghead"><h2>Palette</h2><span class="hint">paper · ink · accent</span></div>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div class="group">
+        <div class="ghead"><h2>Typeface</h2><span class="hint">display · body</span></div>
+        <div class="fonts" id="fonts"></div>
+      </div>
+      <div class="readout">
+        <div class="rt-head"><span>your selection · reader.toml</span><button class="copybtn" id="copy">Copy</button></div>
+        <pre id="readout"></pre>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <div class="stagebar">
+        <div class="views">
+          <span class="seglabel">View</span>
+          <div class="segs" id="viewsegs">
+            <button data-view="article" class="on">Article</button>
+            <button data-view="card">Card</button>
+            <button data-view="index">Index</button>
+          </div>
+        </div>
+        <div class="views">
+          <span class="seglabel">Device</span>
+          <div class="segs" id="devsegs">
+            <button data-dev="move" class="on">Pro&nbsp;Move</button>
+            <button data-dev="pro">Paper&nbsp;Pro</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pagewrap">
+        <div class="page" id="page">
+          <div class="navbar">
+            <div class="nleft">
+              <a href="#" class="home">⌂ Home</a>
+              <a href="#">‹ Prev</a>
+              <a href="#">Next ›</a>
+            </div>
+            <div class="nright">
+              <a href="#" id="cardlink">↑ Card</a>
+              <span class="pg" id="pgno">p. 14 / 92</span>
+            </div>
+          </div>
+          <div class="canvas" id="canvas"></div>
+        </div>
+      </div>
+
+      <div class="compare">
+        <h3>Compare palettes</h3>
+        <p>Same article, same type — all four palettes side by side. Click to select.</p>
+        <div class="minis" id="minis"></div>
+      </div>
+    </section>
+  </main>
+
+<script>
+/* ---------------- tiny safe DOM helper (no innerHTML) ---------------- */
+function h(tag, props){
+  const e=document.createElement(tag);
+  if(props) for(const k in props){
+    const v=props[k];
+    if(k==='class') e.className=v;
+    else if(k==='style') e.setAttribute('style',v);
+    else if(k==='data'){ for(const d in v) e.dataset[d]=v[d]; }
+    else if(k.slice(0,2)==='on' && typeof v==='function') e.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(v!=null) e.setAttribute(k,v);
+  }
+  for(let i=2;i<arguments.length;i++){
+    const kid=arguments[i];
+    if(kid==null||kid===false) continue;
+    if(Array.isArray(kid)){ kid.forEach(c=>c!=null&&e.append(c.nodeType?c:document.createTextNode(String(c)))); }
+    else e.append(kid.nodeType?kid:document.createTextNode(String(kid)));
+  }
+  return e;
+}
+const setVars=(el,p,f)=>{
+  el.style.setProperty('--paper',p.paper); el.style.setProperty('--ink',p.ink);
+  el.style.setProperty('--heading',p.heading); el.style.setProperty('--accent',p.accent);
+  el.style.setProperty('--muted',p.muted); el.style.setProperty('--faint',p.faint);
+  el.style.setProperty('--rule',p.rule);
+  if(f){ el.style.setProperty('--display',f.display); el.style.setProperty('--body',f.body); el.style.setProperty('--meta',f.meta); }
+};
+
+/* ---------------- DATA ---------------- */
+const PALETTES = {
+  manuscript:{ name:"Manuscript", note:"warm · Claude", paper:"#FAF6EE", ink:"#211D17", heading:"#1A1611", accent:"#C15F3C", muted:"#6B6253", faint:"#9C917C", rule:"#E4DBCA" },
+  newsprint:{ name:"Newsprint", note:"ink red", paper:"#F6F5F1", ink:"#1A1A18", heading:"#111110", accent:"#9E2B1E", muted:"#6E6E68", faint:"#9D9C93", rule:"#DBD9D1" },
+  petrol:{ name:"Petrol", note:"cool slate", paper:"#FAFAF7", ink:"#20262A", heading:"#141A1D", accent:"#1F6F6B", muted:"#5F6B6E", faint:"#97A2A2", rule:"#DDE2DF" },
+  sepia:{ name:"Foundry", note:"sepia book", paper:"#F3EAD9", ink:"#2A2014", heading:"#1F170D", accent:"#9B5A2C", muted:"#6F6151", faint:"#A2917A", rule:"#E0D2BB" }
+};
+const FONTS = {
+  editorial:{ name:"Editorial", display:'"Fraunces"', body:'"Source Serif 4"', meta:'"Archivo"', pair:"Fraunces · Source Serif 4", Aa:'"Fraunces"' },
+  reader:{ name:"Reader", display:'"Fraunces"', body:'"Literata"', meta:'"IBM Plex Mono"', pair:"Fraunces · Literata", Aa:'"Literata"' },
+  classic:{ name:"Classic", display:'"Playfair Display"', body:'"Lora"', meta:'"Archivo"', pair:"Playfair · Lora", Aa:'"Playfair Display"' },
+  journal:{ name:"Journal", display:'"Newsreader"', body:'"Newsreader"', meta:'"Hanken Grotesk"', pair:"Newsreader · Newsreader", Aa:'"Newsreader"' }
+};
+const FONT_FILE = {
+  '"Fraunces"':'Fraunces', '"Source Serif 4"':'SourceSerif4', '"Literata"':'Literata',
+  '"Playfair Display"':'PlayfairDisplay', '"Lora"':'Lora', '"Newsreader"':'Newsreader',
+  '"Archivo"':'Archivo', '"IBM Plex Mono"':'IBMPlexMono', '"Hanken Grotesk"':'HankenGrotesk'
+};
+let state = { pal:"manuscript", font:"reader", view:"article", dev:"move" };
+
+const SAMPLE = {
+  kicker:"Attention",
+  title:"The Quiet Architecture of a Reading Life",
+  who:"Mara Ellison", site:"The Marginalian", rt:"7 min",
+  summary:"We treat reading as consumption — a queue to be cleared. But the most durable readers build rooms, not lists: small, deliberate spaces where a single idea is allowed to stay long enough to change something.",
+  p0:"There is a difference between collecting articles and keeping company with them. The first is a logistics problem; the second is an architecture. A queue grows by accretion, indifferent to what it holds. A reading room is built — chosen, arranged, returned to.",
+  p2:"What changes is not how much you read, but how much of it stays.",
+  quote:"A queue grows by accretion. A reading room is built."
+};
+const INDEX_ITEMS = [
+  ["The Quiet Architecture of a Reading Life","Ellison","7 min"],
+  ["On Slowness and the Engineered Mind","Vohra","11 min"],
+  ["What E-Ink Knows About Patience","Okafor","5 min"],
+  ["The Last Honest Interface","Lindqvist","9 min"],
+  ["Notes Toward a Calmer Inbox","Reyes","6 min"],
+  ["Paper, and the Persistence of Margins","Tanaka","8 min"]
+];
+const dot=()=>h('span',{class:'dot'},'·');
+
+/* ---------------- VIEW BUILDERS (return arrays of nodes) ---------------- */
+function articleView(){
+  const p1 = h('p',null,'The device on your desk is not a faster newspaper. It is, if you let it, a ',
+                h('a',{href:'#'},'place to sit'),
+                ' with one thing at a time, with no banner asking you to subscribe and no related-stories rail tugging at your sleeve.');
+  return [
+    h('div',{class:'kicker'}, SAMPLE.kicker),
+    h('div',{class:'headline'}, SAMPLE.title),
+    h('div',{class:'byline'}, h('span',{class:'who'},SAMPLE.who), dot(), h('span',null,SAMPLE.site), dot(), h('span',null,SAMPLE.rt)),
+    h('div',{class:'hr'}),
+    h('div',{class:'body drop'},
+      h('p',null,SAMPLE.p0),
+      h('div',{class:'pullquote'},SAMPLE.quote),
+      p1,
+      h('p',null,SAMPLE.p2))
+  ];
+}
+function cardView(){
+  return [ h('div',{class:'cardview'},
+    h('div',{class:'idx'},'Item 03 / 92 · Library'),
+    h('div',{class:'spacer'}),
+    h('div',{class:'ctitle'},SAMPLE.title),
+    h('div',{class:'summary'},SAMPLE.summary),
+    h('div',{class:'meta-row'},
+      h('span',{class:'tag'},'Article'),
+      h('span',{class:'who',style:'color:var(--ink);font-weight:600'},SAMPLE.who),
+      dot(), h('span',null,SAMPLE.site), dot(), h('span',null,SAMPLE.rt)),
+    h('a',{class:'read',href:'#'},'Read the article →')
+  )];
+}
+function indexView(){
+  const rows = INDEX_ITEMS.map((it,i)=>
+    h('div',{class:'indexrow'},
+      h('span',{class:'n'}, String(i+1).padStart(2,'0')),
+      h('span',{class:'t'}, h('b',null,it[0]), ' — '+it[1]),
+      h('span',{class:'rt'}, it[2])));
+  return [ h('div',{class:'indexview'},
+    h('div',{class:'ititle'},'Library'),
+    h('div',{class:'isub'}, '92 articles · newest first · '+new Date().toLocaleDateString('en-CA')),
+    rows)];
+}
+
+/* ---------------- RENDER ---------------- */
+function render(){
+  const p = PALETTES[state.pal], f = FONTS[state.font];
+  const page = document.getElementById('page');
+  setVars(page, p, f);
+  page.classList.toggle('pro', state.dev==='pro');
+
+  const canvas = document.getElementById('canvas');
+  const nodes = state.view==='article' ? articleView() : state.view==='card' ? cardView() : indexView();
+  canvas.replaceChildren(...nodes);
+
+  document.getElementById('cardlink').style.visibility = state.view==='article' ? 'visible':'hidden';
+  document.getElementById('pgno').textContent = state.view==='index' ? 'index' : state.view==='card' ? 'card 3' : 'p. 14 / 92';
+
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('sel',s.dataset.pal===state.pal));
+  document.querySelectorAll('.fontcard').forEach(s=>s.classList.toggle('sel',s.dataset.font===state.font));
+  document.querySelectorAll('.mini').forEach(s=>s.classList.toggle('sel',s.dataset.pal===state.pal));
+  document.querySelectorAll('#viewsegs button').forEach(b=>b.classList.toggle('on',b.dataset.view===state.view));
+  document.querySelectorAll('#devsegs button').forEach(b=>b.classList.toggle('on',b.dataset.dev===state.dev));
+  document.querySelectorAll('.mini').forEach(m=>setVars(m.querySelector('.minipage'), PALETTES[m.dataset.pal], f));
+
+  renderReadout();
+}
+
+function renderReadout(){
+  const p = PALETTES[state.pal], f = FONTS[state.font];
+  const c=(t)=>h('span',{class:'cmt'},t), key=(t)=>h('span',{class:'key'},t);
+  const fileList=[...new Set([f.display,f.body,f.meta])].map(x=>FONT_FILE[x]).join(", ");
+  const pre=document.getElementById('readout');
+  pre.replaceChildren(
+    c('# themes/reader.toml — '+p.name),'\n',
+    key('paper'),'   = "'+p.paper+'"\n',
+    key('ink'),'     = "'+p.ink+'"\n',
+    key('heading'),' = "'+p.heading+'"\n',
+    key('accent'),'  = "'+p.accent+'"\n',
+    key('muted'),'   = "'+p.muted+'"\n',
+    key('faint'),'   = "'+p.faint+'"\n',
+    key('rule'),'    = "'+p.rule+'"\n\n',
+    c('# fonts — '+f.name),'\n',
+    key('display'),' = '+f.display+'\n',
+    key('body'),'    = '+f.body+'\n',
+    key('meta'),'    = '+f.meta+'\n',
+    c('# ttf to embed: '+fileList)
+  );
+}
+
+function copyText(){
+  const p = PALETTES[state.pal], f = FONTS[state.font];
+  const txt =
+`# themes/reader.toml — ${p.name}
+paper   = "${p.paper}"
+ink     = "${p.ink}"
+heading = "${p.heading}"
+accent  = "${p.accent}"
+muted   = "${p.muted}"
+faint   = "${p.faint}"
+rule    = "${p.rule}"
+
+# fonts — ${f.name}: display=${f.display} body=${f.body} meta=${f.meta}`;
+  navigator.clipboard&&navigator.clipboard.writeText(txt);
+  const b=document.getElementById('copy'); b.textContent="Copied ✓";
+  setTimeout(()=>{b.textContent="Copy";},1400);
+}
+
+/* ---------------- BUILD CONTROLS ---------------- */
+function buildSwatches(){
+  const wrap=document.getElementById('swatches');
+  wrap.replaceChildren(...Object.entries(PALETTES).map(([id,p])=>
+    h('button',{class:'swatch',data:{pal:id}},
+      h('span',{class:'chips'},
+        h('i',{style:'background:'+p.paper}), h('i',{style:'background:'+p.heading}),
+        h('i',{style:'background:'+p.accent}), h('i',{style:'background:'+p.muted})),
+      h('span',{class:'nm'}, p.name, h('small',null,p.note)))));
+}
+function buildFonts(){
+  const wrap=document.getElementById('fonts');
+  wrap.replaceChildren(...Object.entries(FONTS).map(([id,f])=>
+    h('button',{class:'fontcard',data:{font:id}},
+      h('span',{class:'fc-spec'}, h('span',{class:'fc-name'},f.name), h('span',{class:'fc-pair'},f.pair)),
+      h('span',{class:'fc-Aa',style:'font-family:'+f.Aa+',serif'},'Aa'))));
+}
+function buildMinis(){
+  const wrap=document.getElementById('minis');
+  wrap.replaceChildren(...Object.entries(PALETTES).map(([id,p])=>{
+    const bars=['96%','100%','88%'].map(w=>h('i',{style:'background:'+p.muted+';opacity:.45;width:'+w}));
+    bars.push(h('i',{style:'background:'+p.accent+';opacity:.7;width:42%'}));
+    return h('button',{class:'mini',data:{pal:id}},
+      h('div',{class:'minipage',style:'background:'+p.paper+';color:'+p.ink},
+        h('div',{class:'mk',style:'color:'+p.accent}, SAMPLE.kicker),
+        h('div',{class:'mh',style:'font-family:var(--display),serif;color:'+p.heading}, 'The Quiet Architecture of a Reading Life'),
+        h('div',{class:'ml',style:'background:'+p.rule}),
+        h('div',{class:'mb',style:'font-family:var(--body),serif'}, bars)),
+      h('div',{class:'mname'}, p.name+' ', h('small',null,p.note)));
+  }));
+}
+
+/* ---------------- WIRE ---------------- */
+function wire(){
+  document.getElementById('swatches').addEventListener('click',e=>{const b=e.target.closest('.swatch');if(b){state.pal=b.dataset.pal;render();}});
+  document.getElementById('fonts').addEventListener('click',e=>{const b=e.target.closest('.fontcard');if(b){state.font=b.dataset.font;render();}});
+  document.getElementById('minis').addEventListener('click',e=>{const b=e.target.closest('.mini');if(b){state.pal=b.dataset.pal;render();}});
+  document.getElementById('viewsegs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){state.view=b.dataset.view;render();}});
+  document.getElementById('devsegs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){state.dev=b.dataset.dev;render();}});
+  document.getElementById('copy').addEventListener('click',copyText);
+}
+
+buildSwatches(); buildFonts(); buildMinis(); wire(); render();
+</script>
+</body>
+</html>
