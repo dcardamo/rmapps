@@ -2,8 +2,8 @@
 //! Digest + Annotated PDFs to /tmp/rmd-inspect-out/ for manual QA.
 //!
 //! Usage: nix develop -c cargo run --example inspect -- /path/to/doc.rmdoc
-use rmdigest::digest_doc::DigestMeta;
 use rmdigest::extract::{extract, Mark};
+use rmdigest::linked_doc::DigestMeta;
 use rmdigest::render::compile;
 use rmfiles::Bundle;
 use std::path::PathBuf;
@@ -33,16 +33,17 @@ fn main() -> anyhow::Result<()> {
                 n_h += 1;
                 println!("  [HL p{:>3} rgb{:?}] {:?}", page + 1, rgb, text);
             }
-            Mark::Note { page, png } => {
-                n_n += 1;
-                println!("  [NOTE p{:>3}] {} png bytes", page + 1, png.len());
-            }
-            Mark::InsertedPage { after_page, png } => {
+            Mark::Note {
+                page,
+                source_page,
+                strokes,
+            } => {
                 n_n += 1;
                 println!(
-                    "  [INSERTED after p{:>3}] {} png bytes",
-                    after_page + 1,
-                    png.len()
+                    "  [NOTE bundle p{:>3} src={:?}] {} strokes",
+                    page + 1,
+                    source_page.map(|p| p + 1),
+                    strokes.len()
                 );
             }
         }

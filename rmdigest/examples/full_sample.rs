@@ -4,8 +4,8 @@
 //!
 //! Usage (from ~/git/wt/rmdigest):
 //!   nix develop -c cargo run --example full_sample
-use rmdigest::digest_doc::DigestMeta;
 use rmdigest::extract::{extract, Mark};
+use rmdigest::linked_doc::DigestMeta;
 use rmdigest::render::compile;
 use rmfiles::Bundle;
 use std::path::PathBuf;
@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
         .count();
     let n_notes = marks
         .iter()
-        .filter(|m| matches!(m, Mark::Note { .. } | Mark::InsertedPage { .. }))
+        .filter(|m| matches!(m, Mark::Note { .. }))
         .count();
     let meta = DigestMeta {
         title: "The Stamped Labels Test".into(),

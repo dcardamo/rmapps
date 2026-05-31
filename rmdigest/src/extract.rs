@@ -1,7 +1,6 @@
 //! Turn a bundle's changed pages into an ordered list of digest marks.
 use rmfiles::{Bundle, Stroke, TextHighlight};
 
-use crate::ink::{render_strokes, Background, InkOpts};
 use crate::textlayer::TextLayer;
 
 /// One item destined for the digest.
@@ -14,10 +13,14 @@ pub enum Mark {
         /// recorded one, else the palette color for `color`.
         rgb: (u8, u8, u8),
     },
-    /// A handwritten note (pen ink) on an existing page, rendered to PNG.
-    Note { page: usize, png: Vec<u8> },
-    /// A reMarkable-inserted page (no backing PDF page), rendered full to PNG.
-    InsertedPage { after_page: usize, png: Vec<u8> },
+    /// A handwritten note (pen ink). Carries the raw strokes plus the backing
+    /// source PDF page (`None` for an inserted blank page). The digest flattens
+    /// the strokes onto the page region so circled/underlined content is included.
+    Note {
+        page: usize,
+        source_page: Option<usize>,
+        strokes: Vec<Stroke>,
+    },
 }
 
 /// Classify one page's marks.
@@ -26,27 +29,28 @@ pub enum Mark {
 /// (injected so tests can stub it instead of requiring a real PDF).
 pub(crate) fn page_marks(
     page_index: usize,
-    source_pages: usize,
+    source_page: Option<usize>,
     text_highlights: &[&TextHighlight],
     strokes: &[&Stroke],
     transform: &rmfiles::coords::Transform,
     reconstruct: &dyn Fn(usize, &rmfiles::coords::PdfRect) -> String,
-) -> anyhow::Result<Vec<Mark>> {
+) -> Vec<Mark> {
     let mut marks = Vec::new();
+    let clone_strokes =
+        |sel: &[&Stroke]| -> Vec<Stroke> { sel.iter().map(|s| (*s).clone()).collect() };
 
-    // An inserted page has no backing PDF page — render ALL strokes as a full image.
-    if page_index >= source_pages {
-        let after_page = source_pages.saturating_sub(1);
+    // An inserted blank page has no backing PDF page — keep all strokes as an
+    // ink-only note (nothing to flatten onto).
+    let Some(src) = source_page else {
         if !strokes.is_empty() {
-            let opts = InkOpts {
-                background: Background::White,
-                ..Default::default()
-            };
-            let png = render_strokes(strokes, &opts)?;
-            marks.push(Mark::InsertedPage { after_page, png });
+            marks.push(Mark::Note {
+                page: page_index,
+                source_page: None,
+                strokes: clone_strokes(strokes),
+            });
         }
-        return Ok(marks);
-    }
+        return marks;
+    };
 
     // Snap-to-text highlights: verbatim text from the device. Prefer the exact
     // recorded color (`color_rgba`); fall back to the palette color.
@@ -62,16 +66,13 @@ pub(crate) fn page_marks(
         });
     }
 
-    // Highlighter ink strokes: reconstruct text from geometry.
-    // Pen strokes: collect separately and emit as a single Note.
+    // Highlighter ink strokes: reconstruct text from geometry (against the source
+    // page). Pen strokes: collect and emit as one flattenable Note.
     let mut pen_strokes: Vec<&Stroke> = Vec::new();
-
     for &stroke in strokes {
         if stroke.is_highlighter() {
             // Expand the bbox vertically so the highlight band covers the text
-            // line it overlays. The raw points lie on the ink centre axis, so
-            // we expand by half the ink width (capped at MAX_HALF_H_PT).
-            // Matches the logic in rmreader readback/mod.rs `detect()`.
+            // line it overlays. Matches rmreader readback/mod.rs `detect()`.
             const MAX_HALF_H_PT: f64 = 6.0;
             let ink_half_h_pt = stroke
                 .points
@@ -86,7 +87,7 @@ pub(crate) fn page_marks(
             {
                 bbox.y0 -= half_h;
                 bbox.y1 += half_h;
-                let text = reconstruct(page_index, &bbox);
+                let text = reconstruct(src, &bbox);
                 if !text.is_empty() {
                     marks.push(Mark::Highlight {
                         page: page_index,
@@ -100,44 +101,15 @@ pub(crate) fn page_marks(
         }
     }
 
-    // All pen strokes on this page become a single Note.
     if !pen_strokes.is_empty() {
-        let opts = InkOpts {
-            background: Background::White,
-            ..Default::default()
-        };
-        let png = render_strokes(&pen_strokes, &opts)?;
         marks.push(Mark::Note {
             page: page_index,
-            png,
+            source_page: Some(src),
+            strokes: clone_strokes(&pen_strokes),
         });
     }
 
-    Ok(marks)
-}
-
-/// How many pages of the source PDF to treat as "original" (vs inserted).
-///
-/// Pages at index `>= source_pages` are reMarkable-inserted note-pages. The PDF
-/// page count comes from lopdf, but lopdf can LOAD some real-world PDFs while
-/// failing to enumerate their page tree (returning 0). A literal 0 would
-/// misclassify EVERY annotated page as inserted and silently drop real
-/// highlights, so we fall back to the bundle's page count (treating all pages
-/// as original) whenever the PDF is absent, unparseable, or reports 0 pages.
-pub(crate) fn effective_source_pages(pdf: Option<&[u8]>, bundle_pages: usize) -> usize {
-    match pdf {
-        Some(bytes) => {
-            let n = lopdf::Document::load_mem(bytes)
-                .map(|d| d.get_pages().len())
-                .unwrap_or(0);
-            if n > 0 {
-                n
-            } else {
-                bundle_pages
-            }
-        }
-        None => bundle_pages,
-    }
+    marks
 }
 
 /// Extract marks for the given changed page indices (in `bundle.pages()` order).
@@ -146,8 +118,6 @@ pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> 
     // When there is NO source PDF, treat every page as "original" so glyph
     // highlights still emit `Highlight` rather than `InsertedPage`.
     let pdf_bytes_opt: Option<Vec<u8>> = bundle.source_pdf().map(|b| b.to_vec());
-
-    let source_pages = effective_source_pages(pdf_bytes_opt.as_deref(), bundle.pages().len());
 
     // Build the text layer (for reconstructing highlighter ink → text).
     // If there's no source PDF, use an empty layer (reconstruct always returns "").
@@ -219,7 +189,11 @@ pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> 
             continue;
         };
 
-        let transform = rmfiles::coords::Transform::new(page_size(page.index));
+        // The page's backing source PDF page (None for inserted pages). The
+        // coordinate transform + highlighter-ink text reconstruction key off the
+        // SOURCE page, so they stay correct even when note-pages were inserted.
+        let source_page = page.source_page();
+        let transform = rmfiles::coords::Transform::new(page_size(source_page.unwrap_or(0)));
 
         let text_highlights: Vec<&TextHighlight> = scene.text_highlights();
         let strokes: Vec<&Stroke> = scene.strokes();
@@ -227,7 +201,7 @@ pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> 
         let tl_ref = &textlayer;
         let marks = page_marks(
             page.index,
-            source_pages,
+            source_page,
             &text_highlights,
             &strokes,
             &transform,
@@ -235,7 +209,7 @@ pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> 
                 Some(tl) => tl.words_under(pg, rect),
                 None => String::new(),
             },
-        )?;
+        );
 
         all_marks.extend(marks);
     }
@@ -247,63 +221,6 @@ pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> 
 mod tests {
     use super::*;
     use rmfiles::{Pen, PenColor, Point};
-
-    /// A valid PDF with `n` real pages (lopdf enumerates it).
-    fn pdf_with_pages(n: usize) -> Vec<u8> {
-        use lopdf::{dictionary, Document, Object};
-        let mut doc = Document::with_version("1.5");
-        let pages_id = doc.new_object_id();
-        let kids: Vec<Object> = (0..n)
-            .map(|_| {
-                doc.add_object(dictionary! {
-                    "Type" => "Page", "Parent" => pages_id,
-                    "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
-                })
-                .into()
-            })
-            .collect();
-        let count = kids.len() as i64;
-        doc.objects.insert(
-            pages_id,
-            Object::Dictionary(dictionary! {
-                "Type" => "Pages", "Kids" => kids, "Count" => count,
-            }),
-        );
-        let catalog = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
-        doc.trailer.set("Root", catalog);
-        let mut buf = Vec::new();
-        doc.save_to(&mut buf).unwrap();
-        buf
-    }
-
-    #[test]
-    fn source_pages_uses_real_count_for_normal_pdf() {
-        let pdf = pdf_with_pages(3);
-        assert_eq!(effective_source_pages(Some(&pdf), 99), 3);
-    }
-
-    #[test]
-    fn source_pages_falls_back_when_no_pdf() {
-        assert_eq!(effective_source_pages(None, 42), 42);
-    }
-
-    #[test]
-    fn source_pages_falls_back_on_unparseable_pdf() {
-        assert_eq!(effective_source_pages(Some(b"not a pdf at all"), 42), 42);
-    }
-
-    #[test]
-    fn source_pages_falls_back_when_lopdf_reports_zero_pages() {
-        // A catalog whose Pages tree has no Kids: lopdf LOADS it but get_pages()
-        // returns 0. This is the real-world case (a 447-page manual lopdf can load
-        // but not enumerate) that previously dropped every highlight.
-        let pdf = pdf_with_pages(0);
-        // Sanity: lopdf does load it, and reports 0 pages.
-        let doc = lopdf::Document::load_mem(&pdf).expect("lopdf loads 0-page pdf");
-        assert_eq!(doc.get_pages().len(), 0);
-        // The helper must NOT return 0 — it falls back to the bundle page count.
-        assert_eq!(effective_source_pages(Some(&pdf), 447), 447);
-    }
 
     fn make_pen_stroke() -> Stroke {
         Stroke {
@@ -360,59 +277,55 @@ mod tests {
         rmfiles::coords::Transform::new((612.0, 792.0))
     }
 
-    // A pen stroke on a normal page → exactly one Note with non-empty PNG.
+    // A pen stroke on a real page → one Note carrying the strokes + source page.
     #[test]
     fn pen_stroke_gives_note() {
         let stroke = make_pen_stroke();
         let strokes = vec![&stroke];
         let transform = dummy_transform();
-        let marks = page_marks(0, 1, &[], &strokes, &transform, &|_, _| String::new()).unwrap();
+        let marks = page_marks(0, Some(7), &[], &strokes, &transform, &|_, _| String::new());
         let notes: Vec<_> = marks
             .iter()
             .filter(|m| matches!(m, Mark::Note { .. }))
             .collect();
         assert_eq!(notes.len(), 1, "expected exactly one Note");
-        if let Mark::Note { png, .. } = &notes[0] {
-            assert!(!png.is_empty(), "PNG should be non-empty");
+        if let Mark::Note {
+            source_page,
+            strokes,
+            ..
+        } = &notes[0]
+        {
+            assert_eq!(*source_page, Some(7), "note keeps its source page");
+            assert_eq!(strokes.len(), 1, "note carries the pen stroke");
         }
-        let highlights: Vec<_> = marks
+        let highlights = marks
             .iter()
             .filter(|m| matches!(m, Mark::Highlight { .. }))
-            .collect();
-        assert_eq!(
-            highlights.len(),
-            0,
-            "expected no highlights from pen stroke"
-        );
+            .count();
+        assert_eq!(highlights, 0, "expected no highlights from pen stroke");
     }
 
-    // page_index >= source_pages → InsertedPage, no highlights.
+    // An inserted page (source_page None) → one ink-only Note, no highlights.
     #[test]
-    fn inserted_page_when_index_exceeds_source() {
+    fn inserted_page_note_has_no_source() {
         let stroke = make_pen_stroke();
         let strokes = vec![&stroke];
         let transform = dummy_transform();
-        let marks = page_marks(5, 2, &[], &strokes, &transform, &|_, _| String::new()).unwrap();
+        let marks = page_marks(5, None, &[], &strokes, &transform, &|_, _| String::new());
 
-        let inserted: Vec<_> = marks
+        let notes: Vec<_> = marks
             .iter()
-            .filter(|m| matches!(m, Mark::InsertedPage { .. }))
+            .filter(|m| matches!(m, Mark::Note { .. }))
             .collect();
-        assert_eq!(inserted.len(), 1, "expected exactly one InsertedPage");
-        if let Mark::InsertedPage { after_page, png } = &inserted[0] {
-            assert_eq!(*after_page, 1, "after_page should be source_pages - 1 = 1");
-            assert!(!png.is_empty(), "PNG should be non-empty");
+        assert_eq!(notes.len(), 1, "expected exactly one Note");
+        if let Mark::Note { source_page, .. } = &notes[0] {
+            assert_eq!(*source_page, None, "inserted page has no source");
         }
-
-        let highlights: Vec<_> = marks
+        let highlights = marks
             .iter()
             .filter(|m| matches!(m, Mark::Highlight { .. }))
-            .collect();
-        assert_eq!(
-            highlights.len(),
-            0,
-            "expected no highlights for inserted page"
-        );
+            .count();
+        assert_eq!(highlights, 0, "expected no highlights for inserted page");
     }
 
     // TextHighlight → verbatim Highlight (reconstruct never called).
@@ -426,10 +339,9 @@ mod tests {
         };
         let highlights = vec![&highlight];
         let transform = dummy_transform();
-        let marks = page_marks(0, 1, &highlights, &[], &transform, &|_, _| {
+        let marks = page_marks(0, Some(0), &highlights, &[], &transform, &|_, _| {
             panic!("reconstruct should not be called for TextHighlight")
-        })
-        .unwrap();
+        });
 
         assert_eq!(marks.len(), 1);
         if let Mark::Highlight { text, .. } = &marks[0] {
@@ -445,10 +357,9 @@ mod tests {
         let stroke = make_highlighter_stroke();
         let strokes = vec![&stroke];
         let transform = dummy_transform();
-        let marks = page_marks(0, 1, &[], &strokes, &transform, &|_, _| {
+        let marks = page_marks(0, Some(0), &[], &strokes, &transform, &|_, _| {
             "REBUILT".to_string()
-        })
-        .unwrap();
+        });
 
         let hl: Vec<_> = marks
             .iter()
@@ -466,7 +377,7 @@ mod tests {
         let stroke = make_highlighter_stroke();
         let strokes = vec![&stroke];
         let transform = dummy_transform();
-        let marks = page_marks(0, 1, &[], &strokes, &transform, &|_, _| String::new()).unwrap();
+        let marks = page_marks(0, Some(0), &[], &strokes, &transform, &|_, _| String::new());
 
         let hl: Vec<_> = marks
             .iter()

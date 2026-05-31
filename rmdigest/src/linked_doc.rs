@@ -12,16 +12,28 @@
 //!
 //! Notes (pen ink) are still embedded as cropped images. Pen handwriting is not
 //! transcribed (image-only, by design).
+use std::path::Path;
 use std::process::Command;
 
-use anyhow::Context;
-use rmfiles::Bundle;
+use anyhow::{anyhow, Context};
+use rmfiles::{Bundle, Stroke};
 
 use crate::device::Device;
 use crate::extract::Mark;
+use crate::ink::{ink_bbox, render_strokes, render_strokes_on_canvas, Background, InkOpts};
 
-/// Metadata shown on the cover.
-pub use crate::digest_doc::DigestMeta;
+/// DPI at which note pages are rasterized for flattening. A stroke point in the
+/// 226-dpi device scene maps to `scene * RASTER_DPI / 226` pixels.
+const RASTER_DPI: f32 = 150.0;
+
+/// Metadata shown on the digest cover page.
+pub struct DigestMeta {
+    pub title: String,
+    pub author: String,
+    pub n_highlights: usize,
+    pub n_notes: usize,
+    pub date_range: String,
+}
 
 /// Compiled typst source plus its image assets (`(virtual_path, png_bytes)`).
 pub type TypstDoc = (String, Vec<(String, Vec<u8>)>);
@@ -155,6 +167,93 @@ fn context(text: &str, highlight: &str) -> Option<(String, String, String)> {
     Some((before, highlighted, after))
 }
 
+/// Rasterize one 1-based page of the PDF at `RASTER_DPI` to a PNG.
+fn rasterize_page(pdf_path: &Path, page_1based: usize) -> anyhow::Result<Vec<u8>> {
+    let tmp = tempfile::tempdir()?;
+    let prefix = tmp.path().join("p");
+    let n = page_1based.to_string();
+    let dpi = (RASTER_DPI as u32).to_string();
+    let st = Command::new("pdftoppm")
+        .args([
+            "-f",
+            &n,
+            "-l",
+            &n,
+            "-png",
+            "-singlefile",
+            "-r",
+            &dpi,
+            pdf_path.to_str().unwrap(),
+            prefix.to_str().unwrap(),
+        ])
+        .status()
+        .context("spawn pdftoppm")?;
+    if !st.success() {
+        return Err(anyhow!("pdftoppm failed for page {page_1based}"));
+    }
+    std::fs::read(prefix.with_extension("png")).context("read page png")
+}
+
+/// Flatten `strokes` onto the source page region they cover: rasterize the page,
+/// draw the ink on top, and crop to the ink bbox (+ margin). Anything the user
+/// circled or underlined comes along, because it's within that region.
+fn flatten_note(
+    pdf_path: &Path,
+    page_1based: usize,
+    strokes: &[&Stroke],
+) -> anyhow::Result<Vec<u8>> {
+    let page_png = rasterize_page(pdf_path, page_1based)?;
+    let mut page = tiny_skia::Pixmap::decode_png(&page_png).context("decode page png")?;
+    let (w, h) = (page.width(), page.height());
+
+    // Stroke scene coords → page pixels: px = scene_x*scale + W/2, py = scene_y*scale.
+    let scale = RASTER_DPI / 226.0;
+    let origin = (-(w as f32 / 2.0) / scale, 0.0);
+    let opts = InkOpts {
+        background: Background::Transparent,
+        scale,
+        margin_px: 0,
+    };
+    let overlay_png = render_strokes_on_canvas(strokes, origin, w, h, &opts)?;
+    let overlay = tiny_skia::Pixmap::decode_png(&overlay_png).context("decode overlay")?;
+    page.draw_pixmap(
+        0,
+        0,
+        overlay.as_ref(),
+        &tiny_skia::PixmapPaint::default(),
+        tiny_skia::Transform::identity(),
+        None,
+    );
+
+    // Crop to the VERTICAL range the ink spans (+ a small margin), at FULL page
+    // width. This captures everything "in between" the user's marks — circled
+    // content, and the lines they bracketed/underlined beside the text — rather
+    // than just the thin strip the strokes themselves occupy.
+    let (_minx, miny, _maxx, maxy) = ink_bbox(strokes).ok_or_else(|| anyhow!("no ink"))?;
+    let to_y = |sy: f32| sy * scale;
+    let m = (RASTER_DPI * 0.12) as i64;
+    let cy0 = ((to_y(miny) as i64) - m).clamp(0, h as i64) as u32;
+    let cy1 = ((to_y(maxy) as i64) + m).clamp(0, h as i64) as u32;
+    let (cx0, cw) = (0u32, w);
+    let ch = cy1.saturating_sub(cy0).max(1);
+
+    let composited = page.encode_png().context("encode composited")?;
+    let img = image::load_from_memory(&composited).context("load composited")?;
+    let cropped = image::imageops::crop_imm(&img, cx0, cy0, cw, ch).to_image();
+    let mut out = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(cropped).write_to(&mut out, image::ImageFormat::Png)?;
+    Ok(out.into_inner())
+}
+
+/// Render `strokes` alone on white (for notes on inserted blank pages).
+fn ink_only(strokes: &[&Stroke]) -> anyhow::Result<Vec<u8>> {
+    let opts = InkOpts {
+        background: Background::White,
+        ..Default::default()
+    };
+    render_strokes(strokes, &opts)
+}
+
 /// Build the digest typst source + image assets.
 pub fn build_linked(
     meta: &DigestMeta,
@@ -162,16 +261,18 @@ pub fn build_linked(
     bundle: &Bundle,
     device: &Device,
 ) -> anyhow::Result<TypstDoc> {
-    // Extract the whole source PDF's text once (one page per entry) so each
-    // highlight can be located by its text, independent of bundle page indices.
+    // Stage the source PDF once: its whole text (for locating highlights) and
+    // its path (for rasterizing note pages to flatten ink onto).
     let tmp = tempfile::tempdir()?;
-    let doc_pages: Vec<String> = if let Some(pdf) = bundle.source_pdf() {
-        let p = tmp.path().join("source.pdf");
-        std::fs::write(&p, pdf).context("stage source pdf")?;
-        document_pages(&p)
-    } else {
-        Vec::new()
-    };
+    let (pdf_path, doc_pages): (Option<std::path::PathBuf>, Vec<String>) =
+        if let Some(pdf) = bundle.source_pdf() {
+            let p = tmp.path().join("source.pdf");
+            std::fs::write(&p, pdf).context("stage source pdf")?;
+            let pages = document_pages(&p);
+            (Some(p), pages)
+        } else {
+            (None, Vec::new())
+        };
 
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     let mut s = String::new();
@@ -257,17 +358,28 @@ pub fn build_linked(
                     "#v(8pt)\n#line(length: 22%, stroke: 0.4pt + rgb(200,200,200))\n#v(2pt)\n",
                 );
             }
-            Mark::Note { page, png }
-            | Mark::InsertedPage {
-                after_page: page,
-                png,
+            Mark::Note {
+                page,
+                source_page,
+                strokes,
             } => {
+                let refs: Vec<&Stroke> = strokes.iter().collect();
+                // Flatten onto the backing source page (so circled content is
+                // included); fall back to ink-only for inserted blank pages or if
+                // rasterization fails.
+                let png = match (&pdf_path, *source_page) {
+                    (Some(path), Some(sp)) => {
+                        flatten_note(path, sp + 1, &refs).or_else(|_| ink_only(&refs))?
+                    }
+                    _ => ink_only(&refs)?,
+                };
+                let display_page = source_page.map(|p| p + 1).unwrap_or(page + 1);
                 let name = format!("/assets/note-{}.png", assets.len());
-                assets.push((name.clone(), png.clone()));
+                assets.push((name.clone(), png));
                 s.push_str(&format!(
-                    "#heading(level: 3, outlined: true)[#kick(\"page {pg} · note\", rgb(120,120,120))]\n\
+                    "#heading(level: 3, outlined: true)[#kick(\"page {pg} · note\", {BLUE})]\n\
                      #block(stroke: 0.5pt + rgb(200,200,200), inset: 5pt, radius: 2pt)[#image(\"{name}\", width: 100%)]\n#v(8pt)\n",
-                    pg = page + 1, name = name,
+                    pg = display_page, name = name,
                 ));
             }
         }

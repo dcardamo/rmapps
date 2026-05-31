@@ -10,9 +10,9 @@ use std::path::Path;
 
 use crate::config::Config;
 use crate::deploy::{Backend, CloudDoc};
-use crate::digest_doc::DigestMeta;
 use crate::extract::{extract, Mark};
 use crate::ingest::ingest;
+use crate::linked_doc::DigestMeta;
 use crate::render::compile;
 use crate::state::State;
 
@@ -145,7 +145,7 @@ pub fn digest_meta(bundle: &rmfiles::Bundle, marks: &[Mark]) -> DigestMeta {
 
     let n_notes = marks
         .iter()
-        .filter(|m| matches!(m, Mark::Note { .. } | Mark::InsertedPage { .. }))
+        .filter(|m| matches!(m, Mark::Note { .. }))
         .count();
 
     DigestMeta {
@@ -238,7 +238,7 @@ mod tests {
             .count();
         let exp_n = marks
             .iter()
-            .filter(|m| matches!(m, Mark::Note { .. } | Mark::InsertedPage { .. }))
+            .filter(|m| matches!(m, Mark::Note { .. }))
             .count();
         assert_eq!(meta.n_highlights, exp_hl);
         assert_eq!(meta.n_notes, exp_n);
