@@ -19,11 +19,13 @@
 #![warn(missing_docs)]
 
 pub mod bundle;
+pub mod coords;
 mod error;
 mod geometry;
 mod scene;
 
 pub use bundle::{Bundle, Metadata, Page};
+pub use coords::{PdfRect, Transform};
 pub use error::{Error, Result};
 pub use geometry::{Point, Rect, SCREEN_DPI, SCREEN_HEIGHT, SCREEN_WIDTH};
 pub use scene::{Pen, PenColor, Scene, SceneItem, Stroke, TextHighlight};
