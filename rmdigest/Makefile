@@ -3,6 +3,7 @@ test:
 	nix develop -c cargo test
 build:
 	nix build
+# the `visual` test target is created in a later task; inert until then.
 update-goldens:
 	nix develop -c env RMDIGEST_UPDATE_GOLDENS=1 cargo test --test visual
 fmt:

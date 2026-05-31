@@ -59,6 +59,9 @@ impl Config {
     }
 
     pub fn validate(&self) -> anyhow::Result<()> {
+        if self.device.is_empty() {
+            anyhow::bail!("device must not be empty");
+        }
         if self.watched_paths.is_empty() {
             anyhow::bail!("watched_paths must not be empty");
         }
@@ -91,6 +94,16 @@ watched_paths = ["/Books", "/Documents"]
         let c = Config {
             device: "x".into(),
             watched_paths: vec![],
+            deploy: Default::default(),
+            output: Default::default(),
+        };
+        assert!(c.validate().is_err());
+    }
+    #[test]
+    fn rejects_empty_device() {
+        let c = Config {
+            device: "".into(),
+            watched_paths: vec!["/Books".into()],
             deploy: Default::default(),
             output: Default::default(),
         };
