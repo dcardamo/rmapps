@@ -107,4 +107,15 @@ watched_paths = ["/Books", "/Documents"]
         c.deploy.backend = "ftp".into();
         assert!(c.validate().is_err());
     }
+    #[test]
+    fn rejects_equal_suffixes() {
+        let mut c = Config {
+            device: "x".into(),
+            watched_paths: vec!["/Books".into()],
+            deploy: Default::default(),
+            output: Default::default(),
+        };
+        c.output.digest_suffix = c.output.annotated_suffix.clone();
+        assert!(c.validate().is_err());
+    }
 }
