@@ -32,6 +32,14 @@ struct Cli {
     /// current month so only the current + future months sync.
     #[arg(long)]
     from_month: Option<u32>,
+    /// Sync ONLY this month's notebook (1..=12): upsert it (create, then
+    /// content-only refresh so handwriting survives). Every other month is left
+    /// completely alone — not uploaded, not deleted. The future log, collection,
+    /// and reference are uploaded only if they don't already exist (existing
+    /// copies are never re-pushed). Takes precedence over `--from-month`. The
+    /// saturn job passes the current month.
+    #[arg(long)]
+    only_month: Option<u32>,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -103,22 +111,25 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
             let out_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
             // Reuse cached feeds unless --refresh-feeds was passed.
             let mut paths = generate::generate_year(&config, &out_dir, refresh_feeds)?;
+            if let Some(only) = cli.only_month {
+                anyhow::ensure!(
+                    (1..=12).contains(&only),
+                    "--only-month must be 1..=12 (got {only})"
+                );
+            }
             // `--from-month N` drops monthly notebooks before month N from the
             // UPLOAD set only (they are still generated on disk). Past months
             // thus stop syncing once they're behind the current month, while the
             // existing on-device copies are left untouched. Non-monthly notebooks
-            // (future log, collection, reference) are always kept.
-            if let Some(from) = cli.from_month {
+            // (future log, collection, reference) are always kept. Skipped when
+            // `--only-month` is set (that mode partitions the paths itself).
+            if let (Some(from), None) = (cli.from_month, cli.only_month) {
                 anyhow::ensure!(
                     (1..=12).contains(&from),
                     "--from-month must be 1..=12 (got {from})"
                 );
                 paths.retain(|p| monthly_pdf_month(p).is_none_or(|m| m >= from));
             }
-            // Upsert the remaining PDFs: create on first run, content-only refresh
-            // afterwards so on-device handwriting is preserved, and mkdir the
-            // folder lazily. `--target` overrides the cloud folder (e.g. `/2026`);
-            // otherwise the year subfolder under deploy.base_folder.
             match config.deploy.backend.as_str() {
                 "none" => {}
                 "rmapi" => {
@@ -129,11 +140,43 @@ pub fn run(args: Vec<String>) -> anyhow::Result<()> {
                         }
                     };
                     let runner = deploy::rmapi::ProcessRmapi::new()?;
-                    deploy::rmapi::RmapiDeployer::new(target_folder, runner).upsert(&paths)?;
+                    let deployer = deploy::rmapi::RmapiDeployer::new(target_folder, runner);
+                    if let Some(only) = cli.only_month {
+                        // ONLY-MONTH mode: upsert just this month's notebook
+                        // (create, then content-only refresh preserving ink);
+                        // every other month is left completely alone (not
+                        // uploaded, not deleted). The future log / collection /
+                        // reference are created only if missing — existing copies
+                        // are never re-pushed, so on-device edits survive.
+                        let month_pdfs: Vec<_> = paths
+                            .iter()
+                            .filter(|p| monthly_pdf_month(p) == Some(only))
+                            .cloned()
+                            .collect();
+                        let extras: Vec<_> = paths
+                            .iter()
+                            .filter(|p| monthly_pdf_month(p).is_none())
+                            .cloned()
+                            .collect();
+                        deployer.upsert(&month_pdfs)?;
+                        deployer.create_if_missing(&extras)?;
+                        println!(
+                            "Synced month {only} ({} PDF) + {} extra(s) if missing in {}",
+                            month_pdfs.len(),
+                            extras.len(),
+                            out_dir.display()
+                        );
+                    } else {
+                        // Upsert the whole (optionally from-month-filtered) set:
+                        // create on first run, content-only refresh afterwards so
+                        // on-device handwriting is preserved, mkdir the folder
+                        // lazily.
+                        deployer.upsert(&paths)?;
+                        println!("Regenerated {} PDFs in {}", paths.len(), out_dir.display());
+                    }
                 }
                 other => anyhow::bail!("unsupported deploy backend: {other:?}"),
             }
-            println!("Regenerated {} PDFs in {}", paths.len(), out_dir.display());
             Ok(())
         }
         (None, None, _) => {
@@ -206,6 +249,46 @@ mod tests {
         let cli =
             Cli::try_parse_from(["rmbujo", "/tmp/x/rmbujo.toml", "--from-month", "5"]).unwrap();
         assert_eq!(cli.from_month, Some(5));
+    }
+
+    #[test]
+    fn only_month_parses() {
+        let cli =
+            Cli::try_parse_from(["rmbujo", "/tmp/x/rmbujo.toml", "--only-month", "5"]).unwrap();
+        assert_eq!(cli.only_month, Some(5));
+    }
+
+    #[test]
+    fn only_month_partitions_current_month_and_extras() {
+        // only-month=5: the May notebook is the upsert set; the three extras are
+        // the create-if-missing set; all other months are dropped from both.
+        let all = [
+            "2026 Future Log.pdf",
+            "2026.04 April.pdf",
+            "2026.05 May.pdf",
+            "2026.06 June.pdf",
+            "2026 Collection Template.pdf",
+            "2026 Reference.pdf",
+        ];
+        let month: Vec<&str> = all
+            .iter()
+            .copied()
+            .filter(|n| monthly_pdf_month(Path::new(n)) == Some(5))
+            .collect();
+        let extras: Vec<&str> = all
+            .iter()
+            .copied()
+            .filter(|n| monthly_pdf_month(Path::new(n)).is_none())
+            .collect();
+        assert_eq!(month, vec!["2026.05 May.pdf"]);
+        assert_eq!(
+            extras,
+            vec![
+                "2026 Future Log.pdf",
+                "2026 Collection Template.pdf",
+                "2026 Reference.pdf",
+            ]
+        );
     }
 
     #[test]

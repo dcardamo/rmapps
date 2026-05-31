@@ -82,32 +82,63 @@ impl<R: RmapiRunner> RmapiDeployer<R> {
     /// existence probe checks `<target_folder>/<stem>`. mkdir-chain runs lazily
     /// on the first miss; if every doc already exists it never fires.
     pub fn upsert(&self, paths: &[PathBuf]) -> anyhow::Result<()> {
-        let target = self.target_folder.as_str();
         let mut mkdir_done = false;
         for p in paths {
             let pdf = path_str(p)?;
-            let stem = p
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .ok_or_else(|| anyhow::anyhow!("no file stem: {}", p.display()))?;
-            let probe = if target == "/" {
-                format!("/{stem}")
-            } else {
-                format!("{}/{}", target.trim_end_matches('/'), stem)
-            };
+            let probe = self.cloud_probe(p)?;
             if self.runner.exists(&probe)? {
                 self.runner.run(&self.put_args(pdf, true))?;
             } else {
-                if !mkdir_done {
-                    for dir in folder_chain(target) {
-                        let _ = self.runner.run(&["-ni", "mkdir", dir.as_str()]);
-                    }
-                    mkdir_done = true;
-                }
+                self.ensure_dirs(&mut mkdir_done);
                 self.runner.run(&self.put_args(pdf, false))?;
             }
         }
         Ok(())
+    }
+
+    /// Upload only the PDFs that DON'T already exist in the cloud folder (plain
+    /// `put`, never content-only). Existing docs are left completely untouched —
+    /// no upload at all — so any on-device edits survive. Used for the future
+    /// log / collection / reference, which should appear once and then never be
+    /// re-pushed. mkdir-chain runs lazily on the first miss.
+    pub fn create_if_missing(&self, paths: &[PathBuf]) -> anyhow::Result<()> {
+        let mut mkdir_done = false;
+        for p in paths {
+            let pdf = path_str(p)?;
+            let probe = self.cloud_probe(p)?;
+            if self.runner.exists(&probe)? {
+                continue;
+            }
+            self.ensure_dirs(&mut mkdir_done);
+            self.runner.run(&self.put_args(pdf, false))?;
+        }
+        Ok(())
+    }
+
+    /// The cloud path rmapi would give the doc for local PDF `p` (named after the
+    /// file stem, no `.pdf`) under this deployer's target folder.
+    fn cloud_probe(&self, p: &Path) -> anyhow::Result<String> {
+        let target = self.target_folder.as_str();
+        let stem = p
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow::anyhow!("no file stem: {}", p.display()))?;
+        Ok(if target == "/" {
+            format!("/{stem}")
+        } else {
+            format!("{}/{}", target.trim_end_matches('/'), stem)
+        })
+    }
+
+    /// Lazily `mkdir` the whole target folder chain, once. `done` guards repeats.
+    fn ensure_dirs(&self, done: &mut bool) {
+        if *done {
+            return;
+        }
+        for dir in folder_chain(&self.target_folder) {
+            let _ = self.runner.run(&["-ni", "mkdir", dir.as_str()]);
+        }
+        *done = true;
     }
 }
 

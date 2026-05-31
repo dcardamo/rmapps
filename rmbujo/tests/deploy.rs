@@ -304,6 +304,63 @@ fn upsert_mkdir_runs_only_once_across_mixed_paths() {
 }
 
 #[test]
+fn create_if_missing_skips_existing_and_puts_only_absent() {
+    // May already exists; the two extras do not. create_if_missing must NOT
+    // touch May at all, and must `put` (plain, never content-only) only the
+    // absent extras — so existing on-device docs are never re-pushed.
+    let rec = Recorder::default();
+    rec.existing
+        .borrow_mut()
+        .insert("/2026/2026.05 May".to_string());
+    let d = RmapiDeployer::new("/2026".into(), rec.clone());
+    d.create_if_missing(&[
+        PathBuf::from("/out/2026.05 May.pdf"),
+        PathBuf::from("/out/2026 Future Log.pdf"),
+        PathBuf::from("/out/2026 Reference.pdf"),
+    ])
+    .unwrap();
+    let c = rec.calls.borrow();
+    let puts: Vec<&Vec<String>> = c
+        .iter()
+        .filter(|a| a.contains(&"put".to_string()))
+        .collect();
+    // Exactly the two missing extras get a plain put; none is content-only.
+    assert_eq!(puts.len(), 2, "calls: {c:?}");
+    assert!(puts
+        .iter()
+        .all(|a| !a.contains(&"--content-only".to_string())));
+    assert!(puts
+        .iter()
+        .any(|a| a.iter().any(|s| s.contains("Future Log"))));
+    assert!(puts
+        .iter()
+        .any(|a| a.iter().any(|s| s.contains("Reference"))));
+    // The existing May is never uploaded (no put referencing it).
+    assert!(
+        !c.iter()
+            .any(|a| a.contains(&"put".to_string()) && a.iter().any(|s| s.contains("2026.05 May"))),
+        "existing May must not be re-pushed; calls: {c:?}"
+    );
+}
+
+#[test]
+fn create_if_missing_all_present_does_nothing() {
+    let rec = Recorder::default();
+    rec.existing
+        .borrow_mut()
+        .insert("/2026/2026 Future Log".to_string());
+    let d = RmapiDeployer::new("/2026".into(), rec.clone());
+    d.create_if_missing(&[PathBuf::from("/out/2026 Future Log.pdf")])
+        .unwrap();
+    // Nothing absent → no put, no mkdir.
+    assert!(
+        rec.calls.borrow().is_empty(),
+        "calls: {:?}",
+        rec.calls.borrow()
+    );
+}
+
+#[test]
 fn cloud_target_normalizes_base() {
     assert_eq!(cloud_target("/rmbujo", 2026), "/rmbujo/2026");
     assert_eq!(cloud_target("rmbujo", 2026), "/rmbujo/2026"); // no leading slash
