@@ -88,7 +88,23 @@ fn process_doc(
     let all_pages: Vec<usize> = (0..ing.bundle.pages().len()).collect();
     let marks = extract(&ing.bundle, &all_pages)?;
     let meta = digest_meta(&ing.bundle, &marks);
-    let (digest_pdf, annotated_pdf) = build_both(&meta, &marks, &ing.bundle)?;
+
+    // The Digest is always producible from the marks alone. The Annotated PDF
+    // flattens ink into the SOURCE PDF via lopdf, which can fail on complex
+    // real-world PDFs (page trees lopdf can't manipulate). Treat it as
+    // best-effort: never let an Annotated-assembly failure block the Digest.
+    let (digest_src, assets) = build_digest(&meta, &marks);
+    let digest_pdf = compile(&digest_src, &assets)?;
+    let annotated_pdf = match assemble(&ing.bundle, &meta, &marks) {
+        Ok(pdf) => Some(pdf),
+        Err(e) => {
+            eprintln!(
+                "rmdigest: annotated assembly failed for {} ({e:#}); deploying digest only",
+                doc.path
+            );
+            None
+        }
+    };
 
     if opts.dry_run {
         // Generate but neither upload nor persist state: a dry run must not poison
@@ -105,11 +121,13 @@ fn process_doc(
     std::fs::write(&digest_file, &digest_pdf)?;
     backend.put(&digest_file, &doc.folder, &digest_name)?;
 
-    // Stage and put the annotated PDF.
-    let annot_name = format!("{}{}", meta.title, cfg.output.annotated_suffix);
-    let annot_file = stage.path().join(format!("{}.pdf", annot_name));
-    std::fs::write(&annot_file, &annotated_pdf)?;
-    backend.put(&annot_file, &doc.folder, &annot_name)?;
+    // Stage and put the annotated PDF (only if assembly succeeded).
+    if let Some(annotated_pdf) = &annotated_pdf {
+        let annot_name = format!("{}{}", meta.title, cfg.output.annotated_suffix);
+        let annot_file = stage.path().join(format!("{}.pdf", annot_name));
+        std::fs::write(&annot_file, annotated_pdf)?;
+        backend.put(&annot_file, &doc.folder, &annot_name)?;
+    }
 
     // Persist state only after both uploads succeed, so a crash re-processes.
     prev.cloud_version = doc.version.clone();

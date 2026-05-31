@@ -109,6 +109,30 @@ pub(crate) fn page_marks(
     Ok(marks)
 }
 
+/// How many pages of the source PDF to treat as "original" (vs inserted).
+///
+/// Pages at index `>= source_pages` are reMarkable-inserted note-pages. The PDF
+/// page count comes from lopdf, but lopdf can LOAD some real-world PDFs while
+/// failing to enumerate their page tree (returning 0). A literal 0 would
+/// misclassify EVERY annotated page as inserted and silently drop real
+/// highlights, so we fall back to the bundle's page count (treating all pages
+/// as original) whenever the PDF is absent, unparseable, or reports 0 pages.
+pub(crate) fn effective_source_pages(pdf: Option<&[u8]>, bundle_pages: usize) -> usize {
+    match pdf {
+        Some(bytes) => {
+            let n = lopdf::Document::load_mem(bytes)
+                .map(|d| d.get_pages().len())
+                .unwrap_or(0);
+            if n > 0 {
+                n
+            } else {
+                bundle_pages
+            }
+        }
+        None => bundle_pages,
+    }
+}
+
 /// Extract marks for the given changed page indices (in `bundle.pages()` order).
 pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> {
     // Determine how many pages the source PDF has.
@@ -116,12 +140,7 @@ pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> 
     // highlights still emit `Highlight` rather than `InsertedPage`.
     let pdf_bytes_opt: Option<Vec<u8>> = bundle.source_pdf().map(|b| b.to_vec());
 
-    let source_pages = match &pdf_bytes_opt {
-        Some(pdf) => lopdf::Document::load_mem(pdf)
-            .map(|d| d.get_pages().len())
-            .unwrap_or(0),
-        None => bundle.pages().len(), // fallback: all pages are "original"
-    };
+    let source_pages = effective_source_pages(pdf_bytes_opt.as_deref(), bundle.pages().len());
 
     // Build the text layer (for reconstructing highlighter ink → text).
     // If there's no source PDF, use an empty layer (reconstruct always returns "").
@@ -221,6 +240,63 @@ pub fn extract(bundle: &Bundle, changed: &[usize]) -> anyhow::Result<Vec<Mark>> 
 mod tests {
     use super::*;
     use rmfiles::{Pen, PenColor, Point};
+
+    /// A valid PDF with `n` real pages (lopdf enumerates it).
+    fn pdf_with_pages(n: usize) -> Vec<u8> {
+        use lopdf::{dictionary, Document, Object};
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let kids: Vec<Object> = (0..n)
+            .map(|_| {
+                doc.add_object(dictionary! {
+                    "Type" => "Page", "Parent" => pages_id,
+                    "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+                })
+                .into()
+            })
+            .collect();
+        let count = kids.len() as i64;
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages", "Kids" => kids, "Count" => count,
+            }),
+        );
+        let catalog = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+        doc.trailer.set("Root", catalog);
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+        buf
+    }
+
+    #[test]
+    fn source_pages_uses_real_count_for_normal_pdf() {
+        let pdf = pdf_with_pages(3);
+        assert_eq!(effective_source_pages(Some(&pdf), 99), 3);
+    }
+
+    #[test]
+    fn source_pages_falls_back_when_no_pdf() {
+        assert_eq!(effective_source_pages(None, 42), 42);
+    }
+
+    #[test]
+    fn source_pages_falls_back_on_unparseable_pdf() {
+        assert_eq!(effective_source_pages(Some(b"not a pdf at all"), 42), 42);
+    }
+
+    #[test]
+    fn source_pages_falls_back_when_lopdf_reports_zero_pages() {
+        // A catalog whose Pages tree has no Kids: lopdf LOADS it but get_pages()
+        // returns 0. This is the real-world case (a 447-page manual lopdf can load
+        // but not enumerate) that previously dropped every highlight.
+        let pdf = pdf_with_pages(0);
+        // Sanity: lopdf does load it, and reports 0 pages.
+        let doc = lopdf::Document::load_mem(&pdf).expect("lopdf loads 0-page pdf");
+        assert_eq!(doc.get_pages().len(), 0);
+        // The helper must NOT return 0 — it falls back to the bundle page count.
+        assert_eq!(effective_source_pages(Some(&pdf), 447), 447);
+    }
 
     fn make_pen_stroke() -> Stroke {
         Stroke {
