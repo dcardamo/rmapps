@@ -1,27 +1,15 @@
-//! Deploy seam. `none` is a no-op; `rmapi` uploads (pdf, folder) pairs.
-pub mod local;
-pub mod rmapi;
+//! Bundle-fetch seam.
+//!
+//! rmreader is a pure library now: transport (cloud upload/download) lives in
+//! the `rmapps` binary. The only thing the library still needs from the cloud is
+//! the ability to *fetch* an already-deployed bundle so read-back can inspect
+//! on-device annotations. The caller (rmapps) implements this over the native
+//! cloud client; tests implement it with a fixture path.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use crate::config::Config;
-
-pub trait Deployer: std::fmt::Debug {
-    fn deploy(&self, targets: &[(PathBuf, String)]) -> anyhow::Result<()>;
-    fn refresh(&self, targets: &[(PathBuf, String)]) -> anyhow::Result<()>;
-    /// Download the bundle for `<folder>/<name>` to a stable temp path. `Ok(None)`
-    /// if the document does not exist yet (e.g. first run).
+/// Download the bundle for `<folder>/<name>` to a local path so read-back can
+/// open it. `Ok(None)` if the document does not exist yet (e.g. first run).
+pub trait BundleFetch {
     fn fetch(&self, folder: &str, name: &str) -> anyhow::Result<Option<PathBuf>>;
-    /// Full replace: remove the existing doc (ignored if absent) then upload `pdf`.
-    fn replace(&self, pdf: &Path, folder: &str) -> anyhow::Result<()>;
-}
-
-pub fn get_deployer(config: &Config) -> anyhow::Result<Box<dyn Deployer>> {
-    match config.deploy.backend.as_str() {
-        "none" => Ok(Box::new(local::LocalDeployer)),
-        "rmapi" => Ok(Box::new(rmapi::RmapiDeployer::new(
-            rmapi::ProcessRmapi::new()?,
-        ))),
-        other => anyhow::bail!("unsupported deploy backend: {other:?}"),
-    }
 }

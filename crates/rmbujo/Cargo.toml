@@ -8,10 +8,6 @@ description = "Dot-grid bullet journal PDF generator for reMarkable"
 name = "rmbujo"
 path = "src/lib.rs"
 
-[[bin]]
-name = "rmbujo"
-path = "src/main.rs"
-
 [dependencies]
 # Typst as a library renders the journal PDFs (replacing fulgur/krilla): a clean
 # per-glyph text layer round-trips on the reMarkable, and all chrome (dot grid,
@@ -25,7 +21,6 @@ toml = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 chrono-tz = "0.10"
 iana-time-zone = "0.1"
-clap = { version = "4", features = ["derive"] }
 dialoguer = "0.11"
 anyhow = "1"
 # ICS parsing. ical 0.11 = iCalendar/vCard parser. rrule 0.14 = RFC-5545 recurrence

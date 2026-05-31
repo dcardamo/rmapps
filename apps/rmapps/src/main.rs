@@ -1,17 +1,33 @@
 //! `rmapps` — the single CLI for the reMarkable toolset.
 //!
-//! Subcommands are added incrementally during the monorepo migration:
-//! `auth` (native pairing, no rmapi), then `bujo`/`reader`/`digest` generation,
-//! then `sync` (config-driven orchestration). See the workspace README.
+//! Subcommands:
+//! - `auth`  — native pairing + credential status (no rmapi).
+//! - `bujo`  — generate/deploy bullet-journal PDFs.
+//! - `reader`— pull Readwise Reader collections, read-back, deploy.
+//! - `digest`— summarize reMarkable docs into per-source digests.
+//! - `sync`  — run the config-driven `[[sync]]` tasks once.
+//!
+//! All deploy goes through the native `rm-cloud` client (see `cloud.rs`); rmapi
+//! is gone. Each subcommand constructs one [`cloud::Cloud`] and reuses it.
 
 mod auth;
+mod bujo;
 mod cloud;
+mod config;
+mod digest;
+mod reader;
+mod sync;
+
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "rmapps", version, about)]
 struct Cli {
+    /// Path to the rmapps config (default: <config_dir>/rmapps/config.toml).
+    #[arg(long, global = true)]
+    config: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -20,11 +36,36 @@ struct Cli {
 enum Command {
     /// Pair with the reMarkable cloud and inspect credential status (native; no rmapi).
     Auth(auth::AuthArgs),
+    /// Generate and deploy bullet-journal PDFs.
+    Bujo(bujo::BujoArgs),
+    /// Pull Readwise Reader collections, run read-back, and deploy reader PDFs.
+    Reader,
+    /// Summarize reMarkable docs into per-source digests.
+    Digest(digest::DigestArgs),
+    /// Run the configured `[[sync]]` tasks once.
+    Sync,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let cfg_path = cli.config.as_deref();
     match cli.command {
         Command::Auth(args) => auth::run(args),
+        Command::Bujo(args) => {
+            let cfg = config::load(cfg_path)?;
+            bujo::run(args, &cfg)
+        }
+        Command::Reader => {
+            let cfg = config::load(cfg_path)?;
+            reader::run(&cfg)
+        }
+        Command::Digest(args) => {
+            let cfg = config::load(cfg_path)?;
+            digest::run(args, &cfg)
+        }
+        Command::Sync => {
+            let cfg = config::load(cfg_path)?;
+            sync::run(&cfg)
+        }
     }
 }

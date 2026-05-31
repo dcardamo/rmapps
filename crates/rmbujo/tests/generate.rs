@@ -1,5 +1,4 @@
-use rmbujo::config::{Config, DeployConfig};
-use rmbujo::deploy::{get_deployer, local::LocalDeployer};
+use rmbujo::config::Config;
 use rmbujo::generate::generate_year;
 
 fn tmp_dir() -> std::path::PathBuf {
@@ -30,18 +29,4 @@ fn writes_15_named_pdfs() {
     ] {
         assert!(dir.join(f).exists(), "missing {f}");
     }
-}
-
-#[test]
-fn deployer_none_ok_unknown_errs() {
-    let _: LocalDeployer = LocalDeployer; // type exists
-    assert!(get_deployer(&Config::new(2026)).is_ok());
-    let bad = Config {
-        deploy: DeployConfig {
-            backend: "rmapi".into(),
-            base_folder: String::new(),
-        },
-        ..Config::new(2026)
-    };
-    assert!(get_deployer(&bad).is_err());
 }

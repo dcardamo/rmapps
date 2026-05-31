@@ -6,20 +6,20 @@ pub use classify::{classify, Plan, StrokeHit, TextHit};
 pub use rmfiles::coords::{PdfRect, Transform};
 pub use textlayer::{TextLayer, Word};
 
-use crate::deploy::Deployer;
+use crate::deploy::BundleFetch;
 use crate::readwise::{self, ActionKind, HttpTransport};
 
 /// Read on-device annotations for one collection and apply them to Readwise.
 /// Best-effort: returns the executed Plan; per-op failures are logged, not fatal.
 /// First run / no doc / no embedded manifest -> Ok(Plan::default()), a clean no-op.
 pub fn sync_collection(
-    deployer: &dyn Deployer,
+    fetcher: &dyn BundleFetch,
     transport: &dyn HttpTransport,
     token: &str,
     folder: &str,
     name: &str,
 ) -> anyhow::Result<Plan> {
-    let Some(bundle_path) = deployer.fetch(folder, name)? else {
+    let Some(bundle_path) = fetcher.fetch(folder, name)? else {
         return Ok(Plan::default());
     };
     let plan = detect(&bundle_path)?;

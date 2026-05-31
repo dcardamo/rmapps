@@ -8,10 +8,6 @@ description = "Readwise Reader -> reMarkable reader PDFs"
 name = "rmreader"
 path = "src/lib.rs"
 
-[[bin]]
-name = "rmreader"
-path = "src/main.rs"
-
 [dependencies]
 rmfiles = { path = "../rmfiles" }
 typst = "0.14"

@@ -2,21 +2,21 @@
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
-use rmreader::deploy::Deployer;
+use rmreader::deploy::BundleFetch;
 use rmreader::readback::sync_collection;
 use rmreader::readwise::{HttpMethod, HttpResponse, HttpTransport};
 
 // ---------------------------------------------------------------------------
-// FakeDeployer — configurable fetch result; deploy/refresh/replace are no-ops.
+// FakeFetch — configurable fetch result for the BundleFetch seam.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
-struct FakeDeployer {
+struct FakeFetch {
     /// What `fetch` returns.
     fetch_result: Option<PathBuf>,
 }
 
-impl FakeDeployer {
+impl FakeFetch {
     fn none() -> Self {
         Self { fetch_result: None }
     }
@@ -27,18 +27,9 @@ impl FakeDeployer {
     }
 }
 
-impl Deployer for FakeDeployer {
-    fn deploy(&self, _targets: &[(PathBuf, String)]) -> anyhow::Result<()> {
-        Ok(())
-    }
-    fn refresh(&self, _targets: &[(PathBuf, String)]) -> anyhow::Result<()> {
-        Ok(())
-    }
+impl BundleFetch for FakeFetch {
     fn fetch(&self, _folder: &str, _name: &str) -> anyhow::Result<Option<PathBuf>> {
         Ok(self.fetch_result.clone())
-    }
-    fn replace(&self, _pdf: &Path, _folder: &str) -> anyhow::Result<()> {
-        Ok(())
     }
 }
 
@@ -82,10 +73,10 @@ impl HttpTransport for RecordingTransport {
 
 #[test]
 fn first_run_no_doc_is_noop() {
-    let deployer = FakeDeployer::none();
+    let fetcher = FakeFetch::none();
     let transport = RecordingTransport::default();
 
-    let plan = sync_collection(&deployer, &transport, "tok", "/Reader", "Library")
+    let plan = sync_collection(&fetcher, &transport, "tok", "/Reader", "Library")
         .expect("sync_collection");
 
     assert_eq!(plan, rmreader::readback::Plan::default());
@@ -115,11 +106,11 @@ fn pipeline_from_real_fixture_reconstructs_content_highlight() {
         return;
     }
 
-    let deployer = FakeDeployer::with_path(fixture.to_path_buf());
+    let fetcher = FakeFetch::with_path(fixture.to_path_buf());
     let transport = RecordingTransport::default();
 
     let plan =
-        sync_collection(&deployer, &transport, "tok", "/Spike", "Spike").expect("sync_collection");
+        sync_collection(&fetcher, &transport, "tok", "/Spike", "Spike").expect("sync_collection");
 
     let calls = transport.calls();
 
