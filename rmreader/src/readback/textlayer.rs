@@ -1,6 +1,6 @@
 //! Extract the PDF text layer (per-page word boxes) so a highlight stroke's region
 //! can be turned back into the words it covers. Coordinates are PDF points,
-//! origin BOTTOM-LEFT (matching readback::coords).
+//! origin BOTTOM-LEFT (matching rmfiles::coords).
 use std::io::Write as IoWrite;
 
 use rmfiles::coords::PdfRect;
@@ -20,7 +20,7 @@ pub struct TextLayer {
 impl TextLayer {
     /// Run `pdftotext -bbox` on the given PDF bytes and parse word boxes.
     /// The returned coordinates are PDF points, origin BOTTOM-LEFT (y up),
-    /// matching `readback::coords::PdfRect`.
+    /// matching `rmfiles::coords::PdfRect`.
     pub fn extract(pdf: &[u8]) -> anyhow::Result<TextLayer> {
         // Write to a temp file with a .pdf extension so pdftotext recognises it.
         let mut tmp = tempfile::Builder::new()
