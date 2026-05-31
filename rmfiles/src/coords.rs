@@ -127,4 +127,22 @@ mod tests {
         assert!(a.intersects(&b));
         assert!((a.overlap_area(&b) - 25.0).abs() < 1e-9);
     }
+
+    #[test]
+    fn pdf_bbox_empty_is_none() {
+        let t = Transform::new((300.0, 540.0));
+        assert!(t.pdf_bbox(std::iter::empty::<(f64, f64)>()).is_none());
+    }
+
+    #[test]
+    fn pdf_bbox_two_points_gives_correct_bounds() {
+        let t = Transform::new((300.0, 540.0));
+        // 226 device units = 72 pt. (-226,0) -> (150-72, 540) = (78, 540);
+        // (226,226) -> (150+72, 540-72) = (222, 468). So bbox x 78..222, y 468..540.
+        let bbox = t.pdf_bbox([(-226.0f64, 0.0), (226.0, 226.0)]).unwrap();
+        assert!((bbox.x0 - 78.0).abs() < 1e-6, "x0={}", bbox.x0);
+        assert!((bbox.x1 - 222.0).abs() < 1e-6, "x1={}", bbox.x1);
+        assert!((bbox.y0 - 468.0).abs() < 1e-6, "y0={}", bbox.y0);
+        assert!((bbox.y1 - 540.0).abs() < 1e-6, "y1={}", bbox.y1);
+    }
 }
