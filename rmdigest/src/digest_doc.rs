@@ -375,4 +375,33 @@ mod tests {
         assert!(src.contains("/assets/img-0.png"));
         assert!(src.contains("/assets/img-1.png"));
     }
+
+    /// Adversarial injection test: highlight text containing every typst markup-special
+    /// character must compile to a valid PDF without errors or mis-renders.
+    #[test]
+    fn digest_typst_injection_adversarial_text_compiles() {
+        // This string exercises every character that esc_markup escapes:
+        // #  [ ]  *  _  `  <  >  @  =  ~  "  '  $  \
+        let adversarial = r#"C# tips: [see *note*] a_b `code` <tag> @ref =heading ~tilde~ "quote" 'apos' $x$ \ end"#;
+        let meta = DigestMeta {
+            title: r#"C# Book [v2] *Best* _Ever_ $math$ @ref <end>"#.into(),
+            author: r#"O'Brien & "Smith" \ escape"#.into(),
+            n_highlights: 1,
+            n_notes: 0,
+            date_range: r#"Jan~Mar [2026] #special"#.into(),
+        };
+        let marks = vec![Mark::Highlight {
+            page: 0,
+            text: adversarial.into(),
+            color: PenColor::Yellow,
+        }];
+
+        let (src, assets) = build_digest(&meta, &marks);
+        // The source must compile to a valid PDF — any escaping failure causes a
+        // typst compile error here.
+        let pdf_bytes = compile(&src, &assets)
+            .expect("adversarial text must compile: esc_markup covers all typst-special chars");
+        let doc = lopdf::Document::load_mem(&pdf_bytes).expect("valid PDF");
+        assert!(doc.get_pages().len() >= 2, "expected ≥2 pages");
+    }
 }
