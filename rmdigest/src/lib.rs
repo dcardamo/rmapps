@@ -1,5 +1,6 @@
 //! rmdigest — annotation digests for reMarkable PDFs.
 pub mod config;
+pub mod digest_doc;
 pub mod extract;
 pub mod ingest;
 pub mod ink;
