@@ -112,40 +112,53 @@ pub struct MonthlyView<'a> {
     pub month_name: &'a str,
     pub year: i32,
     pub month_num: u32,
-    pub row_pt: f32,
+    /// Dot pitch in pt; each day is placed on a real dot-row centre at this pitch.
+    pub spacing_pt: f32,
     pub days: &'a [DayRow],
 }
 
 impl MonthlyView<'_> {
     pub fn render(&self) -> anyhow::Result<String> {
+        let sp = self.spacing_pt;
+        // Badge sized to fit inside one dot cell (with a little air on each side)
+        // so adjacent days' badges never touch — the overlap bug was a 13pt badge
+        // crammed into a sub-pitch row.
+        let badge_h = sp - 2.5;
         let mut rows = String::new();
-        for d in self.days {
+        for (i, d) in self.days.iter().enumerate() {
             // Sundays/week starts get the indigo number; other days the tomato.
             let numcol = if d.week_start { "primary" } else { "accent" };
             let badge = if d.event_count > 0 {
                 format!(
-                    " #h(6pt) #cbadge({}, label(\"agenda-{}\"))",
+                    " #h(6pt) #cbadge({}, label(\"agenda-{}\"), h: {badge_h}pt)",
                     d.event_count, d.day
                 )
             } else {
                 String::new()
             };
+            // Place an sp-tall row whose centre lands on this day's dot-row centre;
+            // `align(horizon)` then sits the text on the dot line. `top` is the
+            // row's upper edge in absolute page Y (month-page has no top margin).
+            let top = crate::geometry::monthly_row_center(sp, i) - sp / 2.0;
             rows.push_str(&format!(
-                "#block(width: 100%, height: {row}pt, above: 0pt, below: 0pt)[#align(horizon)[\
+                "#place(top + left, dy: {top}pt)[#block(width: 100%, height: {sp}pt)[\
+                 #align(horizon)[\
                  #box(fill: paper, width: 44pt)[#link(label(\"day-{day}\"))[\
                  #box(width: 16pt)[#align(right)[#text(font: \"Hanken Grotesk\", size: num-fs, \
                  weight: 700, fill: {numcol})[{day}]]] #h(6pt) \
-                 #text(font: \"Hanken Grotesk\", size: wd-fs, fill: muted)[{wd}]]]{badge}]]\n",
-                row = self.row_pt,
+                 #text(font: \"Hanken Grotesk\", size: wd-fs, fill: muted)[{wd}]]]{badge}]]]\n",
                 day = d.day,
                 numcol = numcol,
                 wd = esc_markup(d.weekday),
                 badge = badge,
             ));
         }
+        // Masthead tucked into the top toolbar-reserve band (above the first day
+        // row); its paper backdrop keeps it legible over the dots. Fully visible in
+        // reading/navigation mode — only hidden behind the pen toolbar while writing.
         Ok(format!(
-            "#dot-page[\n\
-             #block(above: 0pt, below: half-sp)[#box(fill: paper, inset: (x: 4pt))[\
+            "#month-page[\n\
+             #place(top + left, dy: 4pt)[#box(fill: paper, inset: (x: 4pt))[\
              #text(font: \"Fraunces 72pt\", size: head-fs, weight: 600, fill: primary)[{title} {year}]] \
              #label(\"monthly\")]\n\
              {rows}]\n",

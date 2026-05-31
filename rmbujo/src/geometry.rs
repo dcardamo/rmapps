@@ -41,16 +41,27 @@ pub fn default_grid(device: &Device) -> GridSpec {
     dot_grid(device, DEFAULT_SPACING_MM, DEFAULT_MARGIN_MM)
 }
 
-/// Row height (pt) for the monthly day-list so `num_days` rows fit between the
-/// toolbar reserve and the bottom margin, never exceeding the dot pitch.
-pub fn monthly_row_pt(
-    device: &Device,
-    reserve_pt: f32,
-    header_pt: f32,
-    bottom_margin_pt: f32,
-    num_days: u32,
-) -> f32 {
-    let usable = device.height_pt() - reserve_pt - header_pt - bottom_margin_pt;
-    let fit = usable / num_days as f32;
-    fit.min(default_grid(device).spacing_pt)
+/// The monthly day-list centres each day in the *cell between* two dot rows, at
+/// the device's own pitch, so text sits in the gap and no dot ever cuts through a
+/// glyph (centring *on* a dot row puts the dot in the middle of the number). The
+/// pitch matches the grid exactly, so rows never drift relative to the dots.
+///
+/// `dot_grid`'s phase puts dot-row `k`'s centre at `DOT_CENTER_Y0 + k·spacing` pt
+/// from the page top — see `build_preamble`'s `dot-bg` (tile dot centred at
+/// `(sp/2, sp/2)`, field offset `-0.04 - sp/2`). A day row centred at
+/// `+ (k + 0.5)·spacing` therefore lands halfway between dot rows `k` and `k+1`.
+pub const DOT_CENTER_Y0: f32 = -0.04;
+
+/// Index of the dot row above day 1's cell. Rows 0–2 fall inside the 36pt
+/// toolbar-safe band (which holds the masthead); day 1's cell sits between rows
+/// 3 and 4 (centre ≈47pt, clear of the toolbar). 31 days then occupy cells
+/// 3..=33, with the last cell centre (≈452pt) inside the page (462pt) — the only
+/// way 31 on-grid rows fit one column on the Move, since a dedicated masthead row
+/// would push day 31 off the page.
+pub const MONTHLY_FIRST_ROW: u32 = 3;
+
+/// Y (pt from page top) the i-th day (0-based) is vertically centred on — the
+/// middle of the dot cell below dot row `MONTHLY_FIRST_ROW + i`.
+pub fn monthly_row_center(spacing_pt: f32, i: usize) -> f32 {
+    DOT_CENTER_Y0 + (MONTHLY_FIRST_ROW as f32 + i as f32 + 0.5) * spacing_pt
 }

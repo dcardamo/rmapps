@@ -10,7 +10,7 @@ use std::process::Command;
 
 use rmbujo::calendar::build_month;
 use rmbujo::device::get_device;
-use rmbujo::geometry::{default_grid, monthly_row_pt, TOOLBAR_SAFE_PT};
+use rmbujo::geometry::default_grid;
 use rmbujo::render::render_pdf;
 use rmbujo::templates::{AgendaEvent, Cover, DayEvents, DayRow, FutureLog, MonthlyView, Reference};
 use rmbujo::theme::load_theme;
@@ -92,19 +92,11 @@ fn main() {
             event_count: counts(d.day),
         })
         .collect();
-    let header_pt = 1.75 * grid.spacing_pt;
-    let row_pt = monthly_row_pt(
-        &dev,
-        TOOLBAR_SAFE_PT,
-        header_pt,
-        grid.margin_pt,
-        day_rows.len() as u32,
-    );
     let monthly_view = MonthlyView {
         month_name: "May",
         year: 2026,
         month_num: 5,
-        row_pt,
+        spacing_pt: grid.spacing_pt,
         days: &day_rows,
     }
     .render()

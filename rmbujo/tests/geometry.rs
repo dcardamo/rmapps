@@ -1,5 +1,5 @@
 use rmbujo::device::get_device;
-use rmbujo::geometry::{default_grid, monthly_row_pt, TOOLBAR_SAFE_PT};
+use rmbujo::geometry::{default_grid, monthly_row_center, TOOLBAR_SAFE_PT};
 
 #[test]
 fn move_grid() {
@@ -12,11 +12,17 @@ fn move_grid() {
 }
 
 #[test]
-fn monthly_row_fits_under_reserve() {
+fn monthly_rows_sit_on_grid_and_fit() {
+    // Each day is centred on a real dot-row centre (DOT_CENTER_Y0 + k·sp), so
+    // consecutive days are exactly one dot pitch apart — never sub-pitch.
     let dev = get_device("paper-pro-move").unwrap();
-    let grid = default_grid(&dev);
-    let header = 22.0;
-    let row = monthly_row_pt(&dev, TOOLBAR_SAFE_PT, header, grid.margin_pt, 31);
-    assert!(row > 0.0 && row <= grid.spacing_pt + 0.001);
-    assert!(31.0 * row + header + TOOLBAR_SAFE_PT + grid.margin_pt <= dev.height_pt() + 0.001);
+    let g = default_grid(&dev);
+    let first = monthly_row_center(g.spacing_pt, 0);
+    let second = monthly_row_center(g.spacing_pt, 1);
+    assert!((second - first - g.spacing_pt).abs() < 1e-3);
+
+    // Day 1 clears the toolbar-safe band and day 31's row stays on the page.
+    assert!(first >= TOOLBAR_SAFE_PT);
+    let last = monthly_row_center(g.spacing_pt, 30);
+    assert!(last + g.spacing_pt / 2.0 <= dev.height_pt() + 1e-3);
 }

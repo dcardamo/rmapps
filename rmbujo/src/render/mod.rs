@@ -20,6 +20,13 @@ pub use world::RmWorld;
 /// Compile a Typst source (with `assets` served via `file()` under `/assets/…`)
 /// to PDF bytes.
 pub fn compile_pdf(src: &str, assets: &[(String, Vec<u8>)]) -> anyhow::Result<Vec<u8>> {
+    // Start from a clean memoization cache. Typst memoizes layout/compile results
+    // through comemo's process-global cache; rendering several notebooks in one
+    // process (the whole-year regenerate, or the test binary) otherwise lets a
+    // prior document's cached results bleed into the next, so e.g. the month
+    // index's dot grid lays out with a stale pitch. typst-cli evicts every cycle
+    // for the same reason; we render each document fresh, so evict everything.
+    comemo::evict(0);
     let world = RmWorld::new(src, assets);
     let document = typst::compile::<typst::layout::PagedDocument>(&world)
         .output

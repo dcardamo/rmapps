@@ -73,7 +73,7 @@ fn month_index_shares_device_dot_grid() {
         month_name: "May",
         year: 2026,
         month_num: 5,
-        row_pt: 12.0,
+        spacing_pt: grid.spacing_pt,
         days: &[DayRow {
             day: 1,
             weekday: "Fri",

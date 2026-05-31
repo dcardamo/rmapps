@@ -107,14 +107,34 @@ pub fn build_preamble(device: &Device, grid: &GridSpec, theme: &Palette) -> Stri
 #let wd-fs = {wd_fs}pt
 #let half-sp = {half_sp}pt
 
-// Dot-grid background, device-aligned. A tiling with the dot at the tile centre,
-// painted into an oversized rect placed at the device phase offset.
+// A block-relative dot tiling. Used only for the Future Log's month blocks,
+// whose dot field should restart at each block's top edge (block-relative phase)
+// — there's no row content there to misalign, so a tiling's pixel-quantised step
+// is harmless.
 #let dot-tile = tiling(size: (sp, sp))[
   #place(dx: sp / 2 - 0.5pt, dy: sp / 2 - 0.5pt,
     circle(radius: 0.5pt, fill: dotcol, stroke: none))
 ]
-#let dot-bg = place(top + left, dx: {dot_dx}pt, dy: {dot_dy}pt,
-  rect(width: page-w + sp, height: page-h + sp, fill: dot-tile, stroke: none))
+
+// Page dot-grid background, device-aligned. Dots are placed as explicit vector
+// circles (NOT a `tiling`): a tiling pattern's tile period gets quantised to
+// whole device pixels by PDF rasterisers (poppler, and the reMarkable), so its
+// effective pitch drifts from `sp` — vector content placed at the true `sp`
+// pitch (the monthly day rows) then walks off the dots down the page. Placing
+// each dot individually keeps every dot at its true coordinate, so the grid and
+// any sp-pitched content stay aligned in every renderer. Dot centres sit at
+// (2.22, -0.04) + (i, j)·sp pt from the page corner — the device "Dots Small"
+// phase the old tiling used.
+#let dot-cols = calc.ceil((page-w + sp) / sp)
+#let dot-rows = calc.ceil((page-h + sp) / sp)
+#let dot-bg = place(top + left, dx: {dot_dx}pt, dy: {dot_dy}pt, {{
+  for j in range(dot-rows) {{
+    for i in range(dot-cols) {{
+      place(dx: i * sp + sp / 2 - 0.5pt, dy: j * sp + sp / 2 - 0.5pt,
+        circle(radius: 0.5pt, fill: dotcol, stroke: none))
+    }}
+  }}
+}})
 
 #let cover-grad = gradient.linear(angle: {cover_angle}deg, primary, cover-to)
 
@@ -125,11 +145,22 @@ pub fn build_preamble(device: &Device, grid: &GridSpec, theme: &Palette) -> Stri
 #let dot-page(body) = page(background: dot-bg, body)
 #let cover-page(body) = page(fill: cover-grad, margin: margin-pt, body)
 
+// The month index drops the top/bottom margins so its rows can be `place`d on the
+// real dot-row centres (absolute page Y) — the day list aligns to the grid instead
+// of flowing. The masthead is placed by hand into the top toolbar-reserve band.
+#let month-page(body) = page(
+  background: dot-bg,
+  margin: (top: 0pt, bottom: 0pt, left: margin-pt, right: margin-pt),
+  body,
+)
+
 // Red count badge: a circle for one digit, a pill for two. Links to its target.
-#let cbadge(n, target) = link(target, box(
-  fill: accent, height: 13pt, radius: 6.5pt, inset: (x: 4pt), outset: (y: 0pt),
+// `h` is the badge height (the monthly index passes a smaller value so a badge
+// fits inside one dot cell); the digit scales with it (13pt → 8pt by default).
+#let cbadge(n, target, h: 13pt) = link(target, box(
+  fill: accent, height: h, radius: h / 2, inset: (x: 4pt), outset: (y: 0pt),
   align(center + horizon,
-    text(font: "Hanken Grotesk", size: 8pt, weight: 700, fill: paper, [#n]))))
+    text(font: "Hanken Grotesk", size: h * 8 / 13, weight: 700, fill: paper, [#n]))))
 
 // 7pt rounded colour swatch for a calendar event, keyed by theme colour name.
 #let swatch(name) = box(

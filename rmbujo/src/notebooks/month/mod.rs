@@ -40,23 +40,12 @@ pub fn build_month_pdf(
     let dev = crate::device::get_device(&config.device)?;
     let grid =
         crate::geometry::dot_grid(&dev, config.spacing_mm, crate::geometry::DEFAULT_MARGIN_MM);
-    // h-month: 1.25*sp font-size + 0.5*sp margin-bottom. Named to avoid confusion
-    // with agenda::HEADER_PT (the event-page date header) used later in this fn.
-    let monthly_header_pt = 1.75 * grid.spacing_pt;
-    let row_pt = crate::geometry::monthly_row_pt(
-        &dev,
-        crate::geometry::TOOLBAR_SAFE_PT,
-        monthly_header_pt,
-        grid.margin_pt,
-        day_rows.len() as u32,
-    );
-
     let mut fragments = vec![
         MonthlyView {
             month_name: m.name,
             year: config.year,
             month_num: month,
-            row_pt,
+            spacing_pt: grid.spacing_pt,
             days: &day_rows,
         }
         .render()?,
