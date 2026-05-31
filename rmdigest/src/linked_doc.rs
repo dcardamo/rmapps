@@ -81,18 +81,36 @@ fn darken(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     )
 }
 
-/// Whitespace-collapsed plain text of one 1-based page (via `pdftotext`).
-fn page_text(pdf_path: &std::path::Path, page_1based: usize) -> Option<String> {
-    let n = page_1based.to_string();
-    let out = Command::new("pdftotext")
-        .args(["-f", &n, "-l", &n, pdf_path.to_str().unwrap(), "-"])
+/// Whitespace-collapsed plain text of every page of `pdf_path`, one entry per
+/// page (pages are split on the form-feed `pdftotext` emits between them).
+///
+/// We search the whole document for each highlight's text rather than trusting a
+/// bundle-page → source-page mapping: inserting note-pages on the device shifts
+/// the bundle page indices, but the highlighted *text* still uniquely locates the
+/// real source page (and its surrounding context).
+fn document_pages(pdf_path: &std::path::Path) -> Vec<String> {
+    let out = match Command::new("pdftotext")
+        .args([pdf_path.to_str().unwrap(), "-"])
         .output()
-        .ok()?;
-    if !out.status.success() {
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return Vec::new(),
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .split('\u{000C}') // form feed = page break
+        .map(|p| p.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect()
+}
+
+/// Find the 0-based page index containing `phrase` (case-insensitive).
+fn find_page(pages: &[String], phrase: &str) -> Option<usize> {
+    let needle = phrase.trim().to_lowercase();
+    if needle.is_empty() {
         return None;
     }
-    let raw = String::from_utf8_lossy(&out.stdout);
-    Some(raw.split_whitespace().collect::<Vec<_>>().join(" "))
+    pages
+        .iter()
+        .position(|p| p.to_lowercase().contains(&needle))
 }
 
 /// Nudge a byte index to the nearest char boundary at or before `i`.
@@ -157,25 +175,15 @@ pub fn build_linked(
     bundle: &Bundle,
     device: &Device,
 ) -> anyhow::Result<TypstDoc> {
-    // Stage the source PDF once (if any) for per-page text extraction.
+    // Extract the whole source PDF's text once (one page per entry) so each
+    // highlight can be located by its text, independent of bundle page indices.
     let tmp = tempfile::tempdir()?;
-    let pdf_path = if let Some(pdf) = bundle.source_pdf() {
+    let doc_pages: Vec<String> = if let Some(pdf) = bundle.source_pdf() {
         let p = tmp.path().join("source.pdf");
         std::fs::write(&p, pdf).context("stage source pdf")?;
-        Some(p)
+        document_pages(&p)
     } else {
-        None
-    };
-    // Cache page text by page index so each page is only extracted once.
-    let mut text_cache: std::collections::HashMap<usize, Option<String>> =
-        std::collections::HashMap::new();
-    let mut page_text_for = |idx: usize| -> Option<String> {
-        if let Some(c) = text_cache.get(&idx) {
-            return c.clone();
-        }
-        let t = pdf_path.as_ref().and_then(|p| page_text(p, idx + 1));
-        text_cache.insert(idx, t.clone());
-        t
+        Vec::new()
     };
 
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
@@ -226,15 +234,17 @@ pub fn build_linked(
             Mark::Highlight { page, text, color } => {
                 let (r, g, b) = crate::theme::pen_rgb(*color);
                 let (kr, kg, kb) = darken(r, g, b);
+                // Locate the highlight in the source text → real page + context.
+                // Fall back to the bundle page index if the text isn't found.
+                let found = find_page(&doc_pages, text);
+                let display_page = found.map(|p| p + 1).unwrap_or(page + 1);
+                let ctx = found.and_then(|p| context(&doc_pages[p], text));
                 s.push_str(&format!(
                     "#heading(level: 2, outlined: true)[#kick(\"page {pg}\", rgb({kr},{kg},{kb}))]\n",
-                    pg = page + 1,
+                    pg = display_page,
                 ));
-                // Try to render the highlight inside its surrounding sentences.
-                match page_text_for(*page)
-                    .as_deref()
-                    .and_then(|t| context(t, text))
-                {
+                // Render the highlight inside its surrounding sentences.
+                match ctx {
                     Some((before, hl, after)) => {
                         s.push_str(&format!(
                             "#block(width: 100%, inset: (left: 11pt, right: 4pt, y: 4pt), stroke: (left: 3pt + rgb({r},{g},{b}).lighten(20%)))[\n\
@@ -297,6 +307,19 @@ mod tests {
     fn context_none_when_text_absent() {
         let text = "Nothing relevant here at all.";
         assert!(context(text, "roadside assistance").is_none());
+    }
+
+    #[test]
+    fn find_page_locates_text_by_content_not_index() {
+        // Simulates inserted note-pages shifting indices: the phrase is on the
+        // 3rd source page regardless of where it sits in the bundle.
+        let pages = vec![
+            "front matter".to_string(),
+            "table of contents".to_string(),
+            "Roadside Assistance 24/7 call us".to_string(),
+        ];
+        assert_eq!(find_page(&pages, "roadside assistance 24/7"), Some(2));
+        assert_eq!(find_page(&pages, "not present"), None);
     }
 
     #[test]
