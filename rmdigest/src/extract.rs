@@ -497,39 +497,16 @@ mod tests {
 
         eprintln!("stamped-labels combined text: {all_text:?}");
 
-        // NOTE: This fixture is a Paper Pro capture. The coords::Transform was
-        // tuned for Paper Pro Move. If geometry doesn't line up on this device
-        // variant, reconstruction may return unexpected tokens (not the exact
-        // highlighted words). We assert on known tokens if present; otherwise
-        // assert the pipeline ran cleanly (already asserted above).
-        // Task 13 (real-Move validation) should verify the exact geometry.
-        let known_tokens = [
-            "ARCHIVE",
-            "quick",
-            "fox",
-            "riverbank",
-            "brown",
-            "lazy",
-            "dog",
-        ];
-        let has_known = known_tokens.iter().any(|tok| all_text.contains(tok));
-        if has_known {
-            let found: Vec<_> = known_tokens
-                .iter()
-                .filter(|tok| all_text.contains(*tok))
-                .collect();
-            eprintln!("stamped-labels: found known tokens {found:?}");
-            assert!(
-                !found.is_empty(),
-                "expected at least one known token in reconstructed text"
-            );
-        } else {
-            // Geometry didn't produce expected tokens — report but don't fail.
-            // The pipeline still ran cleanly and produced highlights (asserted above).
-            eprintln!(
-                "stamped-labels: geometry mismatch — no known tokens found in {all_text:?}. \
-                Report to Task 13 (Paper Pro vs Move geometry investigation)."
-            );
-        }
+        // The highlighter ink covers the "ARCHIVE" label and the body sentence.
+        // Reconstruction via coords + the source PDF text layer is exact on this
+        // real capture, so assert the actual highlighted content unconditionally.
+        assert!(
+            all_text.contains("ARCHIVE"),
+            "expected ARCHIVE in reconstructed text; got {all_text:?}"
+        );
+        assert!(
+            all_text.contains("quick brown fox"),
+            "expected body sentence tokens in reconstructed text; got {all_text:?}"
+        );
     }
 }
