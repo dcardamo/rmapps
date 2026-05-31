@@ -23,14 +23,17 @@ pub fn default_palette() -> Palette {
 /// Map a reMarkable pen color to an RGB triple for the digest theme.
 pub fn pen_rgb(c: PenColor) -> (u8, u8, u8) {
     match c {
-        PenColor::Yellow | PenColor::Yellow2 => (245, 208, 66),
+        // `Highlight` is the reMarkable highlighter's snap-to-text color (the
+        // device doesn't expose the chosen RGBA); default it to the standard
+        // highlighter yellow rather than ink, so real captures read as highlights.
+        PenColor::Yellow | PenColor::Yellow2 | PenColor::Highlight => (245, 208, 66),
         PenColor::Green | PenColor::Green2 => (120, 190, 110),
         PenColor::Pink => (235, 130, 170),
         PenColor::Blue | PenColor::Cyan => (90, 150, 220),
         PenColor::Red | PenColor::Magenta => (210, 80, 80),
         PenColor::Gray | PenColor::GrayOverlap => (140, 140, 140),
         PenColor::White => (255, 255, 255),
-        _ => (60, 60, 60), // Black, Highlight, Other -> ink
+        _ => (60, 60, 60), // Black, Other -> ink
     }
 }
 
@@ -51,5 +54,11 @@ mod tests {
     #[test]
     fn pen_rgb_other_falls_back_to_ink() {
         assert_eq!(pen_rgb(PenColor::Other(999)), (60, 60, 60));
+    }
+
+    #[test]
+    fn pen_rgb_highlight_is_yellow() {
+        // The reMarkable highlighter color must read as a highlight, not ink.
+        assert_eq!(pen_rgb(PenColor::Highlight), (245, 208, 66));
     }
 }
