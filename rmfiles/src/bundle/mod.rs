@@ -148,6 +148,12 @@ impl Page<'_> {
             None => Ok(None),
         }
     }
+
+    /// Raw bytes of this page's `.rm` file, if present.
+    pub fn scene_bytes(&self) -> Option<Vec<u8>> {
+        let key = format!("{}/{}.rm", self.bundle.uuid, self.id);
+        self.bundle.files.get(&key).cloned()
+    }
 }
 
 // ---------------------------------------------------------------------------
