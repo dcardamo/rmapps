@@ -208,7 +208,7 @@ fn digest_visual_golden() {
     let meta = fixed_meta();
     let marks = fixed_marks();
 
-    let (src, assets) = build_digest(&meta, &marks);
+    let (src, assets) = build_digest(&meta, &marks, &rmdigest::device::MOVE);
     let pdf = compile(&src, &assets).expect("compile digest PDF");
 
     let page_count = lopdf::Document::load_mem(&pdf)

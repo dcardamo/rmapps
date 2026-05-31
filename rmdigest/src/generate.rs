@@ -85,6 +85,7 @@ fn process_doc(
     }
 
     // Dirty (or first sight): regenerate from ALL pages.
+    let device = crate::device::get_device(&cfg.device)?;
     let all_pages: Vec<usize> = (0..ing.bundle.pages().len()).collect();
     let marks = extract(&ing.bundle, &all_pages)?;
     let meta = digest_meta(&ing.bundle, &marks);
@@ -93,9 +94,9 @@ fn process_doc(
     // flattens ink into the SOURCE PDF via lopdf, which can fail on complex
     // real-world PDFs (page trees lopdf can't manipulate). Treat it as
     // best-effort: never let an Annotated-assembly failure block the Digest.
-    let (digest_src, assets) = build_digest(&meta, &marks);
+    let (digest_src, assets) = build_digest(&meta, &marks, &device);
     let digest_pdf = compile(&digest_src, &assets)?;
-    let annotated_pdf = match assemble(&ing.bundle, &meta, &marks) {
+    let annotated_pdf = match assemble(&ing.bundle, &meta, &marks, &device) {
         Ok(pdf) => Some(pdf),
         Err(e) => {
             eprintln!(
@@ -189,10 +190,11 @@ pub fn build_both(
     meta: &DigestMeta,
     marks: &[Mark],
     bundle: &rmfiles::Bundle,
+    device: &crate::device::Device,
 ) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
-    let (digest_src, assets) = build_digest(meta, marks);
+    let (digest_src, assets) = build_digest(meta, marks, device);
     let digest_pdf = compile(&digest_src, &assets)?;
-    let annotated_pdf = assemble(bundle, meta, marks)?;
+    let annotated_pdf = assemble(bundle, meta, marks, device)?;
     Ok((digest_pdf, annotated_pdf))
 }
 

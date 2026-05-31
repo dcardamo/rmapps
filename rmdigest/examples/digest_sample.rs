@@ -45,7 +45,7 @@ fn main() -> anyhow::Result<()> {
 
     eprintln!("marks: {n_highlights} highlights, {n_notes} notes");
 
-    let (src, assets) = build_digest(&meta, &marks);
+    let (src, assets) = build_digest(&meta, &marks, &rmdigest::device::MOVE);
 
     // Write the typst source for debugging.
     std::fs::write("/tmp/digest_sample.typ", &src)?;

@@ -1,7 +1,8 @@
 //! Build a standalone "Digest" PDF from a set of [`Mark`]s.
 //!
-//! The output is a typographic document sized for the reMarkable Paper Pro Move
-//! (107×191 mm). It opens with a cover page (title, author, kicker, counts,
+//! The output is a typographic document sized to the target reMarkable screen
+//! (via the `device` arg) so it fills the display without scrolling. It opens
+//! with a cover page (title, author, kicker, counts,
 //! hairline rule) followed by one block per mark:
 //!
 //! - `Highlight` → colored PAGE kicker + curly-quoted block quote in Newsreader
@@ -55,10 +56,15 @@ fn esc_markup(s: &str) -> String {
 
 /// Build typst source + image assets for the standalone Digest PDF.
 ///
-/// Returns `(typst_source, image_assets)` where every entry in `image_assets`
-/// is `("/assets/img-N.png", png_bytes)` matching the path referenced in the
-/// typst source.
-pub fn build_digest(meta: &DigestMeta, marks: &[Mark]) -> (String, Vec<(String, Vec<u8>)>) {
+/// `device` sets the page geometry so the output fills the target reMarkable
+/// screen exactly (no scrolling). Returns `(typst_source, image_assets)` where
+/// every entry in `image_assets` is `("/assets/img-N.png", png_bytes)` matching
+/// the path referenced in the typst source.
+pub fn build_digest(
+    meta: &DigestMeta,
+    marks: &[Mark],
+    device: &crate::device::Device,
+) -> (String, Vec<(String, Vec<u8>)>) {
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     let mut s = String::new();
 
@@ -79,8 +85,8 @@ pub fn build_digest(meta: &DigestMeta, marks: &[Mark]) -> (String, Vec<(String, 
         r##"// ─── rmdigest Digest PDF ───────────────────────────────────────────────────
 #set document(title: "{title}", author: "{author}")
 #set page(
-  width: 107mm, height: 191mm,
-  margin: (x: 8mm, y: 10mm),
+  width: {pw}pt, height: {ph}pt,
+  margin: (x: 7mm, y: 8mm),
   fill: rgb(250, 249, 246),
 )
 #set text(font: "Newsreader", size: 11pt, fill: rgb(26, 26, 26), lang: "en", hyphenate: false)
@@ -109,6 +115,8 @@ pub fn build_digest(meta: &DigestMeta, marks: &[Mark]) -> (String, Vec<(String, 
 "##,
         title = esc(&meta.title),
         author = esc(&meta.author),
+        pw = device.width_pt(),
+        ph = device.height_pt(),
     ));
 
     // ------------------------------------------------------------------
@@ -305,7 +313,7 @@ mod tests {
             Mark::Note { page: 1, png },
         ];
 
-        let (src, assets) = build_digest(&meta, &marks);
+        let (src, assets) = build_digest(&meta, &marks, &crate::device::MOVE);
         let pdf_bytes = compile(&src, &assets).expect("compile should succeed");
 
         // Must be a valid lopdf document.
@@ -341,7 +349,7 @@ mod tests {
             n_notes: 2,
             date_range: "Jan–Mar 2026".into(),
         };
-        let (src, _) = build_digest(&meta, &[]);
+        let (src, _) = build_digest(&meta, &[], &crate::device::MOVE);
         assert!(src.contains("5 highlights"), "highlights count missing");
         assert!(src.contains("2 notes"), "notes count missing");
         assert!(src.contains("My Highlights"), "title missing");
@@ -368,7 +376,7 @@ mod tests {
                 png: png.clone(),
             },
         ];
-        let (src, assets) = build_digest(&meta, &marks);
+        let (src, assets) = build_digest(&meta, &marks, &crate::device::MOVE);
         assert_eq!(assets.len(), 2);
         assert_eq!(assets[0].0, "/assets/img-0.png");
         assert_eq!(assets[1].0, "/assets/img-1.png");
@@ -396,7 +404,7 @@ mod tests {
             color: PenColor::Yellow,
         }];
 
-        let (src, assets) = build_digest(&meta, &marks);
+        let (src, assets) = build_digest(&meta, &marks, &crate::device::MOVE);
         // The source must compile to a valid PDF — any escaping failure causes a
         // typst compile error here.
         let pdf_bytes = compile(&src, &assets)

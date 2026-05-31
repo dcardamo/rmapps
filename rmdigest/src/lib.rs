@@ -2,6 +2,7 @@
 pub mod annotate;
 pub mod config;
 pub mod deploy;
+pub mod device;
 pub mod digest_doc;
 pub mod extract;
 pub mod generate;

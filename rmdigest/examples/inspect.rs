@@ -64,10 +64,10 @@ fn main() -> anyhow::Result<()> {
 
     let out = PathBuf::from("/tmp/rmd-inspect-out");
     std::fs::create_dir_all(&out)?;
-    let (src, assets) = build_digest(&meta, &marks);
+    let (src, assets) = build_digest(&meta, &marks, &rmdigest::device::MOVE);
     std::fs::write(out.join("Digest.pdf"), compile(&src, &assets)?)?;
     let mut rendered = vec![("digest", "Digest.pdf")];
-    match assemble(&bundle, &meta, &marks) {
+    match assemble(&bundle, &meta, &marks, &rmdigest::device::MOVE) {
         Ok(pdf) => {
             std::fs::write(out.join("Annotated.pdf"), pdf)?;
             rendered.push(("annotated", "Annotated.pdf"));

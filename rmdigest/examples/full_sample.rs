@@ -39,12 +39,12 @@ fn main() -> anyhow::Result<()> {
     };
     eprintln!("marks: {n_highlights} highlights, {n_notes} notes");
 
-    let (src, assets) = build_digest(&meta, &marks);
+    let (src, assets) = build_digest(&meta, &marks, &rmdigest::device::MOVE);
     let digest_pdf = compile(&src, &assets)?;
     let digest_path = out.join("Digest.pdf");
     std::fs::write(&digest_path, &digest_pdf)?;
 
-    let annotated_pdf = assemble(&bundle, &meta, &marks)?;
+    let annotated_pdf = assemble(&bundle, &meta, &marks, &rmdigest::device::MOVE)?;
     let annotated_path = out.join("Annotated.pdf");
     std::fs::write(&annotated_path, &annotated_pdf)?;
 

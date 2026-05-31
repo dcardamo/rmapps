@@ -474,6 +474,7 @@ pub fn assemble(
     bundle: &rmfiles::Bundle,
     meta: &DigestMeta,
     marks: &[Mark],
+    device: &crate::device::Device,
 ) -> anyhow::Result<Vec<u8>> {
     // ── 1. Load source PDF ─────────────────────────────────────────────────
     let src_bytes = bundle
@@ -538,7 +539,7 @@ pub fn assemble(
     let _ = inserted_count;
 
     // ── 4. Build the digest PDF ────────────────────────────────────────────
-    let (digest_src, digest_assets) = build_digest(meta, marks);
+    let (digest_src, digest_assets) = build_digest(meta, marks, device);
     let digest_bytes = compile(&digest_src, &digest_assets).context("compile digest PDF")?;
     let digest_doc = Document::load_mem(&digest_bytes).context("load digest PDF")?;
 
@@ -804,7 +805,8 @@ mod tests {
             date_range: "2026".into(),
         };
 
-        let pdf_bytes = assemble(&bundle, &meta, &marks).expect("assemble should succeed");
+        let pdf_bytes = assemble(&bundle, &meta, &marks, &crate::device::MOVE)
+            .expect("assemble should succeed");
         assert!(!pdf_bytes.is_empty(), "assembled PDF must not be empty");
 
         let doc = Document::load_mem(&pdf_bytes).expect("assembled PDF must be valid");
@@ -864,7 +866,7 @@ mod tests {
             date_range: "2026".into(),
         };
 
-        let pdf_bytes = assemble(&bundle, &meta, &marks).expect("assemble");
+        let pdf_bytes = assemble(&bundle, &meta, &marks, &crate::device::MOVE).expect("assemble");
         let doc = Document::load_mem(&pdf_bytes).expect("valid PDF");
 
         // Search all pages for a /Link annotation with an /A action of type GoTo.
@@ -942,7 +944,7 @@ mod tests {
             date_range: "2026".into(),
         };
 
-        let pdf_bytes = assemble(&bundle, &meta, &marks).expect("assemble");
+        let pdf_bytes = assemble(&bundle, &meta, &marks, &crate::device::MOVE).expect("assemble");
         std::fs::write("/tmp/annotated_sample.pdf", &pdf_bytes)
             .expect("write /tmp/annotated_sample.pdf");
 
