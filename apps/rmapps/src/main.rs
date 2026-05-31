@@ -5,6 +5,7 @@
 //! then `sync` (config-driven orchestration). See the workspace README.
 
 mod auth;
+mod cloud;
 
 use clap::{Parser, Subcommand};
 
