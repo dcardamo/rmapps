@@ -1,8 +1,9 @@
 //! Turn highlighter stroke geometry (in PDF points) into a plan of Readwise ops.
 use std::collections::BTreeMap;
 
-use crate::manifest::EmbeddedManifest;
 use rmfiles::coords::PdfRect;
+
+use crate::manifest::EmbeddedManifest;
 use crate::readwise::{ActionKind, HighlightCreate};
 
 /// Map a Readwise Reader category to a valid v2 highlights category.
