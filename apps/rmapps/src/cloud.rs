@@ -263,3 +263,75 @@ pub fn doc_name(pdf: &Path) -> Result<String> {
         .map(|s| s.to_string())
         .ok_or_else(|| anyhow!("no file stem: {}", pdf.display()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rm_cloud::fake::FakeCloud;
+    use rm_cloud::{Config as CloudConfig, Metadata};
+
+    /// Build a `Cloud` wrapping an explicit client (test seam — avoids the
+    /// process-global `RM_CLOUD_HOST` that `from_env`/`from_*_token` rely on, so
+    /// this test can run in parallel with the reactor test against its own fake).
+    fn cloud_from_client(client: Client) -> Cloud {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        Cloud { rt, client }
+    }
+
+    fn doc_with_pdf(id: &str, name: &str, parent: &str, pdf: &[u8]) -> DocFiles {
+        let meta = Metadata {
+            visible_name: name.into(),
+            doc_type: "DocumentType".into(),
+            parent: parent.into(),
+            last_modified: "0".into(),
+            deleted: false,
+            extra: Default::default(),
+        };
+        DocFiles {
+            id: id.into(),
+            files: vec![
+                (format!("{id}.metadata"), serde_json::to_vec(&meta).unwrap()),
+                (format!("{id}.content"), b"{}".to_vec()),
+                (format!("{id}.pdf"), pdf.to_vec()),
+            ],
+        }
+    }
+
+    /// `replace()` must sweep EVERY same-named doc (the dedup invariant), leaving
+    /// exactly one copy even when the folder already holds duplicates.
+    #[test]
+    fn replace_removes_all_same_named_docs() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let seed = Client::from_user_token(CloudConfig::single_host(&fake.base), "user-token");
+
+        // Seed /Readwise with THREE docs all named "Feed" (the duplicate state).
+        let folder = rt.block_on(seed.mkdir("Readwise", "")).unwrap();
+        for id in [
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        ] {
+            rt.block_on(seed.put(doc_with_pdf(id, "Feed", &folder, b"%PDF-old")))
+                .unwrap();
+        }
+
+        let cloud = cloud_from_client(Client::from_user_token(
+            CloudConfig::single_host(&fake.base),
+            "user-token",
+        ));
+        // Pre-condition: doc_ids_in sees all three duplicates.
+        assert_eq!(cloud.doc_ids_in(&folder, "Feed").unwrap().len(), 3);
+
+        cloud.replace("/Readwise", "Feed", b"%PDF-new".to_vec()).unwrap();
+
+        // Post-condition: exactly one "Feed" remains.
+        assert_eq!(cloud.doc_ids_in(&folder, "Feed").unwrap().len(), 1);
+    }
+}
