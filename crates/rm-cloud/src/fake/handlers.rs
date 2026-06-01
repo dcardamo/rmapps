@@ -16,6 +16,19 @@ use super::State;
 
 type Shared = Arc<Mutex<State>>;
 
+/// A `429 Too Many Requests` carrying `Retry-After: 0` (so the client's retry loop is
+/// exercised without test sleeps). Returns `None` if no rate-limit injection is pending.
+fn rate_limit_response(state: &Shared) -> Option<axum::response::Response> {
+    if state.lock().unwrap().take_rate_limit() {
+        let mut resp = (StatusCode::TOO_MANY_REQUESTS, "slow down").into_response();
+        resp.headers_mut()
+            .insert("retry-after", "0".parse().unwrap());
+        Some(resp)
+    } else {
+        None
+    }
+}
+
 pub fn router(state: Shared) -> Router {
     Router::new()
         .route("/token/json/2/device/new", post(device_new))
@@ -57,6 +70,9 @@ struct RootResp {
 }
 
 async fn root_get(AxState(state): AxState<Shared>) -> impl IntoResponse {
+    if let Some(resp) = rate_limit_response(&state) {
+        return resp;
+    }
     {
         let mut s = state.lock().unwrap();
         if s.unauthorized_once {
@@ -88,6 +104,9 @@ async fn root_put(
     AxState(state): AxState<Shared>,
     Json(req): Json<RootPutReq>,
 ) -> impl IntoResponse {
+    if let Some(resp) = rate_limit_response(&state) {
+        return resp;
+    }
     let mut s = state.lock().unwrap();
     if s.conflicts_remaining > 0 {
         s.conflicts_remaining -= 1;
@@ -108,6 +127,9 @@ async fn root_put(
 }
 
 async fn blob_get(AxState(state): AxState<Shared>, Path(hash): Path<String>) -> impl IntoResponse {
+    if let Some(resp) = rate_limit_response(&state) {
+        return resp;
+    }
     let s = state.lock().unwrap();
     match s.blobs.get(&hash) {
         Some(b) => (StatusCode::OK, b.clone()).into_response(),
@@ -120,7 +142,10 @@ async fn blob_put(
     Path(hash): Path<String>,
     body: Bytes,
 ) -> impl IntoResponse {
+    if let Some(resp) = rate_limit_response(&state) {
+        return resp;
+    }
     // Plain key->bytes store: doc-index blobs are keyed by doc hash, not content hash.
     state.lock().unwrap().blobs.insert(hash, body.to_vec());
-    StatusCode::OK
+    StatusCode::OK.into_response()
 }

@@ -141,16 +141,15 @@ impl Client {
     /// GET the root ref; `Ok(None)` if the account has never synced (404).
     async fn get_root_ref(&self) -> Result<Option<RootResp>> {
         let token = self.user_token().await?;
-        let resp = self
-            .http
-            .get(self.config.root_get())
-            .bearer_auth(&token)
-            .send()
-            .await?;
+        let resp = crate::transport::send_retrying(
+            self.http.get(self.config.root_get()).bearer_auth(&token),
+        )
+        .await?;
         match resp.status() {
             reqwest::StatusCode::NOT_FOUND => Ok(None),
             s if s.is_success() => Ok(Some(resp.json::<RootResp>().await?)),
             reqwest::StatusCode::UNAUTHORIZED => Err(Error::Unauthorized),
+            reqwest::StatusCode::TOO_MANY_REQUESTS => Err(Error::RateLimited),
             s => Err(Error::Http(format!("root get failed: {s}"))),
         }
     }
@@ -206,18 +205,18 @@ impl Client {
             self.put_blob(&rhash, "root.docSchema", rbytes).await?;
 
             let token = self.user_token().await?;
-            let resp = self
-                .http
-                .put(self.config.root_put())
-                .bearer_auth(&token)
-                .header(crate::plumbing::blob::RM_FILENAME, "roothash")
-                .json(&RootPutReq {
-                    broadcast,
-                    hash: &rhash,
-                    generation: snap.generation,
-                })
-                .send()
-                .await?;
+            let resp = crate::transport::send_retrying(
+                self.http
+                    .put(self.config.root_put())
+                    .bearer_auth(&token)
+                    .header(crate::plumbing::blob::RM_FILENAME, "roothash")
+                    .json(&RootPutReq {
+                        broadcast,
+                        hash: &rhash,
+                        generation: snap.generation,
+                    }),
+            )
+            .await?;
             match resp.status() {
                 s if s.is_success() => {
                     let gen = resp.json::<RootPutResp>().await?.generation;
@@ -228,6 +227,7 @@ impl Client {
                     self.force_refresh().await?;
                     continue;
                 }
+                reqwest::StatusCode::TOO_MANY_REQUESTS => return Err(Error::RateLimited),
                 s => return Err(Error::Http(format!("root put failed: {s}"))),
             }
         }

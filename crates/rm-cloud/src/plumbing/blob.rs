@@ -3,7 +3,7 @@
 use base64::Engine;
 
 use crate::error::{Error, Result};
-use crate::transport::{check, status_error};
+use crate::transport::{check, send_retrying, status_error};
 
 /// Logical filename header the cloud expects on blob transfers.
 pub(crate) const RM_FILENAME: &str = "rm-filename";
@@ -15,12 +15,12 @@ pub(crate) async fn get_blob(
     user_token: &str,
     name: &str,
 ) -> Result<Vec<u8>> {
-    let resp = http
-        .get(url)
-        .bearer_auth(user_token)
-        .header(RM_FILENAME, name)
-        .send()
-        .await?;
+    let resp = send_retrying(
+        http.get(url)
+            .bearer_auth(user_token)
+            .header(RM_FILENAME, name),
+    )
+    .await?;
     let resp = check(resp)?;
     Ok(resp.bytes().await?.to_vec())
 }
@@ -46,15 +46,15 @@ pub(crate) async fn put_blob(
         "crc32c={}",
         base64::engine::general_purpose::STANDARD.encode(crc.to_be_bytes())
     );
-    let resp = http
-        .put(url)
-        .bearer_auth(user_token)
-        .header(RM_FILENAME, name)
-        .header("content-type", content_type)
-        .header("x-goog-hash", goog_hash)
-        .body(bytes)
-        .send()
-        .await?;
+    let resp = send_retrying(
+        http.put(url)
+            .bearer_auth(user_token)
+            .header(RM_FILENAME, name)
+            .header("content-type", content_type)
+            .header("x-goog-hash", goog_hash)
+            .body(bytes),
+    )
+    .await?;
     let status = resp.status();
     if status.is_success() {
         return Ok(());

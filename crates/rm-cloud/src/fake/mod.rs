@@ -24,6 +24,23 @@ pub struct State {
     pub conflicts_remaining: u32,
     /// If true, the next root GET returns 401 then clears the flag.
     pub unauthorized_once: bool,
+    /// Number of upcoming sync requests (root get/put, blob get/put) to reject with
+    /// `429 Too Many Requests` + `Retry-After: 0` (decremented each time). Exercises the
+    /// client's automatic 429 backoff/retry.
+    pub rate_limited_remaining: u32,
+}
+
+impl State {
+    /// If a rate-limit injection is pending, consume one and report it (the handler then
+    /// returns 429). Returns `false` once the budget is spent.
+    pub(crate) fn take_rate_limit(&mut self) -> bool {
+        if self.rate_limited_remaining > 0 {
+            self.rate_limited_remaining -= 1;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// A running fake cloud. Drop to stop it.
@@ -65,6 +82,12 @@ impl FakeCloud {
     /// Force the next root GET to return 401 once (to exercise token-refresh retry).
     pub fn inject_unauthorized_once(&self) {
         self.state.lock().unwrap().unauthorized_once = true;
+    }
+
+    /// Reject the next `n` sync requests (root get/put, blob get/put) with `429 Too Many
+    /// Requests` + `Retry-After: 0` (to exercise the client's 429 backoff/retry).
+    pub fn inject_rate_limited(&self, n: u32) {
+        self.state.lock().unwrap().rate_limited_remaining = n;
     }
 
     /// Number of stored blobs (test helper).

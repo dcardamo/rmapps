@@ -309,9 +309,17 @@ Confirmed by running the gated live tests against the real cloud on saturn:
   confirm the physical-ink → digest-*content* path end to end.
 - **`broadcast: false` invariant holds.** All daemon/sync commits use `broadcast: false`, so
   the daemon never self-notifies; only the test opts into `commit_broadcast`.
-- **The cloud rate-limits (`429 Too Many Requests`) under burst.** Neither `rm-cloud` nor the
-  daemon currently honors `Retry-After`. FOLLOW-UP: add `429` backoff/retry to the rm-cloud
-  blob/commit path — relevant for a long-running daemon that reconciles on every push.
+- **The cloud rate-limits (`429 Too Many Requests`) under burst.** RESOLVED: `rm-cloud`'s
+  transport layer now retries every sync request (root get/put, blob get/put, token refresh)
+  transparently on `429`, honoring `Retry-After` (delta-seconds) and falling back to capped
+  exponential backoff when the header is absent. After 5 exhausted retries it surfaces
+  `Error::RateLimited`. Covered by `fake_rate_limit` (429+`Retry-After: 0` fault injection in
+  the fake cloud) and `transport::tests::backoff_grows_and_caps`. This is what makes a
+  long-running daemon (which reconciles on every push) safe against burst throttling.
+- **Stale-test-folder sweep is clean.** The orphan `rmrs-test/<run-id>` folder left by an
+  earlier timed-out run has been swept; `sweep_stale_test_folders` (run live with the rmapi
+  device token) found no `rmrs-test` root remaining. Re-run it any time stale run folders
+  accumulate — it is now robust against the 429 throttle thanks to the retry above.
 
 The reactor pipeline (diff → route → self-write filter → debounce) is validated against the
 fake cloud (`watch::reactor_tests`); the same logic runs unchanged against the real cloud

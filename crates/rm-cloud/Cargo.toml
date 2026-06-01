@@ -19,7 +19,7 @@ lopdf = "0.36"
 # one binary (apps/rmapps), OpenSSL's atexit handler segfaults at process
 # teardown. rustls is pure-Rust and avoids it.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 # The single workspace .rm reader is `rmfiles`; alias it to `rm_files` so this
 # crate's `use rm_files::…` stays unchanged.
 rm-files = { path = "../rmfiles", package = "rmfiles" }
@@ -75,4 +75,8 @@ required-features = ["fake"]
 
 [[test]]
 name = "fake_persistence"
+required-features = ["fake"]
+
+[[test]]
+name = "fake_rate_limit"
 required-features = ["fake"]

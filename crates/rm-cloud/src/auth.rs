@@ -85,16 +85,17 @@ pub async fn refresh_user_token(
     // The user-token endpoint takes no body, but the cloud rejects a POST with no
     // `Content-Length` (HTTP 411). reqwest omits the header for an empty body, so set it
     // explicitly to 0.
-    let resp = http
-        .post(config.user_new())
-        .bearer_auth(device_token)
-        .header(reqwest::header::CONTENT_LENGTH, "0")
-        .body(Vec::<u8>::new())
-        .send()
-        .await?;
+    let resp = crate::transport::send_retrying(
+        http.post(config.user_new())
+            .bearer_auth(device_token)
+            .header(reqwest::header::CONTENT_LENGTH, "0")
+            .body(Vec::<u8>::new()),
+    )
+    .await?;
     match resp.status() {
         s if s.is_success() => Ok(resp.text().await?),
         reqwest::StatusCode::UNAUTHORIZED => Err(Error::Unauthorized),
+        reqwest::StatusCode::TOO_MANY_REQUESTS => Err(Error::RateLimited),
         s => Err(Error::Http(format!("user token refresh failed: {s}"))),
     }
 }

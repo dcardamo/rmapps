@@ -23,6 +23,9 @@ pub enum Error {
     /// CAS commit exhausted its retry budget against persistent conflicts.
     #[error("commit failed after {0} attempts")]
     CommitExhausted(u32),
+    /// 429 — the cloud rate-limited us and we exhausted the automatic Retry-After backoff.
+    #[error("rate limited (429): retry budget exhausted")]
+    RateLimited,
     /// A required credential was absent.
     #[error("missing credential: {0}")]
     MissingCredential(&'static str),
