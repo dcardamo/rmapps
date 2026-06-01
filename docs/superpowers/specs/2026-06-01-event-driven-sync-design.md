@@ -296,13 +296,17 @@ Confirmed by running the gated live tests against the real cloud on saturn:
   auth `Authorization: Bearer <user-token>`, returns `101 Switching Protocols`. The old
   service-manager discovery host is retired (404 / NXDOMAIN); notifications now live on the
   sync host. Token expiry self-heals (connect path force-refreshes + retries once).
-- **Push delivery is keyed by DEVICE IDENTITY, not connection.** Two `Client`s sharing one
-  device token do NOT cross-notify: a `broadcast: true` commit from connection B produced no
-  frame on subscriber A within 30s. Automating real push delivery therefore requires a
-  *second registered device token* (a distinct pairing). The physical tablet is naturally a
-  distinct device, so the Tier B manual check validates delivery; an automated equivalent
-  needs a second `rmapps auth login` pairing and the test wired to use both tokens
-  (subscribe with token A, `commit_broadcast` with token B).
+- **Push delivery is keyed by DEVICE IDENTITY, not connection — and is now AUTOMATED & CONFIRMED.**
+  Two `Client`s sharing one device token do NOT cross-notify (a `broadcast: true` commit from
+  connection B produced no frame on subscriber A within 30s). But with a *distinct* device token
+  for B it works: using rmapps's device token for the subscriber (A) and **rmapi's device token**
+  (`~/.config/rmapi/rmapi.conf` `devicetoken`) for the broadcaster (B), A received a real frame
+  within 25s after B's `put_content_only_broadcast`. The payload is a `SyncEventNotification`:
+  `{"event":"SyncComplete","sourceDeviceID":"<B's device id>",...}`. This is the fully automated
+  Tier A push-delivery proof (`live_push_delivers_on_broadcast`, run with
+  `RM_CLOUD_DEVICE_TOKEN` + `RM_CLOUD_DEVICE_TOKEN_2`). No physical tablet required — the daemon's
+  `WsSource` treats any such frame as one `Wakeup`. The Tier B manual check is now only needed to
+  confirm the physical-ink → digest-*content* path end to end.
 - **`broadcast: false` invariant holds.** All daemon/sync commits use `broadcast: false`, so
   the daemon never self-notifies; only the test opts into `commit_broadcast`.
 - **The cloud rate-limits (`429 Too Many Requests`) under burst.** Neither `rm-cloud` nor the
