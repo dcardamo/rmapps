@@ -6,13 +6,27 @@ use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 use crate::client::Client;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::porcelain::docfiles::{DocFiles, Metadata};
 use crate::porcelain::document::now_millis;
 
 /// Max concurrent per-doc metadata fetches during `ls` (the cloud has no server-side
 /// "list children", so listing reads every doc's metadata — done in parallel).
 const LS_CONCURRENCY: usize = 16;
+
+/// Reject path segments / folder names that should never be turned into a folder.
+///
+/// A segment is invalid if it is empty, whitespace-only, the relative markers `.`
+/// or `..`, or "flag-like" (starts with `-`). The last case is the important one:
+/// it stops a stray CLI argument such as `--help` from being silently materialised
+/// as a folder on the reMarkable account when a path string is passed through to
+/// [`Client::mkdir_p`].
+fn validate_segment(segment: &str) -> Result<()> {
+    if segment.trim().is_empty() || segment == "." || segment == ".." || segment.starts_with('-') {
+        return Err(Error::InvalidName(segment.to_string()));
+    }
+    Ok(())
+}
 
 /// One entry in a directory listing.
 #[derive(Debug, Clone)]
@@ -87,6 +101,7 @@ impl Client {
     pub async fn mkdir_p(&self, path: &str) -> Result<String> {
         let mut parent = String::new();
         for segment in path.split('/').filter(|s| !s.is_empty()) {
+            validate_segment(segment)?;
             let existing = self
                 .ls(&parent)
                 .await?
@@ -102,6 +117,7 @@ impl Client {
 
     /// Create a folder under `parent`; returns the new folder id.
     pub async fn mkdir(&self, name: &str, parent: &str) -> Result<String> {
+        validate_segment(name)?;
         let id = Uuid::new_v4().to_string();
         let meta = Metadata {
             visible_name: name.to_string(),
@@ -121,5 +137,47 @@ impl Client {
         })
         .await?;
         Ok(id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_segment;
+    use crate::error::Error;
+
+    #[test]
+    fn accepts_ordinary_names() {
+        for name in ["ReadingQueue", "rmapps-test", "May 2026", "a.b.c", "-leading-only-bad"]
+            .iter()
+            .filter(|n| !n.starts_with('-'))
+        {
+            assert!(validate_segment(name).is_ok(), "{name} should be valid");
+        }
+    }
+
+    #[test]
+    fn rejects_empty_and_whitespace() {
+        for bad in ["", "   ", "\t", "\n"] {
+            assert!(
+                matches!(validate_segment(bad), Err(Error::InvalidName(_))),
+                "{bad:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_dot_segments() {
+        assert!(matches!(validate_segment("."), Err(Error::InvalidName(_))));
+        assert!(matches!(validate_segment(".."), Err(Error::InvalidName(_))));
+    }
+
+    #[test]
+    fn rejects_flag_like_names() {
+        for bad in ["--help", "-h", "-rf", "--recursive"] {
+            assert!(
+                matches!(validate_segment(bad), Err(Error::InvalidName(_))),
+                "{bad} should be rejected as flag-like"
+            );
+        }
     }
 }

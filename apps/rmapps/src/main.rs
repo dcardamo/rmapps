@@ -15,7 +15,9 @@ mod bujo;
 mod cloud;
 mod config;
 mod digest;
+mod ls;
 mod reader;
+mod rm;
 mod sync;
 
 use std::path::PathBuf;
@@ -44,6 +46,10 @@ enum Command {
     Digest(digest::DigestArgs),
     /// Run the configured `[[sync]]` tasks once.
     Sync,
+    /// List the entries directly under a cloud folder (default: root).
+    Ls(ls::LsArgs),
+    /// Delete a document or folder in the cloud (`--recursive` for folders).
+    Rm(rm::RmArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -67,5 +73,7 @@ fn main() -> anyhow::Result<()> {
             let cfg = config::load(cfg_path)?;
             sync::run(&cfg)
         }
+        Command::Ls(args) => ls::run(args),
+        Command::Rm(args) => rm::run(args),
     }
 }

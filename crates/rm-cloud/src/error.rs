@@ -29,6 +29,10 @@ pub enum Error {
     /// Malformed index/JSON/bundle content.
     #[error("parse error: {0}")]
     Parse(String),
+    /// A path segment / folder name was rejected by validation (empty,
+    /// whitespace-only, "." / "..", or flag-like with a leading '-').
+    #[error("invalid name: {0}")]
+    InvalidName(String),
     /// Any other HTTP-layer failure (with the status code if present).
     #[error("http error: {0}")]
     Http(String),
