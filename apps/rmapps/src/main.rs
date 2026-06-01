@@ -21,6 +21,7 @@ mod push;
 mod reader;
 mod rm;
 mod sync;
+mod watch;
 
 use std::path::PathBuf;
 
