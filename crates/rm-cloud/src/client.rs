@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use crate::auth::{refresh_user_token, Credentials};
+use crate::cache::BlobCache;
 use crate::config::Config;
 use crate::error::{Error, Result};
 use crate::plumbing::blob::{get_blob, put_blob};
@@ -21,6 +22,7 @@ pub struct Client {
     pub(crate) http: reqwest::Client,
     pub(crate) config: Config,
     pub(crate) creds: Arc<RwLock<Credentials>>,
+    pub(crate) cache: Option<Arc<BlobCache>>,
 }
 
 #[derive(Deserialize)]
@@ -80,7 +82,14 @@ impl Client {
             http: reqwest::Client::new(),
             config,
             creds: Arc::new(RwLock::new(creds)),
+            cache: None,
         }
+    }
+
+    /// Attach a content-addressed disk cache. All blob reads/writes route through it.
+    pub fn with_cache(mut self, cache: BlobCache) -> Self {
+        self.cache = Some(Arc::new(cache));
+        self
     }
 
     /// Current user token, refreshing from the device token if absent.
@@ -158,14 +167,30 @@ impl Client {
 
     /// GET a blob by hash and logical filename.
     pub(crate) async fn get_blob(&self, hash: &str, name: &str) -> Result<Vec<u8>> {
+        // Cache hit: return without a network call.
+        if let Some(cache) = &self.cache {
+            if let Some(bytes) = cache.get(hash) {
+                return Ok(bytes);
+            }
+        }
         let token = self.user_token().await?;
-        get_blob(&self.http, &self.config.blob(hash), &token, name).await
+        let bytes = get_blob(&self.http, &self.config.blob(hash), &token, name).await?;
+        // Best-effort write-through; cache failures must not fail the read.
+        if let Some(cache) = &self.cache {
+            let _ = cache.put(hash, &bytes);
+        }
+        Ok(bytes)
     }
 
     /// PUT a blob under `hash` with the given logical filename.
     pub(crate) async fn put_blob(&self, hash: &str, name: &str, bytes: Vec<u8>) -> Result<()> {
         let token = self.user_token().await?;
-        put_blob(&self.http, &self.config.blob(hash), &token, name, bytes).await
+        put_blob(&self.http, &self.config.blob(hash), &token, name, bytes.clone()).await?;
+        // Best-effort write-through after a successful upload.
+        if let Some(cache) = &self.cache {
+            let _ = cache.put(hash, &bytes);
+        }
+        Ok(())
     }
 
     /// Apply `mutation` atomically: upload new blobs, then CAS-put the root, rebasing on
@@ -278,3 +303,33 @@ impl Client {
 pub type NotifyStream = tokio_tungstenite::WebSocketStream<
     tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
 >;
+
+#[cfg(all(test, feature = "fake"))]
+mod cache_integration {
+    use super::*;
+    use crate::cache::BlobCache;
+    use crate::config::Config;
+    use crate::fake::FakeCloud;
+
+    #[tokio::test]
+    async fn second_read_hits_cache_not_network() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token")
+            .with_cache(BlobCache::new(dir.path()));
+
+        let bytes = b"blobby".to_vec();
+        let hash = crate::plumbing::index::sha256_hex(&bytes);
+        fake.state.lock().unwrap().blobs.insert(hash.clone(), bytes.clone());
+
+        let a = client.get_blob(&hash, "x").await.unwrap();
+        let b = client.get_blob(&hash, "x").await.unwrap();
+        assert_eq!(a, bytes);
+        assert_eq!(b, bytes);
+        assert_eq!(
+            fake.blob_get_count(&hash),
+            1,
+            "second read must be served from cache"
+        );
+    }
+}
