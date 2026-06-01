@@ -241,23 +241,31 @@ pub fn fetch_documents(
             let url = list_url(loc, cursor.as_deref());
             // Retry transient failures (429 rate-limit, 5xx server errors like the
             // occasional 502) a few times before giving up; other non-200s are fatal.
+            // The list endpoint is rate-limited (~20/min, see list_url above) and
+            // Readwise intermittently returns 401 instead of 429 under load even for a
+            // known-valid token, so treat 401 as transient too — a genuinely bad token
+            // still fails after the bounded retries (and surfaces its body below).
             let mut attempt = 0u32;
             let resp = loop {
                 let r = t.request(HttpMethod::Get, &url, token, None)?;
-                let transient = r.status == 429 || (500..=599).contains(&r.status);
+                let transient =
+                    r.status == 429 || r.status == 401 || (500..=599).contains(&r.status);
                 if transient && attempt < 5 {
                     attempt += 1;
                     let wait = r
                         .retry_after
-                        .unwrap_or(if r.status == 429 { 60 } else { 3 });
+                        .unwrap_or(if r.status == 429 || r.status == 401 { 60 } else { 3 });
                     sleep(wait);
                     continue;
                 }
                 break r;
             };
             if resp.status != 200 {
+                // Include the (truncated) body so a real auth failure is self-diagnosing
+                // (e.g. "Invalid token." vs "Authentication credentials were not provided.").
+                let body: String = resp.body.chars().take(300).collect();
                 anyhow::bail!(
-                    "Readwise list failed (HTTP {}) for location {loc}",
+                    "Readwise list failed (HTTP {}) for location {loc}: {body}",
                     resp.status
                 );
             }
