@@ -185,10 +185,12 @@ impl Client {
     /// PUT a blob under `hash` with the given logical filename.
     pub(crate) async fn put_blob(&self, hash: &str, name: &str, bytes: Vec<u8>) -> Result<()> {
         let token = self.user_token().await?;
-        put_blob(&self.http, &self.config.blob(hash), &token, name, bytes.clone()).await?;
-        // Best-effort write-through after a successful upload.
         if let Some(cache) = &self.cache {
+            put_blob(&self.http, &self.config.blob(hash), &token, name, bytes.clone()).await?;
+            // Best-effort write-through after a successful upload.
             let _ = cache.put(hash, &bytes);
+        } else {
+            put_blob(&self.http, &self.config.blob(hash), &token, name, bytes).await?;
         }
         Ok(())
     }
