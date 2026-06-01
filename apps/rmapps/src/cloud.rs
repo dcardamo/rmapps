@@ -67,6 +67,15 @@ impl Cloud {
         self.rt.block_on(fut)
     }
 
+    /// Cheap root-generation poll: `Some(generation)`, or `None` if the account
+    /// never synced. Used by the sync engine's `on-change` trigger to detect
+    /// whether the cloud moved without downloading a full snapshot.
+    pub fn current_generation(&self) -> Result<Option<i64>> {
+        self.rt
+            .block_on(self.client.current_generation())
+            .map_err(|e| anyhow!("current_generation: {e}"))
+    }
+
     /// Resolve a slash path to a folder id, creating missing segments (`mkdir -p`).
     pub fn ensure_folder(&self, folder: &str) -> Result<String> {
         self.rt

@@ -19,27 +19,39 @@ use rmbujo::{calendar, ics, notebooks};
 use crate::cloud::{self, Cloud};
 use crate::config::Config;
 
-#[derive(Args)]
+#[derive(Args, Default)]
 pub struct BujoArgs {
     /// Regenerate only this single month (1..=12) and deploy just it (upsert).
     #[arg(long)]
-    month: Option<u32>,
+    pub month: Option<u32>,
     /// Upload monthly notebooks for this month (1..=12) and later only; earlier
     /// months are skipped on upload (kept on-device). Non-monthly notebooks are
     /// always uploaded.
     #[arg(long = "from-month")]
-    from_month: Option<u32>,
+    pub from_month: Option<u32>,
     /// Sync ONLY this month's notebook (upsert); the future log / collection /
     /// reference are created only if missing. All other months are left alone.
     #[arg(long = "only-month")]
-    only_month: Option<u32>,
+    pub only_month: Option<u32>,
     /// Override the destination folder (e.g. `/2026`). Defaults to
     /// `/{base_folder}/{year}` (or `/{year}` when base is empty).
     #[arg(long)]
-    target: Option<String>,
+    pub target: Option<String>,
     /// Re-fetch ICS feeds (otherwise the cached snapshot is reused).
     #[arg(long = "refresh-feeds")]
-    refresh_feeds: bool,
+    pub refresh_feeds: bool,
+}
+
+impl BujoArgs {
+    /// Construct args for a sync run. With `only_month = Some(m)` only month `m`'s
+    /// notebook is synced (upsert) and the non-monthly extras are created-if-missing,
+    /// using the default target. `None` produces all-default args (whole-year upsert).
+    pub fn for_sync(only_month: Option<u32>) -> Self {
+        Self {
+            only_month,
+            ..Self::default()
+        }
+    }
 }
 
 /// Default cloud folder for a year's PDFs: `/{base}/{year}`, or `/{year}` when

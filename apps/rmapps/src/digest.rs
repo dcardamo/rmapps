@@ -13,7 +13,7 @@ use rmdigest::state;
 use crate::cloud::Cloud;
 use crate::config::Config;
 
-#[derive(Args)]
+#[derive(Args, Default)]
 pub struct DigestArgs {
     /// Generate PDFs to disk via the local backend instead of the cloud.
     #[arg(long)]

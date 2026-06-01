@@ -26,19 +26,21 @@ pub struct Config {
 }
 
 #[derive(Deserialize, Clone)]
-// `trigger`/`every`/`watch`/`month_window` are parsed now but only consumed by a
-// later task (generation-poll triggers + scheduling); allow them to be read-unused
-// for now so the config schema is stable.
-#[allow(dead_code)]
 pub struct SyncTask {
     /// Which app to run: "bujo" | "reader" | "digest".
     pub app: String,
+    /// "schedule" (default) | "on-change".
     #[serde(default)]
     pub trigger: Option<String>,
+    /// Interval for `schedule` triggers: `<N>s|m|h|d` (e.g. "12h", "1d").
     #[serde(default)]
     pub every: Option<String>,
+    /// Folder to watch for `on-change` triggers (filtering not yet implemented; see
+    /// the TODO in `sync.rs`).
     #[serde(default)]
+    #[allow(dead_code)]
     pub watch: Option<String>,
+    /// For `bujo`: when true, sync only the current calendar month.
     #[serde(default)]
     pub month_window: Option<bool>,
 }

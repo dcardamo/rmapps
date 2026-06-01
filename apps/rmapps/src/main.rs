@@ -5,7 +5,8 @@
 //! - `bujo`  — generate/deploy bullet-journal PDFs.
 //! - `reader`— pull Readwise Reader collections, read-back, deploy.
 //! - `digest`— summarize reMarkable docs into per-source digests.
-//! - `sync`  — run the config-driven `[[sync]]` tasks once.
+//! - `sync`  — run the config-driven `[[sync]]` tasks once (schedule + on-change triggers).
+//! - `push`  — upload a single PDF to a cloud folder (replace or content-only).
 //!
 //! All deploy goes through the native `rm-cloud` client (see `cloud.rs`); rmapi
 //! is gone. Each subcommand constructs one [`cloud::Cloud`] and reuses it.
@@ -16,6 +17,7 @@ mod cloud;
 mod config;
 mod digest;
 mod ls;
+mod push;
 mod reader;
 mod rm;
 mod sync;
@@ -46,6 +48,8 @@ enum Command {
     Digest(digest::DigestArgs),
     /// Run the configured `[[sync]]` tasks once.
     Sync,
+    /// Upload a PDF to a cloud folder (`--content-only` to preserve on-device ink).
+    Push(push::PushArgs),
     /// List the entries directly under a cloud folder (default: root).
     Ls(ls::LsArgs),
     /// Delete a document or folder in the cloud (`--recursive` for folders).
@@ -73,6 +77,7 @@ fn main() -> anyhow::Result<()> {
             let cfg = config::load(cfg_path)?;
             sync::run(&cfg)
         }
+        Command::Push(args) => push::run(args),
         Command::Ls(args) => ls::run(args),
         Command::Rm(args) => rm::run(args),
     }

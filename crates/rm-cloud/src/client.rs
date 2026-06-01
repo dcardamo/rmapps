@@ -123,6 +123,21 @@ impl Client {
         Snapshot::from_root_index(root.generation, root.hash, &bytes)
     }
 
+    /// Cheap root-generation poll: fetch just the root ref and return its
+    /// `generation`, or `None` if the account never synced (404). Mirrors
+    /// [`snapshot`](Self::snapshot)'s single transparent token-refresh on 401, but
+    /// skips the (potentially large) root-index blob download.
+    pub async fn current_generation(&self) -> Result<Option<i64>> {
+        let root = match self.get_root_ref().await {
+            Err(Error::Unauthorized) => {
+                self.force_refresh().await?;
+                self.get_root_ref().await?
+            }
+            other => other?,
+        };
+        Ok(root.map(|r| r.generation))
+    }
+
     /// GET the root ref; `Ok(None)` if the account has never synced (404).
     async fn get_root_ref(&self) -> Result<Option<RootResp>> {
         let token = self.user_token().await?;
