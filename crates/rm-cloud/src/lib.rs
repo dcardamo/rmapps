@@ -8,6 +8,7 @@
 #![warn(missing_docs)]
 
 mod auth;
+pub mod cache;
 mod client;
 mod config;
 mod error;
@@ -20,6 +21,7 @@ mod transport;
 pub mod fake;
 
 pub use auth::{refresh_user_token, register_device, Credentials};
+pub use cache::BlobCache;
 pub use client::{Client, NotifyStream};
 pub use config::Config;
 pub use error::{Error, Result};
