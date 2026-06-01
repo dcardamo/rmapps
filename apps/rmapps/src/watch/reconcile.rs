@@ -1,6 +1,7 @@
 //! Pure reconcile: snapshot-hash diff and folder-prefix routing. No I/O.
 use crate::config::WatchAction;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::time::Duration;
 
 /// A watch rule with its debounce parsed.
@@ -64,6 +65,24 @@ pub fn route(docs: &[ChangedDoc], rules: &[ResolvedRule]) -> Vec<Job> {
         }
     }
     jobs
+}
+
+/// True if a doc looks like daemon-generated output.
+#[allow(dead_code)]
+pub fn is_self_write(name: &str, has_app_key: bool, suffixes: &[String]) -> bool {
+    has_app_key || suffixes.iter().any(|s| name.ends_with(s.as_str()))
+}
+
+/// Remove daemon-generated docs (`app_key_ids` carry the `rmCloudKey` marker).
+#[allow(dead_code)]
+pub fn filter_self_writes(
+    docs: Vec<ChangedDoc>,
+    suffixes: &[String],
+    app_key_ids: &BTreeSet<String>,
+) -> Vec<ChangedDoc> {
+    docs.into_iter()
+        .filter(|d| !is_self_write(&d.name, app_key_ids.contains(&d.id), suffixes))
+        .collect()
 }
 
 #[cfg(test)]
@@ -138,5 +157,30 @@ mod tests {
             rule("/Books", WatchAction::Readback),
         ];
         assert_eq!(route(&docs, &rules).len(), 2);
+    }
+
+    #[test]
+    fn is_self_write_suffix_appkey_and_plain() {
+        let suffixes = vec![" — Digest".to_string()];
+        // suffix match
+        assert!(is_self_write("Book — Digest", false, &suffixes));
+        // no match
+        assert!(!is_self_write("Book", false, &suffixes));
+        // app-key forces true regardless of name
+        assert!(is_self_write("Book", true, &suffixes));
+    }
+
+    #[test]
+    fn self_write_filtered_by_suffix_and_appkey() {
+        let suffixes = vec![" — Digest".to_string(), " — Annotated".to_string()];
+        let docs = vec![
+            ChangedDoc { id: "1".into(), name: "Book".into(), parent: "p".into(), path: "/Books/Book".into() },
+            ChangedDoc { id: "2".into(), name: "Book — Digest".into(), parent: "p".into(), path: "/Books/Book — Digest".into() },
+            ChangedDoc { id: "3".into(), name: "Reader Index".into(), parent: "q".into(), path: "/Read/Reader Index".into() },
+        ];
+        let app_key_ids: std::collections::BTreeSet<String> = ["3".to_string()].into_iter().collect();
+        let kept = filter_self_writes(docs, &suffixes, &app_key_ids);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].id, "1");
     }
 }
