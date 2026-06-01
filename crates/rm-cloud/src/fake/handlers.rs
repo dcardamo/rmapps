@@ -130,9 +130,13 @@ async fn blob_get(AxState(state): AxState<Shared>, Path(hash): Path<String>) -> 
     if let Some(resp) = rate_limit_response(&state) {
         return resp;
     }
-    let s = state.lock().unwrap();
-    match s.blobs.get(&hash) {
-        Some(b) => (StatusCode::OK, b.clone()).into_response(),
+    let mut s = state.lock().unwrap();
+    match s.blobs.get(&hash).cloned() {
+        Some(b) => {
+            // Count each successful blob GET for cache-effectiveness assertions.
+            *s.blob_gets.entry(hash).or_insert(0) += 1;
+            (StatusCode::OK, b).into_response()
+        }
         None => (StatusCode::NOT_FOUND, "no blob").into_response(),
     }
 }

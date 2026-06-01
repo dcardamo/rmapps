@@ -28,6 +28,8 @@ pub struct State {
     /// `429 Too Many Requests` + `Retry-After: 0` (decremented each time). Exercises the
     /// client's automatic 429 backoff/retry.
     pub rate_limited_remaining: u32,
+    /// Per-hash count of blob GETs served (test assertion of cache effectiveness).
+    pub blob_gets: HashMap<String, u32>,
 }
 
 impl State {
@@ -98,6 +100,11 @@ impl FakeCloud {
     /// Read a stored blob by hash (test helper).
     pub fn blob(&self, hash: &str) -> Option<Vec<u8>> {
         self.state.lock().unwrap().blobs.get(hash).cloned()
+    }
+
+    /// Number of blob GETs served for `hash` (test helper).
+    pub fn blob_get_count(&self, hash: &str) -> u32 {
+        self.state.lock().unwrap().blob_gets.get(hash).copied().unwrap_or(0)
     }
 
     /// Spawn a new fake cloud, hydrating its state from `dir/state.json` if present.
