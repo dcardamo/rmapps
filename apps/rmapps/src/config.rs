@@ -87,6 +87,12 @@ impl Config {
                 anyhow::bail!("[[sync]] #{i} ({}): set either `every` or `at`, not both", t.app);
             }
             if let Some(times) = &t.at {
+                if times.is_empty() {
+                    anyhow::bail!(
+                        "[[sync]] #{i} ({}): `at` is empty; a task with no `every` and an empty `at` would never fire",
+                        t.app
+                    );
+                }
                 for s in times {
                     parse_hhmm(s).map_err(|e| anyhow::anyhow!("[[sync]] #{i}: {e}"))?;
                 }
@@ -96,8 +102,11 @@ impl Config {
             if r.path.trim().is_empty() {
                 anyhow::bail!("[[watch]] #{i}: empty path");
             }
-            crate::watch::schedule::parse_duration(&r.debounce)
+            let debounce = crate::watch::schedule::parse_duration(&r.debounce)
                 .map_err(|e| anyhow::anyhow!("[[watch]] #{i} debounce: {e}"))?;
+            if debounce.is_zero() {
+                anyhow::bail!("[[watch]] #{i} debounce: must be > 0");
+            }
         }
         Ok(())
     }
@@ -328,6 +337,33 @@ mod tests {
         )
         .unwrap();
         assert!(bad_tz.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_empty_at_list() {
+        let cfg = load_str(
+            r#"
+            [[sync]]
+            app = "bujo"
+            at = []
+        "#,
+        )
+        .unwrap();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_zero_debounce() {
+        let cfg = load_str(
+            r#"
+            [[watch]]
+            path = "/Books"
+            action = "digest"
+            debounce = "0s"
+        "#,
+        )
+        .unwrap();
+        assert!(cfg.validate().is_err());
     }
 
     #[test]

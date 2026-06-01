@@ -1,15 +1,13 @@
-//! `rmapps sync` — the config-driven trigger engine.
+//! `rmapps sync` — interval-driven trigger engine (stopgap).
 //!
-//! Iterates `config.sync` and decides, per task, whether it is *due* this run:
+//! Iterates `config.sync` and runs each task that is *due* this run: a task with
+//! no `every` is always due, otherwise it is due once `every` has elapsed since it
+//! last ran. Per-task last-run timestamps are persisted to
+//! `~/.local/state/rmapps/sync-state.json` so intervals survive across invocations.
 //!
-//! - `trigger = "schedule"` (default): due when `every` is unset, or when at least
-//!   `every` has elapsed since this task last ran (tracked in persistent state).
-//! - `trigger = "on-change"`: due when the cloud account's root *generation* has
-//!   moved since the last sync (or on the very first run).
-//!
-//! Per-task last-run times and the last-seen generation are persisted to
-//! `~/.local/state/rmapps/sync-state.json` so scheduling survives across invocations.
-//! A single [`Cloud`] is built once and shared by every due task.
+//! This is intentionally minimal: there is no reactivity here. Clock-time `at`
+//! scheduling and change-driven triggers are owned by the `rmapps watch` daemon
+//! (Task 8); this command just fires intervals when invoked (e.g. from cron).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -20,16 +18,13 @@ use chrono::Datelike;
 use serde::{Deserialize, Serialize};
 
 use crate::bujo::{self, BujoArgs};
-use crate::cloud::Cloud;
 use crate::config::Config;
 use crate::digest::{self, DigestArgs};
 use crate::reader;
 
-/// Persistent sync state: the last-seen cloud root generation (for `on-change`)
-/// and per-task last-run unix timestamps (for `schedule`).
+/// Persistent sync state: per-task last-run unix timestamps, keyed by task key.
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct SyncState {
-    last_generation: Option<i64>,
     #[serde(default)]
     last_run: BTreeMap<String, u64>,
 }
@@ -111,8 +106,6 @@ pub fn run(cfg: &Config) -> Result<()> {
     }
 
     let mut state = load_state();
-    let cloud = Cloud::from_stored()?;
-    let cur_gen = cloud.current_generation()?;
 
     let now = now_secs();
     let mut ran = 0usize;
@@ -157,9 +150,7 @@ pub fn run(cfg: &Config) -> Result<()> {
         }
     }
 
-    // Update generation bookkeeping and persist regardless of task outcomes, so
-    // on-change tracking stays correct across runs.
-    state.last_generation = cur_gen;
+    // Persist updated last-run timestamps regardless of task outcomes.
     if let Err(e) = save_state(&state) {
         println!("[rmapps] sync: warning: could not save state: {e}");
     }
