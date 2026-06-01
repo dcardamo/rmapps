@@ -180,17 +180,33 @@ async fn push_body(client: &Client, run_folder: &str) -> Result<()> {
 #[tokio::test]
 #[ignore = "hits the live reMarkable notification websocket; needs RM_CLOUD_DEVICE_TOKEN"]
 async fn live_push_delivers_on_broadcast() {
-    let token = match std::env::var("RM_CLOUD_DEVICE_TOKEN") {
+    let token_a = match std::env::var("RM_CLOUD_DEVICE_TOKEN") {
         Ok(t) if !t.is_empty() => t,
         _ => {
             eprintln!("skipping live push-delivery test: RM_CLOUD_DEVICE_TOKEN unset");
             return;
         }
     };
+    // Connection B uses a SECOND device token if provided (a distinct device registration —
+    // e.g. rmapi's `devicetoken` from ~/.config/rmapi/rmapi.conf). The cloud keys broadcast
+    // delivery by device identity, so a distinct token for B is what makes a wakeup reach A.
+    // Falls back to token A (same device) — in which case the cloud will NOT cross-notify and
+    // the test times out with the diagnostic below (proving the device-identity requirement).
+    let token_b = std::env::var("RM_CLOUD_DEVICE_TOKEN_2")
+        .ok()
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| token_a.clone());
+    if token_b == token_a {
+        eprintln!(
+            "[watch_live] note: RM_CLOUD_DEVICE_TOKEN_2 unset — both connections share one \
+             device token; expect a timeout (cloud cross-notifies distinct devices only)."
+        );
+    } else {
+        eprintln!("[watch_live] using a distinct device token for connection B (cross-device push)");
+    }
 
-    // Two independent clients, SAME device token (see the uncertainty note above).
-    let client_a = Client::from_device_token(Config::from_env(), token.clone());
-    let client_b = Client::from_device_token(Config::from_env(), token);
+    let client_a = Client::from_device_token(Config::from_env(), token_a);
+    let client_b = Client::from_device_token(Config::from_env(), token_b);
 
     // Scratch isolation folder created by B under the shared rmrs-test root.
     let run_id = Uuid::new_v4().to_string();
