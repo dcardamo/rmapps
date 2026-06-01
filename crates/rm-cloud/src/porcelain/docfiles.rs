@@ -41,15 +41,23 @@ pub struct DocFiles {
 
 impl DocFiles {
     /// Build a brand-new PDF document file-set: a fresh UUID, a `DocumentType`
-    /// `.metadata` (named `visible_name`, under `parent`), a minimal PDF `.content`,
+    /// `.metadata` (named `visible_name`, under `parent`), a full PDF `.content`,
     /// and the `.pdf` blob. No `.rm` ink yet — the device adds those when the user
-    /// writes (and the `.content` page list, on first open). Later background swaps
-    /// go through [`Client::put_content_only`](crate::Client::put_content_only),
-    /// which preserves that ink (mechanics §1, §3).
+    /// writes. Later background swaps go through
+    /// [`Client::put_content_only`](crate::Client::put_content_only), which
+    /// preserves that ink (mechanics §1, §3).
     ///
-    /// The `.content` carries only `fileType: "pdf"` (plus a format marker); the
-    /// device derives the page list from the PDF on open — a freshly deployed PDF
-    /// has a null page list until then (see `rm_files` content parsing).
+    /// The `.content` carries an explicit page list: `pageCount`/`originalPageCount`
+    /// (from the PDF's actual page count, via `lopdf`), a `pages` array of fresh
+    /// per-page UUIDs, and a matching `redirectionPageMap`. This is the firmware's
+    /// legacy flat schema — writing it ourselves means the device shows the pages
+    /// immediately, without having to parse the whole PDF (which fails for large
+    /// image-heavy PDFs). If the PDF can't be parsed (page count 0) we fall back to
+    /// the minimal `{"fileType":"pdf","formatVersion":1}` content.
+    ///
+    /// Generating the page UUIDs here is correct: the reader deploys via a
+    /// destructive `replace` (a fresh doc each run), and for bujo's content-only
+    /// path the `.content` is written once at create and preserved on refresh.
     pub fn new_pdf(visible_name: &str, parent: &str, pdf: Vec<u8>) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let meta = Metadata {
@@ -60,7 +68,43 @@ impl DocFiles {
             deleted: false,
             extra: Default::default(),
         };
-        let content = br#"{"fileType":"pdf","formatVersion":1}"#.to_vec();
+        // Count pages straight from the PDF bytes. 0 => unparseable; fall back.
+        let n = lopdf::Document::load_mem(&pdf)
+            .map(|d| d.get_pages().len())
+            .unwrap_or(0);
+        let content = if n > 0 {
+            let pages: Vec<String> = (0..n).map(|_| uuid::Uuid::new_v4().to_string()).collect();
+            let redirection_page_map: Vec<i64> = (0..n as i64).collect();
+            serde_json::to_vec(&serde_json::json!({
+                "fileType": "pdf",
+                "formatVersion": 1,
+                "pageCount": n,
+                "originalPageCount": n,
+                "pages": pages,
+                "redirectionPageMap": redirection_page_map,
+                "sizeInBytes": pdf.len().to_string(),
+                "coverPageNumber": 0,
+                "orientation": "portrait",
+                "textScale": 1,
+                "textAlignment": "justify",
+                "zoomMode": "bestFit",
+                "lineHeight": -1,
+                "fontName": "",
+                "customZoomCenterX": 0,
+                "customZoomCenterY": 936,
+                "customZoomOrientation": "portrait",
+                "customZoomPageHeight": 1872,
+                "customZoomPageWidth": 1404,
+                "customZoomScale": 1,
+                "tags": [],
+                "pageTags": [],
+                "documentMetadata": {},
+                "extraMetadata": {},
+            }))
+            .expect("serialize content")
+        } else {
+            br#"{"fileType":"pdf","formatVersion":1}"#.to_vec()
+        };
         let files = vec![
             (
                 format!("{id}.metadata"),
@@ -144,5 +188,97 @@ impl DocFiles {
             ));
         }
         Ok(Self { id, files })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a minimal valid PDF with `pages` empty pages, via lopdf.
+    fn build_pdf(pages: usize) -> Vec<u8> {
+        use lopdf::dictionary;
+        use lopdf::{Document, Object, ObjectId};
+
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let kids: Vec<Object> = (0..pages)
+            .map(|_| {
+                let page_id = doc.add_object(dictionary! {
+                    "Type" => "Page",
+                    "Parent" => pages_id,
+                    "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+                });
+                Object::Reference(page_id)
+            })
+            .collect();
+        let kid_ids: Vec<ObjectId> = kids
+            .iter()
+            .filter_map(|o| match o {
+                Object::Reference(id) => Some(*id),
+                _ => None,
+            })
+            .collect();
+        let pages_dict = dictionary! {
+            "Type" => "Pages",
+            "Count" => Object::Integer(pages as i64),
+            "Kids" => kids,
+        };
+        doc.objects.insert(pages_id, Object::Dictionary(pages_dict));
+        // Touch kid_ids so unused-var lint stays quiet across lopdf versions.
+        let _ = kid_ids;
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).expect("save pdf");
+        buf
+    }
+
+    #[test]
+    fn new_pdf_writes_full_page_list() {
+        let pdf = build_pdf(2);
+        let docs = DocFiles::new_pdf("Test", "", pdf.clone());
+        let content_raw = docs
+            .get(&format!("{}.content", docs.id))
+            .expect("has .content");
+        let content: serde_json::Value =
+            serde_json::from_slice(content_raw).expect("valid content json");
+
+        assert_eq!(content["fileType"], "pdf");
+        let page_count = content["pageCount"].as_u64().expect("pageCount");
+        assert_eq!(page_count, 2);
+        let pages_len = content["pages"].as_array().expect("pages array").len() as u64;
+        let map_len = content["redirectionPageMap"]
+            .as_array()
+            .expect("redirectionPageMap array")
+            .len() as u64;
+        assert_eq!(page_count, pages_len);
+        assert_eq!(page_count, map_len);
+        // sizeInBytes is a string of the byte length.
+        assert_eq!(content["sizeInBytes"], pdf.len().to_string());
+    }
+
+    #[test]
+    fn new_pdf_one_page() {
+        let pdf = build_pdf(1);
+        let docs = DocFiles::new_pdf("One", "", pdf);
+        let content_raw = docs.get(&format!("{}.content", docs.id)).unwrap();
+        let content: serde_json::Value = serde_json::from_slice(content_raw).unwrap();
+        assert_eq!(content["pageCount"].as_u64(), Some(1));
+    }
+
+    #[test]
+    fn new_pdf_unparseable_falls_back() {
+        let docs = DocFiles::new_pdf("Bad", "", b"not a pdf".to_vec());
+        let content_raw = docs.get(&format!("{}.content", docs.id)).unwrap();
+        let content: serde_json::Value = serde_json::from_slice(content_raw).unwrap();
+        assert_eq!(content["fileType"], "pdf");
+        assert_eq!(content["formatVersion"].as_u64(), Some(1));
+        // Fallback content has no page list.
+        assert!(content.get("pageCount").is_none());
     }
 }

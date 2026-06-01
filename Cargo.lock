@@ -3674,6 +3674,7 @@ dependencies = [
  "base64",
  "crc32c",
  "hex",
+ "lopdf",
  "reqwest",
  "rmfiles",
  "serde",
