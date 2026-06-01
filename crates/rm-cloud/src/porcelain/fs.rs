@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::client::Client;
 use crate::error::{Error, Result};
+use crate::plumbing::snapshot::Snapshot;
 use crate::porcelain::docfiles::{DocFiles, Metadata};
 use crate::porcelain::document::now_millis;
 
@@ -50,13 +51,13 @@ impl Client {
         self.metadata_from(&snap, id).await
     }
 
-    /// List the direct children of `parent` ("" = root).
+    /// List direct children of `parent` against an already-fetched snapshot.
     ///
     /// The cloud has no server-side child listing, so this reads every document's
     /// `.metadata` (only that blob, not the PDF/ink) and filters by `parent`. Fetches run
     /// up to [`LS_CONCURRENCY`] at a time. Docs whose metadata can't be read are skipped.
-    pub async fn ls(&self, parent: &str) -> Result<Vec<Entry>> {
-        let snap = self.snapshot().await?;
+    /// Because the snapshot is provided by the caller, no generation poll is issued.
+    pub async fn ls_with(&self, snap: &Snapshot, parent: &str) -> Result<Vec<Entry>> {
         let docs: Vec<(String, String)> = snap
             .docs()
             .map(|d| (d.id.clone(), d.hash.clone()))
@@ -93,6 +94,13 @@ impl Client {
         }
         out.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(out)
+    }
+
+    /// List the direct children of `parent` ("" = root). Snapshots, then delegates to
+    /// [`Self::ls_with`].
+    pub async fn ls(&self, parent: &str) -> Result<Vec<Entry>> {
+        let snap = self.snapshot().await?;
+        self.ls_with(&snap, parent).await
     }
 
     /// Resolve a slash-separated folder path to its folder id, creating any missing
@@ -140,6 +148,38 @@ impl Client {
         })
         .await?;
         Ok(id)
+    }
+}
+
+#[cfg(all(test, feature = "fake"))]
+mod ls_with_tests {
+    use crate::client::Client;
+    use crate::config::Config;
+    use crate::fake::FakeCloud;
+    use crate::porcelain::docfiles::DocFiles;
+
+    #[tokio::test]
+    async fn recursive_listing_reuses_one_snapshot() {
+        let fake = FakeCloud::spawn().await;
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token");
+
+        let a = client.mkdir("FolderA", "").await.unwrap();
+        let b = client.mkdir("FolderB", "").await.unwrap();
+        client.put(DocFiles::new_pdf("DocA", &a, b"%PDF\n".to_vec())).await.unwrap();
+        client.put(DocFiles::new_pdf("DocB", &b, b"%PDF\n".to_vec())).await.unwrap();
+
+        let snap = client.snapshot().await.unwrap();
+        let root_hash = snap.root_hash.clone();
+        let before = fake.blob_get_count(&root_hash);
+
+        let _ = client.ls_with(&snap, "").await.unwrap();
+        let _ = client.ls_with(&snap, &a).await.unwrap();
+        let _ = client.ls_with(&snap, &b).await.unwrap();
+
+        assert_eq!(
+            fake.blob_get_count(&root_hash), before,
+            "ls_with must not refetch the root index per folder"
+        );
     }
 }
 

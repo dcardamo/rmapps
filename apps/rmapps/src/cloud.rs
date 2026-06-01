@@ -204,19 +204,24 @@ impl Cloud {
 
     /// Recursively list documents under `root` (a slash path), excluding any
     /// whose visible name ends with one of `exclude_suffixes`. Empty if `root`
-    /// does not exist.
+    /// does not exist. Fetches the snapshot ONCE and reuses it across all folders.
     pub fn list_recursive(&self, root: &str, exclude_suffixes: &[String]) -> Result<Vec<RemoteDoc>> {
-        let Some(root_id) = self.resolve_folder(root)? else {
+        let snap = self
+            .rt
+            .block_on(self.client.snapshot())
+            .map_err(|e| anyhow!("snapshot: {e}"))?;
+        let Some(root_id) = self.resolve_folder_in(&snap, root)? else {
             return Ok(Vec::new());
         };
         let root_path = normalize_path(root);
         let mut out = Vec::new();
-        self.walk(&root_id, &root_path, exclude_suffixes, &mut out)?;
+        self.walk(&snap, &root_id, &root_path, exclude_suffixes, &mut out)?;
         Ok(out)
     }
 
     fn walk(
         &self,
+        snap: &rm_cloud::Snapshot,
         folder_id: &str,
         folder_path: &str,
         exclude_suffixes: &[String],
@@ -224,7 +229,7 @@ impl Cloud {
     ) -> Result<()> {
         let entries = self
             .rt
-            .block_on(self.client.ls(folder_id))
+            .block_on(self.client.ls_with(snap, folder_id))
             .map_err(|e| anyhow!("ls {folder_path}: {e}"))?;
         for e in entries {
             let child_path = if folder_path.ends_with('/') {
@@ -233,7 +238,7 @@ impl Cloud {
                 format!("{folder_path}/{}", e.name)
             };
             if e.is_folder {
-                self.walk(&e.id, &child_path, exclude_suffixes, out)?;
+                self.walk(snap, &e.id, &child_path, exclude_suffixes, out)?;
             } else if !exclude_suffixes.iter().any(|s| e.name.ends_with(s.as_str())) {
                 out.push(RemoteDoc {
                     id: e.id,
@@ -245,6 +250,23 @@ impl Cloud {
             }
         }
         Ok(())
+    }
+
+    /// Resolve a slash path to a folder id against an existing snapshot (no extra root fetch).
+    /// `Ok(None)` if any segment is missing. Root (`""`/`"/"`) resolves to `""`.
+    fn resolve_folder_in(&self, snap: &rm_cloud::Snapshot, folder: &str) -> Result<Option<String>> {
+        let mut parent = String::new();
+        for seg in folder.split('/').filter(|s| !s.is_empty()) {
+            let entries = self
+                .rt
+                .block_on(self.client.ls_with(snap, &parent))
+                .map_err(|e| anyhow!("ls {parent:?}: {e}"))?;
+            match entries.into_iter().find(|e| e.is_folder && e.name == seg) {
+                Some(e) => parent = e.id,
+                None => return Ok(None),
+            }
+        }
+        Ok(Some(parent))
     }
 }
 
