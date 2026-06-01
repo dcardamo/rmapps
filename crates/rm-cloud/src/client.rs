@@ -223,6 +223,19 @@ impl Client {
     /// One-way (receive-only): the server pushes a frame whenever the account may have
     /// changed (some other client committed with `broadcast: true`). We never send.
     pub async fn notifications_subscribe(&self) -> Result<NotifyStream> {
+        match self.try_ws_connect().await {
+            Ok(s) => Ok(s),
+            Err(_first) => {
+                // The cached user token may have expired (long-running daemon).
+                // Mint a fresh one and retry the connect exactly once.
+                self.force_refresh().await?;
+                self.try_ws_connect().await
+            }
+        }
+    }
+
+    /// Single websocket connect attempt using the current user token.
+    async fn try_ws_connect(&self) -> Result<NotifyStream> {
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
         let token = self.user_token().await?;

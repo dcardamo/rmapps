@@ -25,10 +25,10 @@ pub struct WatchArgs {
     /// Run a single reconcile pass (+ due scheduled tasks) and exit.
     #[arg(long)]
     pub once: bool,
-    /// Skip the websocket; rely on the safety-net poll only. (No effect until 8b/Task 7.)
+    /// Skip the websocket push thread and rely solely on the safety-net poll.
     #[arg(long)]
     pub poll_only: bool,
-    /// Safety-net poll cadence (default 5m). (Used by 8b.)
+    /// Safety-net reconcile cadence (default 5m); also the fallback when the websocket is absent.
     #[arg(long, default_value = "5m")]
     pub poll_interval: String,
 }
