@@ -56,6 +56,20 @@ pub fn run(
     Ok(())
 }
 
+/// Run the digest pipeline for exactly one document (reactive, targeted path).
+/// Reuses the same `state_path` as [`run`], so reactive and scheduled digests
+/// never double-process the same doc.
+pub fn run_one(
+    cfg: &Config,
+    backend: &dyn Backend,
+    state_path: &Path,
+    opts: &Opts,
+    doc: &CloudDoc,
+) -> anyhow::Result<()> {
+    let mut state = State::load(state_path)?;
+    process_doc(cfg, backend, doc, &mut state, state_path, opts)
+}
+
 /// Process a single `CloudDoc` through the full pipeline.
 fn process_doc(
     cfg: &Config,
@@ -345,6 +359,48 @@ mod tests {
             "expected 0 puts on unchanged second run, got {}",
             second_puts.len()
         );
+    }
+
+    #[test]
+    fn run_one_processes_single_doc() {
+        // run_one must drive the same fetch → ingest → build path as run(), for
+        // exactly one doc, without error. Dry-run so we exercise generation but
+        // upload nothing and don't poison the hash cache.
+        let fixture = fixture_path();
+        let puts = Arc::new(Mutex::new(Vec::new()));
+        let doc = CloudDoc {
+            path: "/Books/StampedLabels".to_string(),
+            name: "stamped-labels".to_string(),
+            folder: "/Books".to_string(),
+            version: None,
+        };
+        let backend = FakeBackend {
+            fixture: doc.clone(),
+            fixture_path: fixture,
+            puts: puts.clone(),
+        };
+        let cfg = fake_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = Opts {
+            dry_run: true,
+            local_output: None,
+        };
+
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("run_one should succeed");
+
+        // Dry run: nothing uploaded, no state poisoned.
+        assert_eq!(puts.lock().unwrap().len(), 0, "dry run must not upload");
+        if let Ok(state) = State::load(&state_path) {
+            assert!(
+                state
+                    .docs
+                    .get("/Books/StampedLabels")
+                    .map(|d| d.page_hashes.is_empty())
+                    .unwrap_or(true),
+                "dry run must not persist page hashes"
+            );
+        }
     }
 
     #[test]

@@ -170,8 +170,25 @@ impl Client {
     }
 
     /// Apply `mutation` atomically: upload new blobs, then CAS-put the root, rebasing on
-    /// a stale generation. Returns the post-commit snapshot.
+    /// a stale generation. Returns the post-commit snapshot. Does NOT broadcast a change
+    /// notification — see [`commit_broadcast`](Self::commit_broadcast).
     pub async fn commit(&self, mutation: Mutation) -> Result<Snapshot> {
+        self.commit_with(mutation, false).await
+    }
+
+    /// Commit AND broadcast a change notification to the account's other subscribers (the
+    /// reMarkable notification websocket). Normal sync uses [`commit`](Self::commit), which
+    /// does NOT broadcast. This exists for clients that want to actively notify other devices
+    /// (and for end-to-end push tests). The `rmapps watch` daemon never calls this — it must
+    /// not self-notify.
+    pub async fn commit_broadcast(&self, mutation: Mutation) -> Result<Snapshot> {
+        self.commit_with(mutation, true).await
+    }
+
+    /// Shared commit implementation. `broadcast` controls the root PUT `broadcast` flag, which
+    /// determines whether the reMarkable cloud pushes a wakeup frame to the account's other
+    /// notification-socket subscribers. All normal callers pass `false`.
+    async fn commit_with(&self, mutation: Mutation, broadcast: bool) -> Result<Snapshot> {
         // Prepare + upload doc blobs once (content-addressed → safe across retries).
         let prepared: Vec<_> = mutation.upserts.iter().map(prepare_doc).collect();
         for p in &prepared {
@@ -195,7 +212,7 @@ impl Client {
                 .bearer_auth(&token)
                 .header(crate::plumbing::blob::RM_FILENAME, "roothash")
                 .json(&RootPutReq {
-                    broadcast: false,
+                    broadcast,
                     hash: &rhash,
                     generation: snap.generation,
                 })
@@ -216,4 +233,48 @@ impl Client {
         }
         Err(Error::CommitExhausted(MAX_ATTEMPTS))
     }
+
+    /// Connect to the notification websocket, authenticated with the user token.
+    /// Returns the message stream; the caller maps each message to a wakeup.
+    ///
+    /// One-way (receive-only): the server pushes a frame whenever the account may have
+    /// changed (some other client committed with `broadcast: true`). We never send.
+    pub async fn notifications_subscribe(&self) -> Result<NotifyStream> {
+        match self.try_ws_connect().await {
+            Ok(s) => Ok(s),
+            Err(_first) => {
+                // The cached user token may have expired (long-running daemon).
+                // Mint a fresh one and retry the connect exactly once.
+                self.force_refresh().await?;
+                self.try_ws_connect().await
+            }
+        }
+    }
+
+    /// Single websocket connect attempt using the current user token.
+    async fn try_ws_connect(&self) -> Result<NotifyStream> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
+        let token = self.user_token().await?;
+        let mut req = self
+            .config
+            .notifications_ws()
+            .into_client_request()
+            .map_err(|e| Error::Http(format!("ws request: {e}")))?;
+        req.headers_mut().insert(
+            AUTHORIZATION,
+            format!("Bearer {token}")
+                .parse()
+                .map_err(|e| Error::Http(format!("ws auth header: {e}")))?,
+        );
+        let (stream, _resp) = tokio_tungstenite::connect_async(req)
+            .await
+            .map_err(|e| Error::Http(format!("ws connect: {e}")))?;
+        Ok(stream)
+    }
 }
+
+/// The notification websocket stream returned by [`Client::notifications_subscribe`].
+pub type NotifyStream = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;

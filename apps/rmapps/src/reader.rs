@@ -5,29 +5,15 @@
 //! (logged on error, never fatal). Reader PDFs are write-only (no ink to keep),
 //! so they deploy with destructive `replace`.
 
-use std::path::PathBuf;
-
 use anyhow::{Context, Result};
 
-use rmreader::deploy::BundleFetch;
 use rmreader::generate::UreqImageFetcher;
 use rmreader::readback;
 use rmreader::readwise::http::UreqTransport;
 
 use crate::cloud::{self, Cloud};
+use crate::cloud_adapters::CloudFetch;
 use crate::config::Config;
-
-/// Adapts the native cloud client to rmreader's `BundleFetch` seam: read-back
-/// downloads a deployed bundle to inspect on-device annotations.
-struct CloudFetch<'a> {
-    cloud: &'a Cloud,
-}
-
-impl BundleFetch for CloudFetch<'_> {
-    fn fetch(&self, folder: &str, name: &str) -> Result<Option<PathBuf>> {
-        self.cloud.fetch_bundle(folder, name)
-    }
-}
 
 pub fn run(cfg: &Config) -> Result<()> {
     let reader = cfg

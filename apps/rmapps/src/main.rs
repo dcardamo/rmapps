@@ -5,7 +5,8 @@
 //! - `bujo`  — generate/deploy bullet-journal PDFs.
 //! - `reader`— pull Readwise Reader collections, read-back, deploy.
 //! - `digest`— summarize reMarkable docs into per-source digests.
-//! - `sync`  — run the config-driven `[[sync]]` tasks once (schedule + on-change triggers).
+//! - `sync`  — run the config-driven `[[sync]]` scheduled tasks once.
+//! - `watch` — run the resident daemon: scheduled tasks + push-driven reactions.
 //! - `push`  — upload a single PDF to a cloud folder (replace or content-only).
 //!
 //! All deploy goes through the native `rm-cloud` client (see `cloud.rs`); rmapi
@@ -14,6 +15,7 @@
 mod auth;
 mod bujo;
 mod cloud;
+mod cloud_adapters;
 mod config;
 mod digest;
 mod ls;
@@ -21,6 +23,7 @@ mod push;
 mod reader;
 mod rm;
 mod sync;
+mod watch;
 
 use std::path::PathBuf;
 
@@ -48,6 +51,8 @@ enum Command {
     Digest(digest::DigestArgs),
     /// Run the configured `[[sync]]` tasks once.
     Sync,
+    /// Run the resident daemon: scheduled tasks + push-driven reactions.
+    Watch(watch::WatchArgs),
     /// Upload a PDF to a cloud folder (`--content-only` to preserve on-device ink).
     Push(push::PushArgs),
     /// List the entries directly under a cloud folder (default: root).
@@ -76,6 +81,10 @@ fn main() -> anyhow::Result<()> {
         Command::Sync => {
             let cfg = config::load(cfg_path)?;
             sync::run(&cfg)
+        }
+        Command::Watch(args) => {
+            let cfg = config::load(cfg_path)?;
+            watch::run(args, &cfg)
         }
         Command::Push(args) => push::run(args),
         Command::Ls(args) => ls::run(args),

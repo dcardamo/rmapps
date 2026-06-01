@@ -1,0 +1,14 @@
+[Unit]
+Description=rmapps watch — reMarkable event-driven sync daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.cargo/bin/rmapps watch
+Restart=on-failure
+RestartSec=10
+# The daemon reconciles on reMarkable cloud push (websocket) with a safety-net poll.
+
+[Install]
+WantedBy=default.target

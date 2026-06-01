@@ -12,7 +12,7 @@
 rmapps bujo      # generate a full year of bullet-journal notebooks
 rmapps reader    # send your Readwise Reader articles over as clean PDFs
 rmapps digest    # summarize the highlights & handwriting you've added to a doc
-rmapps sync      # run all of the above on a schedule
+rmapps watch     # run as a resident daemon: scheduled tasks + push-driven reactions
 ```
 
 ---
@@ -69,9 +69,16 @@ Point it at the documents you've been marking up and it builds a **digest of you
 </tr>
 </table>
 
-### 🔁 Set it and forget it — `rmapps sync`
+### 🔁 Set it and forget it — `rmapps watch`
 
-Describe the tasks you want in one config file and `rmapps sync` runs them in a single pass — refresh the bujo calendar, pull new reading, rebuild digests. Drop it in a cron job or systemd timer and your tablet stays current on its own.
+`rmapps watch` is a **resident daemon** that keeps your tablet current on its own — no cron, no external timer. It does two things at once:
+
+- **Runs your scheduled tasks** on clock-times or intervals. Refresh the bujo calendar every morning, pull new reading twice a day, rebuild digests overnight — described once in your config with `at = ["06:00", "18:00"]` or `every = "12h"`. If the daemon was down when a task was due, it catches up on startup.
+- **Reacts to your tablet in real time.** It holds a websocket to the reMarkable Cloud, so the moment you sync a change to a watched folder it processes *just that document* immediately — digest a book you just finished highlighting, or read the annotations back off an article — without waiting for the next scheduled pass.
+
+Define which folders to react to with `[[watch]]` rules (see the config example below). A safety-net poll runs on a timer so nothing is missed even if the websocket drops; pass `--poll-only` to skip the websocket entirely and rely on that poll alone.
+
+This replaces the old "run `rmapps sync` from a cron job" approach. `rmapps sync` still exists — it runs your configured `[[sync]]` tasks **once** and exits, handy for a manual kick or a one-off — but `rmapps watch` is the thing you leave running.
 
 ### 🗂️ Manage your cloud from the terminal — `rmapps ls` / `rmapps rm`
 
@@ -109,6 +116,9 @@ Pairing is **native** — no rmapi, no extra tooling. Only a long-lived device t
 Everything lives in one file: `~/.config/rmapps/config.toml`. Each feature is an optional section — set up only the ones you use.
 
 ```toml
+# Time zone for resolving clock-time `at` schedules below (IANA name).
+timezone = "America/Halifax"
+
 # Bullet journal
 [bujo]
 year = 2026
@@ -131,12 +141,42 @@ pages_per_day = 1
 [digest]
 # (see `rmapps digest --help` for options)
 
-# Run these together on `rmapps sync`
+# Scheduled tasks: `rmapps watch` runs these on the clock (and `rmapps sync`
+# runs them once). Each task uses either `at` (clock-times, HH:MM 24h) or
+# `every` (an interval like "12h" / "1d") — not both.
 [[sync]]
 app = "bujo"
+at = ["06:00", "18:00"]   # refresh the calendar morning and evening
+month_window = true       # bujo only: sync just the current month
+
 [[sync]]
 app = "reader"
+every = "12h"             # pull new reading twice a day
+
+# Reactive rules: when a doc under `path` changes on the cloud, run `action`
+# after a quiet period of `debounce`. action is "digest" or "readback".
+[[watch]]
+path = "/Books"           # finished highlighting a book → build its digest
+action = "digest"
+debounce = "30s"
+
+[[watch]]
+path = "/Read/Library"    # annotated an article → read the highlights back
+action = "readback"
+debounce = "30s"
 ```
+
+### Run it as a service
+
+A `--user` systemd unit ships in [`apps/rmapps/dist/rmapps-watch.service`](apps/rmapps/dist/rmapps-watch.service). To keep the daemon running and start it on login:
+
+```sh
+cp apps/rmapps/dist/rmapps-watch.service ~/.config/systemd/user/
+systemctl --user enable --now rmapps-watch
+journalctl --user -u rmapps-watch -f      # follow the logs
+```
+
+The unit runs `%h/.cargo/bin/rmapps watch` (install the binary there with `cargo install --path apps/rmapps`) and restarts on failure.
 
 ### 4. Run it
 
@@ -145,7 +185,9 @@ rmapps bujo                  # deploy the whole year
 rmapps bujo --only-month 6   # refresh just June, leave the rest (and your ink) alone
 rmapps reader                # send your reading list over
 rmapps digest --dry-run      # preview what would be summarized
-rmapps sync                  # do all configured tasks in one pass
+rmapps sync                  # run the configured tasks once and exit
+rmapps watch                 # run the resident daemon (schedule + reactions)
+rmapps watch --poll-only     # ...without the websocket; rely on the safety-net poll
 ```
 
 Most commands support `--help` for the full set of flags.

@@ -1,0 +1,97 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-01-event-driven-sync.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Config — [[watch]] rules + clock-time [[sync]]; drop on-change",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "Parse/validate [[watch]] rules (WatchRule{path,action,debounce}, closed WatchAction enum) and at/timezone on SyncTask; mutually-exclusive every/at; Config::validate(); remove trigger/watch.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/src/config.rs\",\"apps/rmapps/Cargo.toml\"],\"verifyCommand\":\"cargo test -p rmapps config\",\"acceptanceCriteria\":[\"[[watch]] parses\",\"unknown action errors\",\"every/at mutually exclusive\",\"validate rejects bad time/tz/path/debounce\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Scheduler — pure next-fire computation",
+      "status": "completed",
+      "blockedBy": [],
+      "description": "watch/schedule.rs: parse_duration, Sched, next_fire (every/at/tz), due_on_startup catch-up; injectable now. Create watch/mod.rs and add mod watch to main.rs.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/src/watch/schedule.rs\",\"apps/rmapps/src/watch/mod.rs\",\"apps/rmapps/src/main.rs\"],\"verifyCommand\":\"cargo test -p rmapps schedule\",\"acceptanceCriteria\":[\"parse_duration\",\"next_fire every+at\",\"at rolls to tomorrow\",\"due_on_startup once\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Reconcile — pure diff + folder-prefix routing",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "watch/reconcile.rs: diff_ids (added+changed), ChangedDoc, ResolvedRule, Job, route() by path prefix.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/src/watch/reconcile.rs\",\"apps/rmapps/src/watch/mod.rs\"],\"verifyCommand\":\"cargo test -p rmapps reconcile\",\"acceptanceCriteria\":[\"diff_ids added+changed not removed\",\"route path==rule or prefix+/\",\"sibling stem no match\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Self-write filter",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "is_self_write + filter_self_writes (digest/annotated suffix or rmCloudKey).\n\n```json:metadata\n{\"files\":[\"apps/rmapps/src/watch/reconcile.rs\"],\"verifyCommand\":\"cargo test -p rmapps reconcile\",\"acceptanceCriteria\":[\"suffix or app key filtered\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Debounce — pure per-(rule,doc) coalescing",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "watch/debounce.rs: Debouncer offer/ready/next_deadline keyed by (rule_path, doc.id), injected Instant.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/src/watch/debounce.rs\",\"apps/rmapps/src/watch/mod.rs\"],\"verifyCommand\":\"cargo test -p rmapps debounce\",\"acceptanceCriteria\":[\"fires after window\",\"repeated offer resets/collapses\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Targeted actions — digest run_one + reactive dispatch",
+      "status": "completed",
+      "blockedBy": [0, 2],
+      "description": "rmdigest generate::run_one(doc); watch/actions.rs run_job mapping Digest->run_one, Readback->sync_collection on changed doc.\n\n```json:metadata\n{\"files\":[\"crates/rmdigest/src/generate.rs\",\"apps/rmapps/src/watch/actions.rs\",\"apps/rmapps/src/watch/mod.rs\"],\"verifyCommand\":\"cargo test -p rmdigest run_one && cargo build -p rmapps\",\"acceptanceCriteria\":[\"run_one one doc shared state\",\"run_job maps actions, errors returned\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: NotificationSource trait + poll source + fake",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "watch/notify.rs: Wakeup, NotificationSource trait, PollSource (safety-net/--poll-only), FakeSource (channel).\n\n```json:metadata\n{\"files\":[\"apps/rmapps/src/watch/notify.rs\",\"apps/rmapps/src/watch/mod.rs\",\"apps/rmapps/Cargo.toml\"],\"verifyCommand\":\"cargo test -p rmapps notify\",\"acceptanceCriteria\":[\"Wakeup no payload\",\"PollSource ticks\",\"FakeSource delivers\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Websocket NotificationSource (discovery spike + impl)",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "Discovery spike for reMarkable notification ws; rm-cloud notifications host + notifications_subscribe; WsSource with backoff reconnect; poll-only fallback if unconfirmed.\n\n```json:metadata\n{\"files\":[\"crates/rm-cloud/src/config.rs\",\"crates/rm-cloud/src/client.rs\",\"crates/rm-cloud/src/lib.rs\",\"crates/rm-cloud/Cargo.toml\",\"apps/rmapps/src/watch/notify_ws.rs\",\"apps/rmapps/src/watch/notify.rs\"],\"verifyCommand\":\"cargo build -p rmapps\",\"acceptanceCriteria\":[\"notifications host + env override\",\"authenticated ws connect\",\"WsSource reconnects, never errors out\",\"poll-only fallback\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Daemon wiring — rmapps watch command + state + select! loop",
+      "status": "completed",
+      "blockedBy": [3, 4, 5, 6],
+      "description": "watch/state.rs (baseline/last_run/pending_jobs); WatchArgs + run; select! loop over notify/poll/scheduler/debounce; startup reconcile + catch-up; reconcile_pass shell; register Watch in main.rs; drop on-change from sync.rs.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/src/watch/state.rs\",\"apps/rmapps/src/watch/mod.rs\",\"apps/rmapps/src/main.rs\",\"apps/rmapps/src/sync.rs\"],\"verifyCommand\":\"cargo build -p rmapps\",\"acceptanceCriteria\":[\"watch runs until killed\",\"--once/--poll-only/--poll-interval\",\"state persists/reloads\",\"startup reconcile+catch-up\",\"reactor pass with bounded retry\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Reactor integration test against fake cloud",
+      "status": "completed",
+      "blockedBy": [8],
+      "description": "apps/rmapps/tests/watch_reactor.rs: change under watched folder -> one job; digest-suffix deploy -> zero jobs.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/tests/watch_reactor.rs\"],\"verifyCommand\":\"cargo test -p rmapps watch_reactor\",\"acceptanceCriteria\":[\"one job right action\",\"self-write zero jobs\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Tier A automated live e2e (gated)",
+      "status": "completed",
+      "blockedBy": [8],
+      "description": "apps/rmapps/tests/watch_live.rs gated by RM_CLOUD_DEVICE_TOKEN + #[ignore]; isolated rmrs-test/<run>; second-conn change -> WsSource Wakeup -> action; annotated fixture. Run on saturn.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/tests/watch_live.rs\",\"apps/rmapps/tests/fixtures/annotated.rmdoc\"],\"verifyCommand\":\"cargo test -p rmapps -- --ignored watch_live\",\"acceptanceCriteria\":[\"gated, clean skip\",\"isolated+cleanup\",\"Wakeup+reconcile+action\",\"fixture drives digest/readback\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: systemd unit, config example, docs cleanup",
+      "status": "completed",
+      "blockedBy": [8],
+      "description": "rmapps-watch.service unit; README to watch model (at/[[watch]]/--poll-only); scrub on-change.\n\n```json:metadata\n{\"files\":[\"apps/rmapps/dist/rmapps-watch.service\",\"README.md\"],\"verifyCommand\":\"cargo build --release\",\"acceptanceCriteria\":[\"documented unit\",\"README updated\",\"no on-change refs\"],\"requiresUserVerification\":false}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Manual real-device verification (Tier B)",
+      "status": "pending",
+      "blockedBy": [10, 11],
+      "description": "Deploy+enable unit on saturn; Dan highlights a real book and syncs; confirm digest appears beside it. MUST call AskUserQuestion before completing; negative -> investigate and re-verify.\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"\",\"acceptanceCriteria\":[\"user confirms digest appears after real highlight\"],\"requiresUserVerification\":true,\"userVerificationPrompt\":\"With rmapps watch running: you highlighted a book on the Paper Pro and synced. Did a digest appear next to it within ~1 minute?\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-01"
+}

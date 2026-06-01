@@ -16,7 +16,9 @@ rmreader = { path = "../../crates/rmreader" }
 rmdigest = { path = "../../crates/rmdigest" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+async-trait = "0.1"
+futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -24,3 +26,16 @@ toml = "0.8"
 dirs = "5"
 tempfile = "3"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono-tz = "0.10"
+
+[dev-dependencies]
+# test-util enables `#[tokio::test(start_paused = true)]` and virtual-time control
+# used by the poll-source test; kept out of the production build.
+tokio = { version = "1", features = ["test-util"] }
+# Turn on rm-cloud's `fake` feature for the in-crate reactor integration test
+# (apps/rmapps/src/watch/reactor_tests.rs), which drives the app Cloud against
+# the in-repo fake cloud.
+rm-cloud = { path = "../../crates/rm-cloud", features = ["fake"] }
+# Unique run-id isolation folders for the gated Tier A live e2e tests
+# (apps/rmapps/tests/watch_live.rs, apps/rmapps/src/watch/live_tests.rs).
+uuid = { version = "1", features = ["v4"] }
