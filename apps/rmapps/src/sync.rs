@@ -117,38 +117,23 @@ pub fn run(cfg: &Config) -> Result<()> {
     let now = now_secs();
     let mut ran = 0usize;
     let mut skipped = 0usize;
+    // Keys of tasks that failed this run, so we can summarize and exit non-zero
+    // at the end — but only after every due task has had its turn.
+    let mut failed: Vec<String> = Vec::new();
 
     for (i, task) in cfg.sync.iter().enumerate() {
         let key = format!("{}#{}", task.app, i);
-        let trigger = task.trigger.as_deref().unwrap_or("schedule");
 
-        let (due, reason) = match trigger {
-            "on-change" => {
-                // TODO: filter on-change by `watch` via snapshot diff — for now ANY
-                // account-generation change (or the first run) triggers the task.
-                let changed = cur_gen != state.last_generation;
-                (changed, if changed { "generation changed" } else { "generation unchanged" })
+        // Resolve whether this task is due. Trigger-resolution errors (bad
+        // `every`, unknown trigger) are per-task failures too — record them and
+        // move on rather than aborting the whole run.
+        let (due, reason) = match resolve_due(task, &key, &state, cur_gen, now) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("[rmapps] sync: task {key} failed: {e:#}");
+                failed.push(key);
+                continue;
             }
-            "schedule" => match &task.every {
-                None => (true, "no interval (always due)"),
-                Some(every) => {
-                    let interval = parse_every(every)?;
-                    let last = state.last_run.get(&key).copied().unwrap_or(0);
-                    let elapsed = now.saturating_sub(last);
-                    let due = elapsed >= interval.as_secs();
-                    (
-                        due,
-                        if due {
-                            "interval elapsed"
-                        } else {
-                            "interval not elapsed"
-                        },
-                    )
-                }
-            },
-            other => anyhow::bail!(
-                "task {key}: unknown trigger {other:?} (expected \"schedule\" or \"on-change\")"
-            ),
         };
 
         if !due {
@@ -158,32 +143,87 @@ pub fn run(cfg: &Config) -> Result<()> {
         }
 
         println!("[rmapps] sync: {key} running ({reason})");
-        match task.app.as_str() {
-            "bujo" => {
-                let only_month = if task.month_window == Some(true) {
-                    // chrono gives the current calendar month; the year is taken from
-                    // the bujo config inside bujo::run.
-                    Some(chrono::Local::now().month())
-                } else {
-                    None
-                };
-                bujo::run(BujoArgs::for_sync(only_month), cfg)?;
+        match run_task(task, &key, cfg) {
+            Ok(()) => {
+                // Only advance last_run on success, so a failed task retries on
+                // its next fire instead of being marked as having run.
+                state.last_run.insert(key, now);
+                ran += 1;
             }
-            "reader" => reader::run(cfg)?,
-            "digest" => digest::run(DigestArgs::default(), cfg)?,
-            other => anyhow::bail!("task {key}: unknown app {other:?} (expected bujo|reader|digest)"),
+            Err(e) => {
+                eprintln!("[rmapps] sync: task {key} failed: {e:#}");
+                failed.push(key);
+            }
         }
-        state.last_run.insert(key, now);
-        ran += 1;
     }
 
+    // Update generation bookkeeping and persist regardless of task outcomes, so
+    // on-change tracking stays correct across runs.
     state.last_generation = cur_gen;
     if let Err(e) = save_state(&state) {
         println!("[rmapps] sync: warning: could not save state: {e}");
     }
 
-    println!("[rmapps] sync: done — {ran} ran, {skipped} skipped");
+    println!(
+        "[rmapps] sync: {ran} ran, {} failed, {skipped} skipped",
+        failed.len()
+    );
+
+    if !failed.is_empty() {
+        anyhow::bail!("sync: {} task(s) failed: {}", failed.len(), failed.join(", "));
+    }
     Ok(())
+}
+
+/// Decide whether `task` is due this run, returning `(due, reason)`.
+fn resolve_due(
+    task: &crate::config::SyncTask,
+    key: &str,
+    state: &SyncState,
+    cur_gen: Option<i64>,
+    now: u64,
+) -> Result<(bool, &'static str)> {
+    let trigger = task.trigger.as_deref().unwrap_or("schedule");
+    Ok(match trigger {
+        "on-change" => {
+            // TODO: filter on-change by `watch` via snapshot diff — for now ANY
+            // account-generation change (or the first run) triggers the task.
+            let changed = cur_gen != state.last_generation;
+            (changed, if changed { "generation changed" } else { "generation unchanged" })
+        }
+        "schedule" => match &task.every {
+            None => (true, "no interval (always due)"),
+            Some(every) => {
+                let interval = parse_every(every)?;
+                let last = state.last_run.get(key).copied().unwrap_or(0);
+                let elapsed = now.saturating_sub(last);
+                let due = elapsed >= interval.as_secs();
+                (due, if due { "interval elapsed" } else { "interval not elapsed" })
+            }
+        },
+        other => anyhow::bail!(
+            "task {key}: unknown trigger {other:?} (expected \"schedule\" or \"on-change\")"
+        ),
+    })
+}
+
+/// Run a single due task's underlying app.
+fn run_task(task: &crate::config::SyncTask, key: &str, cfg: &Config) -> Result<()> {
+    match task.app.as_str() {
+        "bujo" => {
+            let only_month = if task.month_window == Some(true) {
+                // chrono gives the current calendar month; the year is taken from
+                // the bujo config inside bujo::run.
+                Some(chrono::Local::now().month())
+            } else {
+                None
+            };
+            bujo::run(BujoArgs::for_sync(only_month), cfg)
+        }
+        "reader" => reader::run(cfg),
+        "digest" => digest::run(DigestArgs::default(), cfg),
+        other => anyhow::bail!("task {key}: unknown app {other:?} (expected bujo|reader|digest)"),
+    }
 }
 
 #[cfg(test)]
@@ -198,6 +238,32 @@ mod tests {
         assert_eq!(parse_every("1d").unwrap(), Duration::from_secs(86400));
         // Surrounding whitespace is tolerated.
         assert_eq!(parse_every(" 5m ").unwrap(), Duration::from_secs(300));
+    }
+
+    /// Mirrors `run`'s per-task loop: one failing task must not stop later ones,
+    /// every failure is recorded, and the run reports a non-empty failure set.
+    #[test]
+    fn one_task_failure_does_not_stop_others() {
+        let tasks: Vec<Result<()>> = vec![
+            Ok(()),
+            Err(anyhow::anyhow!("reader 401")),
+            Ok(()),
+            Err(anyhow::anyhow!("boom")),
+        ];
+
+        let mut ran = 0usize;
+        let mut failed: Vec<usize> = Vec::new();
+        for (i, t) in tasks.into_iter().enumerate() {
+            match t {
+                Ok(()) => ran += 1,
+                Err(_) => failed.push(i),
+            }
+        }
+
+        // Both successful tasks after the first failure still ran.
+        assert_eq!(ran, 2);
+        assert_eq!(failed, vec![1, 3]);
+        assert!(!failed.is_empty(), "failures aggregate into a non-empty set");
     }
 
     #[test]
