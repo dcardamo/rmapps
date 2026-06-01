@@ -190,7 +190,7 @@ fn resolve_due(
 }
 
 /// Run a single due task's underlying app.
-fn run_task(task: &crate::config::SyncTask, key: &str, cfg: &Config) -> Result<()> {
+pub(crate) fn run_task(task: &crate::config::SyncTask, key: &str, cfg: &Config) -> Result<()> {
     match task.app.as_str() {
         "bujo" => {
             let only_month = if task.month_window == Some(true) {
