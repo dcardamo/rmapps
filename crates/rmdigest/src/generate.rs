@@ -206,7 +206,7 @@ mod cheap_skip_tests {
         }
 
         fn fetch(&self, _doc: &CloudDoc) -> anyhow::Result<Option<PathBuf>> {
-            self.fetches.fetch_add(1, Ordering::SeqCst);
+            self.fetches.fetch_add(1, Ordering::Relaxed);
             Ok(Some(self.bundle.clone()))
         }
 
@@ -260,12 +260,12 @@ mod cheap_skip_tests {
 
         // First run: must fetch and process.
         run_one(&cfg, &backend, &state_path, &opts, &doc).expect("first run_one");
-        assert_eq!(fetches.load(Ordering::SeqCst), 1, "first run must fetch once");
+        assert_eq!(fetches.load(Ordering::Relaxed), 1, "first run must fetch once");
 
         // Second run: same version and prev page_hashes set → should skip fetch.
         run_one(&cfg, &backend, &state_path, &opts, &doc).expect("second run_one");
         assert_eq!(
-            fetches.load(Ordering::SeqCst),
+            fetches.load(Ordering::Relaxed),
             1,
             "second run with unchanged version must NOT fetch again"
         );
@@ -286,13 +286,13 @@ mod cheap_skip_tests {
         // First run with version v1.
         let doc_v1 = test_doc(Some("version-v1"));
         run_one(&cfg, &backend, &state_path, &opts, &doc_v1).expect("run with v1");
-        assert_eq!(fetches.load(Ordering::SeqCst), 1, "v1 run must fetch");
+        assert_eq!(fetches.load(Ordering::Relaxed), 1, "v1 run must fetch");
 
         // Second run with version v2 (changed) → must re-fetch.
         let doc_v2 = test_doc(Some("version-v2"));
         run_one(&cfg, &backend, &state_path, &opts, &doc_v2).expect("run with v2");
         assert_eq!(
-            fetches.load(Ordering::SeqCst),
+            fetches.load(Ordering::Relaxed),
             2,
             "changed version must trigger a second fetch"
         );
@@ -313,9 +313,28 @@ mod cheap_skip_tests {
 
         run_one(&cfg, &backend, &state_path, &opts, &doc).expect("first run_one");
         assert_eq!(
-            fetches.load(Ordering::SeqCst),
+            fetches.load(Ordering::Relaxed),
             1,
             "first-sight doc must fetch exactly once"
+        );
+    }
+
+    #[test]
+    fn none_version_always_fetches() {
+        let fetches = Arc::new(AtomicU32::new(0));
+        let backend = CountingBackend { bundle: fixture_path(), fetches: fetches.clone() };
+        let cfg = test_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = test_opts();
+        let doc = test_doc(None); // no version → cheap-skip must never fire
+
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("first run");
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("second run");
+        assert_eq!(
+            fetches.load(Ordering::Relaxed),
+            2,
+            "version:None backend must fetch on every run"
         );
     }
 }
