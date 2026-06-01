@@ -1,16 +1,17 @@
 //! `rmapps digest` — text-extract + ink-summarize reMarkable docs into per-source
 //! digests, deployed back into each source doc's own folder via the native client.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Args;
 
-use rmdigest::deploy::{Backend, CloudDoc, LocalBackend};
+use rmdigest::deploy::LocalBackend;
 use rmdigest::generate;
 use rmdigest::state;
 
 use crate::cloud::Cloud;
+use crate::cloud_adapters::CloudBackend;
 use crate::config::Config;
 
 #[derive(Args, Default)]
@@ -24,32 +25,6 @@ pub struct DigestArgs {
     /// Output directory for generated digests (used with --local).
     #[arg(long)]
     out: Option<PathBuf>,
-}
-
-/// Adapts the native cloud client to rmdigest's `Backend` seam.
-struct CloudBackend<'a> {
-    cloud: &'a Cloud,
-}
-
-impl Backend for CloudBackend<'_> {
-    fn list(&self, root: &str, exclude_suffixes: &[String]) -> Result<Vec<CloudDoc>> {
-        let docs = self.cloud.list_recursive(root, exclude_suffixes)?;
-        Ok(docs
-            .into_iter()
-            .map(|d| CloudDoc {
-                path: d.path,
-                name: d.name,
-                folder: d.folder,
-                version: None,
-            })
-            .collect())
-    }
-    fn fetch(&self, doc: &CloudDoc) -> Result<Option<PathBuf>> {
-        self.cloud.fetch_bundle(&doc.folder, &doc.name)
-    }
-    fn put(&self, pdf: &Path, folder: &str, name: &str) -> Result<()> {
-        self.cloud.replace(folder, name, std::fs::read(pdf)?)
-    }
 }
 
 pub fn run(args: DigestArgs, cfg: &Config) -> Result<()> {

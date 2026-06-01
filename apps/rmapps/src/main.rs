@@ -14,6 +14,7 @@
 mod auth;
 mod bujo;
 mod cloud;
+mod cloud_adapters;
 mod config;
 mod digest;
 mod ls;

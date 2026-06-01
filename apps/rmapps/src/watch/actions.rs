@@ -1,53 +1,19 @@
 //! Targeted reactive actions over the shared Cloud. Best-effort: errors are
 //! returned to the caller, which logs and continues (never crashes the daemon).
 use anyhow::Result;
-use std::path::{Path, PathBuf};
 
-use rmdigest::deploy::{Backend, CloudDoc};
-use rmreader::deploy::BundleFetch;
+use rmdigest::deploy::CloudDoc;
 use rmreader::readback;
 use rmreader::readwise::http::UreqTransport;
 
 use crate::cloud::Cloud;
+use crate::cloud_adapters::{CloudBackend, CloudFetch};
 use crate::config::{Config, WatchAction};
 use crate::watch::reconcile::Job;
 
-/// Adapts the native cloud client to rmdigest's `Backend` seam. Mirrors the
-/// adapter in `crate::digest`.
-struct CloudBackend<'a> {
-    cloud: &'a Cloud,
-}
-impl Backend for CloudBackend<'_> {
-    fn list(&self, root: &str, ex: &[String]) -> Result<Vec<CloudDoc>> {
-        Ok(self
-            .cloud
-            .list_recursive(root, ex)?
-            .into_iter()
-            .map(|d| CloudDoc {
-                path: d.path,
-                name: d.name,
-                folder: d.folder,
-                version: None,
-            })
-            .collect())
-    }
-    fn fetch(&self, doc: &CloudDoc) -> Result<Option<PathBuf>> {
-        self.cloud.fetch_bundle(&doc.folder, &doc.name)
-    }
-    fn put(&self, pdf: &Path, folder: &str, name: &str) -> Result<()> {
-        self.cloud.replace(folder, name, std::fs::read(pdf)?)
-    }
-}
-
-/// Adapts the native cloud client to rmreader's `BundleFetch` seam. Mirrors the
-/// adapter in `crate::reader`.
-struct CloudFetch<'a> {
-    cloud: &'a Cloud,
-}
-impl BundleFetch for CloudFetch<'_> {
-    fn fetch(&self, folder: &str, name: &str) -> Result<Option<PathBuf>> {
-        self.cloud.fetch_bundle(folder, name)
-    }
+/// The parent folder slash-path of a full doc path (`/Books/Title` -> `/Books`; root -> "").
+fn folder_of(path: &str) -> String {
+    path.rsplit_once('/').map(|(f, _)| f).unwrap_or("").to_string()
 }
 
 /// Run a single reactive job against the cloud.
@@ -65,13 +31,7 @@ pub fn run_job(cloud: &Cloud, cfg: &Config, job: &Job) -> Result<()> {
                 dry_run: false,
                 local_output: None,
             };
-            let folder = job
-                .doc
-                .path
-                .rsplit_once('/')
-                .map(|(f, _)| f)
-                .unwrap_or("")
-                .to_string();
+            let folder = folder_of(&job.doc.path);
             let doc = CloudDoc {
                 path: job.doc.path.clone(),
                 name: job.doc.name.clone(),
@@ -86,13 +46,7 @@ pub fn run_job(cloud: &Cloud, cfg: &Config, job: &Job) -> Result<()> {
             })?;
             let bf = CloudFetch { cloud };
             let transport = UreqTransport;
-            let folder = job
-                .doc
-                .path
-                .rsplit_once('/')
-                .map(|(f, _)| f)
-                .unwrap_or("")
-                .to_string();
+            let folder = folder_of(&job.doc.path);
             readback::sync_collection(
                 &bf,
                 &transport,
