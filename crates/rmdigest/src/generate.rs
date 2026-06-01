@@ -81,6 +81,17 @@ fn process_doc(
 ) -> anyhow::Result<()> {
     let prev = state.docs.entry(doc.path.clone()).or_default();
 
+    // Cheap-skip: if the cloud doc hash matches the last successfully-processed
+    // hash and we have prior page state, nothing changed — skip the (expensive)
+    // bundle download entirely. `version: None` (backends with no hash) never skips.
+    if doc.version.is_some()
+        && prev.cloud_version == doc.version
+        && !prev.page_hashes.is_empty()
+    {
+        eprintln!("rmdigest: {} unchanged (cheap-skip, no fetch), skipping", doc.path);
+        return Ok(());
+    }
+
     let bundle_path = match backend.fetch(doc)? {
         Some(p) => p,
         None => {
@@ -174,6 +185,140 @@ pub fn digest_meta(bundle: &rmfiles::Bundle, marks: &[Mark]) -> DigestMeta {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod cheap_skip_tests {
+    use super::*;
+    use crate::config::{Config, Deploy, Output};
+    use crate::deploy::CloudDoc;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+
+    struct CountingBackend {
+        bundle: PathBuf,
+        fetches: Arc<AtomicU32>,
+    }
+
+    impl Backend for CountingBackend {
+        fn list(&self, _root: &str, _exclude: &[String]) -> anyhow::Result<Vec<CloudDoc>> {
+            Ok(vec![])
+        }
+
+        fn fetch(&self, _doc: &CloudDoc) -> anyhow::Result<Option<PathBuf>> {
+            self.fetches.fetch_add(1, Ordering::SeqCst);
+            Ok(Some(self.bundle.clone()))
+        }
+
+        fn put(&self, _pdf: &std::path::Path, _folder: &str, _name: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn fixture_path() -> PathBuf {
+        let manifest = env!("CARGO_MANIFEST_DIR");
+        PathBuf::from(manifest).join("tests/fixtures/stamped-labels.rmdoc")
+    }
+
+    fn test_cfg() -> Config {
+        Config {
+            device: "paper-pro".into(),
+            watched_paths: vec!["/Books".into()],
+            deploy: Deploy::default(),
+            output: Output::default(),
+        }
+    }
+
+    fn test_opts() -> Opts {
+        Opts {
+            dry_run: false,
+            local_output: None,
+        }
+    }
+
+    fn test_doc(version: Option<&str>) -> CloudDoc {
+        CloudDoc {
+            path: "/Books/TestDoc".to_string(),
+            name: "TestDoc".to_string(),
+            folder: "/Books".to_string(),
+            version: version.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn cheap_skip_avoids_fetch_when_version_unchanged() {
+        let fetches = Arc::new(AtomicU32::new(0));
+        let backend = CountingBackend {
+            bundle: fixture_path(),
+            fetches: fetches.clone(),
+        };
+        let cfg = test_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = test_opts();
+        let doc = test_doc(Some("hash-abc123"));
+
+        // First run: must fetch and process.
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("first run_one");
+        assert_eq!(fetches.load(Ordering::SeqCst), 1, "first run must fetch once");
+
+        // Second run: same version and prev page_hashes set → should skip fetch.
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("second run_one");
+        assert_eq!(
+            fetches.load(Ordering::SeqCst),
+            1,
+            "second run with unchanged version must NOT fetch again"
+        );
+    }
+
+    #[test]
+    fn changed_version_refetches() {
+        let fetches = Arc::new(AtomicU32::new(0));
+        let backend = CountingBackend {
+            bundle: fixture_path(),
+            fetches: fetches.clone(),
+        };
+        let cfg = test_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = test_opts();
+
+        // First run with version v1.
+        let doc_v1 = test_doc(Some("version-v1"));
+        run_one(&cfg, &backend, &state_path, &opts, &doc_v1).expect("run with v1");
+        assert_eq!(fetches.load(Ordering::SeqCst), 1, "v1 run must fetch");
+
+        // Second run with version v2 (changed) → must re-fetch.
+        let doc_v2 = test_doc(Some("version-v2"));
+        run_one(&cfg, &backend, &state_path, &opts, &doc_v2).expect("run with v2");
+        assert_eq!(
+            fetches.load(Ordering::SeqCst),
+            2,
+            "changed version must trigger a second fetch"
+        );
+    }
+
+    #[test]
+    fn first_sight_fetches() {
+        let fetches = Arc::new(AtomicU32::new(0));
+        let backend = CountingBackend {
+            bundle: fixture_path(),
+            fetches: fetches.clone(),
+        };
+        let cfg = test_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = test_opts();
+        let doc = test_doc(Some("some-hash"));
+
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("first run_one");
+        assert_eq!(
+            fetches.load(Ordering::SeqCst),
+            1,
+            "first-sight doc must fetch exactly once"
+        );
+    }
+}
 
 #[cfg(test)]
 mod tests {
