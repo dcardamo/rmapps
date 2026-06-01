@@ -50,6 +50,7 @@ pub fn next_fire(
             }
         }
         Sched::At(times) => {
+            debug_assert!(!times.is_empty(), "next_fire called with empty At time list");
             let mut times = times.clone();
             times.sort_unstable();
             let local_now = now.with_timezone(&tz);
@@ -57,6 +58,10 @@ pub fn next_fire(
                 let date = (local_now + ChDuration::days(day)).date_naive();
                 for &(h, m) in &times {
                     if let Some(naive) = date.and_hms_opt(h, m, 0) {
+                        // `.single()` returns None for nonexistent (spring-forward gap) or
+                        // ambiguous (fall-back) local times; we deliberately skip such times
+                        // rather than guess, so an `at` time landing exactly on a DST
+                        // transition won't fire that day.
                         if let Some(dt) = tz.from_local_datetime(&naive).single() {
                             let utc = dt.with_timezone(&Utc);
                             if utc > now {
@@ -87,6 +92,9 @@ pub fn due_on_startup(
     let mut latest_passed: Option<DateTime<Utc>> = None;
     for &(h, m) in times {
         if let Some(naive) = today.and_hms_opt(h, m, 0) {
+            // `.single()` returns None for nonexistent (spring-forward gap) or ambiguous
+            // (fall-back) local times; we deliberately skip such times rather than guess,
+            // so an `at` time landing exactly on a DST transition won't fire that day.
             if let Some(dt) = tz.from_local_datetime(&naive).single() {
                 let utc = dt.with_timezone(&Utc);
                 if utc <= now {
