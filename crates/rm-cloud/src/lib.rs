@@ -8,7 +8,7 @@
 #![warn(missing_docs)]
 
 mod auth;
-pub mod cache;
+mod cache;
 mod client;
 mod config;
 mod error;

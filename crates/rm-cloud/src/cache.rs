@@ -4,19 +4,16 @@
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use sha2::{Digest, Sha256};
+use crate::plumbing::index::sha256_hex;
+
+static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// A content-addressed blob store under a single root directory.
 #[derive(Debug, Clone)]
 pub struct BlobCache {
     root: PathBuf,
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    let mut h = Sha256::new();
-    h.update(bytes);
-    hex::encode(h.finalize())
 }
 
 impl BlobCache {
@@ -49,7 +46,8 @@ impl BlobCache {
         let path = self.path_for(hash);
         let dir = path.parent().expect("entry path always has a parent");
         fs::create_dir_all(dir)?;
-        let tmp = dir.join(format!(".{hash}.tmp"));
+        let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+        let tmp = dir.join(format!(".{hash}.{}.{}.tmp", std::process::id(), seq));
         {
             let mut f = fs::File::create(&tmp)?;
             f.write_all(bytes)?;
