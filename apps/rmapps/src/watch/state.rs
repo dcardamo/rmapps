@@ -1,4 +1,4 @@
-//! Persistent daemon state: diff baseline + scheduler last-run + failed-job retries.
+//! Persistent daemon state: diff baseline + scheduler last-run/last-attempt + retry counters.
 //! Atomic save (temp+rename) and tolerant load (fresh on corrupt), mirroring sync.rs.
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -16,20 +16,17 @@ pub struct WatchState {
     /// Scheduler: task key -> last successful run (unix secs).
     #[serde(default)]
     pub last_run: BTreeMap<String, u64>,
-    /// Failed reactive jobs awaiting retry.
+    /// Scheduler: task key -> last attempt (unix secs), recorded regardless of outcome.
+    /// Used to pace `every` tasks so a failing task waits its full interval before retrying
+    /// (avoids a hot busy-loop), while `last_run` remains the "last success" record.
     #[serde(default)]
-    pub pending_jobs: Vec<PendingJob>,
+    pub last_attempt: BTreeMap<String, u64>,
+    /// Reactive-action retry counters: doc id -> consecutive failed attempts. Retry itself is
+    /// driven by removing the doc from `baseline` so the next reconcile re-detects it; this
+    /// just bounds the number of retries.
+    #[serde(default)]
+    pub failed_attempts: BTreeMap<String, u32>,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PendingJob {
-    pub rule_path: String,
-    pub doc_id: String,
-    pub new_hash: String,
-    pub attempts: u32,
-}
-
-pub const MAX_ATTEMPTS: u32 = 5;
 
 pub fn state_path() -> PathBuf {
     let base = dirs::state_dir()
@@ -72,12 +69,8 @@ mod tests {
         state.baseline.insert("doc-b".to_string(), "hash-b".to_string());
         state.baseline_generation = Some(42);
         state.last_run.insert("digest#0".to_string(), 1_700_000_000);
-        state.pending_jobs.push(PendingJob {
-            rule_path: "/Books".to_string(),
-            doc_id: "doc-c".to_string(),
-            new_hash: "hash-c".to_string(),
-            attempts: 2,
-        });
+        state.last_attempt.insert("digest#0".to_string(), 1_700_000_500);
+        state.failed_attempts.insert("doc-c".to_string(), 2);
 
         let json = serde_json::to_string_pretty(&state).unwrap();
         let back: WatchState = serde_json::from_str(&json).unwrap();
@@ -85,9 +78,8 @@ mod tests {
         assert_eq!(back.baseline, state.baseline);
         assert_eq!(back.baseline_generation, Some(42));
         assert_eq!(back.last_run.get("digest#0"), Some(&1_700_000_000));
-        assert_eq!(back.pending_jobs.len(), 1);
-        assert_eq!(back.pending_jobs[0].doc_id, "doc-c");
-        assert_eq!(back.pending_jobs[0].attempts, 2);
+        assert_eq!(back.last_attempt.get("digest#0"), Some(&1_700_000_500));
+        assert_eq!(back.failed_attempts.get("doc-c"), Some(&2));
     }
 
     #[test]
@@ -96,6 +88,18 @@ mod tests {
             serde_json::from_str("{ not valid json ").unwrap_or_default();
         assert!(back.baseline.is_empty());
         assert!(back.baseline_generation.is_none());
-        assert!(back.pending_jobs.is_empty());
+        assert!(back.failed_attempts.is_empty());
+    }
+
+    #[test]
+    fn old_state_without_new_fields_loads() {
+        // Old state files predate last_attempt/failed_attempts; serde default fills them.
+        let back: WatchState = serde_json::from_str(
+            r#"{"baseline":{"d":"h"},"baseline_generation":1,"last_run":{"k":5}}"#,
+        )
+        .unwrap();
+        assert_eq!(back.baseline.get("d"), Some(&"h".to_string()));
+        assert!(back.last_attempt.is_empty());
+        assert!(back.failed_attempts.is_empty());
     }
 }

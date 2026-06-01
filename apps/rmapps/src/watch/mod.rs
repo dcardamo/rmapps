@@ -156,25 +156,30 @@ fn reconcile_pass(
 
 /// Run scheduled tasks that are due. Fires any `every` task whose interval elapsed and any
 /// `at` time already passed today that hasn't been run since (catch-up on startup, and at
-/// each `at` time during the resident loop). Updates last_run on success.
-fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState) {
+/// each `at` time during the resident loop). Updates last_run on success and last_attempt on
+/// every attempt (so a failing `every` task is paced by its interval, not re-run back-to-back).
+/// Returns true if any task was attempted (state changed).
+fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState) -> bool {
     let tz = timezone(cfg);
     let now_utc = chrono::Utc::now();
     let now_s = now_secs();
+    let mut ran = false;
     for (i, task) in cfg.sync.iter().enumerate() {
         let key = format!("{}#{}", task.app, i);
         let Some(sched) = task_sched(task) else {
             eprintln!("[rmapps] watch: sync task {key} has neither every nor at; skipping");
             continue;
         };
-        let last_s = state.last_run.get(&key).copied();
+        let last_run_s = state.last_run.get(&key).copied();
+        let last_attempt_s = state.last_attempt.get(&key).copied();
         let due = match &sched {
-            // Simple, non-double-firing interval rule: due if never run, or the
-            // interval has elapsed since the last successful run.
-            Sched::Every(d) => match last_s {
-                None => true,
-                Some(last) => now_s.saturating_sub(last) >= d.as_secs(),
-            },
+            // Attempt-anchored interval rule: due if never run/attempted, or the interval has
+            // elapsed since the LATER of last success and last attempt. Anchoring on the
+            // attempt (not just success) means a failing task waits its full interval before
+            // retrying instead of busy-looping.
+            Sched::Every(d) => {
+                schedule::every_due(last_run_s, last_attempt_s, d.as_secs(), now_s)
+            }
             // `due_on_startup` means "a past `at` time today exists that we haven't run
             // since". That is exactly the steady-state firing condition too: at each `at`
             // time the most-recent past time advances past `last_run`, so the task fires
@@ -182,12 +187,16 @@ fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState) {
             // `at` time. So this is NOT gated on `startup` — `at` tasks fire whenever their
             // time arrives, in both the startup catch-up and the resident loop.
             Sched::At(_) => {
-                let last_dt = last_s
+                let last_dt = last_run_s
                     .and_then(|s| chrono::DateTime::from_timestamp(s as i64, 0));
                 schedule::due_on_startup(&sched, tz, last_dt, now_utc)
             }
         };
         if due {
+            ran = true;
+            // Record the attempt up-front so even a panic/early-return downstream cannot
+            // leave an `every` task eligible to immediately re-fire.
+            state.last_attempt.insert(key.clone(), now_secs());
             println!("[rmapps] watch: running scheduled {key}");
             match crate::sync::run_task(task, &key, cfg) {
                 Ok(()) => {
@@ -197,59 +206,66 @@ fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState) {
             }
         }
     }
+    ran
 }
 
+/// Max reactive-action retries before giving up on a doc (leaving the baseline advanced so it
+/// is no longer re-detected).
+const MAX_ATTEMPTS: u32 = 5;
+
 /// Drain ALL pending debounced jobs immediately (used by --once) and run them.
+/// Returns true if any job ran (state may have changed).
 fn drain_and_run(
     cloud: &Cloud,
     cfg: &Config,
     state: &mut state::WatchState,
     debouncer: &mut crate::watch::debounce::Debouncer,
-) {
-    // First, retry any previously-failed jobs (bounded).
-    retry_pending(cloud, cfg, state);
+) -> bool {
     let far_future = Instant::now() + Duration::from_secs(10_000_000);
+    let mut ran = false;
     for job in debouncer.ready(far_future) {
         run_one_job(cloud, cfg, state, &job);
+        ran = true;
     }
+    ran
 }
 
+/// Run a single reactive job. Retry of failures is driven through the reconcile path: on
+/// failure we ROLL BACK the doc's baseline entry (remove it) so the next reconcile re-detects
+/// the change and re-routes the job, retrying the action. This is bounded by `failed_attempts`:
+/// after `MAX_ATTEMPTS` consecutive failures we give up and leave the baseline advanced (set by
+/// reconcile_pass before this drain) so the doc is no longer re-detected. On success we clear
+/// the counter; the baseline already holds the current hash.
 fn run_one_job(cloud: &Cloud, cfg: &Config, state: &mut state::WatchState, job: &Job) {
     match crate::watch::actions::run_job(cloud, cfg, job) {
         Ok(()) => {
             println!("[rmapps] watch: reacted: {:?} {}", job.action, job.doc.path);
+            // Baseline already advanced to the current hash by reconcile_pass; just clear the
+            // failure counter so a future change starts fresh.
+            state.failed_attempts.remove(&job.doc.id);
         }
         Err(e) => {
             eprintln!("[rmapps] watch: action failed for {}: {e:#}", job.doc.path);
-            state.pending_jobs.push(state::PendingJob {
-                rule_path: job.rule_path.clone(),
-                doc_id: job.doc.id.clone(),
-                new_hash: String::new(),
-                attempts: 1,
-            });
+            let attempts = state
+                .failed_attempts
+                .entry(job.doc.id.clone())
+                .or_insert(0);
+            *attempts += 1;
+            if *attempts >= MAX_ATTEMPTS {
+                eprintln!(
+                    "[rmapps] watch: giving up on {} after {} attempts",
+                    job.doc.path, *attempts
+                );
+                // Give up: leave baseline advanced (don't roll back) so it isn't re-detected,
+                // and drop the counter so memory doesn't grow unbounded.
+                state.failed_attempts.remove(&job.doc.id);
+            } else {
+                // Roll back this doc's baseline entry so the next reconcile re-detects the
+                // change and re-routes the job, retrying the action (bounded by poll cadence).
+                state.baseline.remove(&job.doc.id);
+            }
         }
     }
-}
-
-/// Retry recorded failed jobs. For 8a, retry is best-effort and bounded; a job needs its
-/// doc re-resolved to run — for simplicity drop jobs that exceed MAX_ATTEMPTS and leave a
-/// note. (8b refines retry against fresh snapshots.)
-fn retry_pending(_cloud: &Cloud, _cfg: &Config, state: &mut state::WatchState) {
-    state.pending_jobs.retain_mut(|p| {
-        p.attempts += 1;
-        if p.attempts > state::MAX_ATTEMPTS {
-            eprintln!(
-                "[rmapps] watch: giving up on job for doc {} after {} attempts",
-                p.doc_id,
-                p.attempts - 1
-            );
-            false
-        } else {
-            true
-        }
-    });
-    // NOTE: actually re-dispatching a pending job requires re-resolving its ChangedDoc;
-    // 8b implements that against a fresh reconcile. For 8a we only age/bound them.
 }
 
 pub fn run(args: WatchArgs, cfg: &Config) -> Result<()> {
@@ -272,6 +288,9 @@ pub fn run(args: WatchArgs, cfg: &Config) -> Result<()> {
         state::save(&state)?;
         return Ok(());
     }
+
+    // NOTE: reconcile_pass already calls state::save internally when it advances the baseline,
+    // so the resident loop below only saves when other state (scheduler/reactive) changed.
 
     // ── Resident loop ──────────────────────────────────────────────────────────────────
     // SYNCHRONOUS: all cloud work runs on this thread, never inside a tokio context, which
@@ -312,7 +331,12 @@ pub fn run(args: WatchArgs, cfg: &Config) -> Result<()> {
         if let Some(d) = next_scheduled_instant(cfg, &state, now) {
             next = next.min(d);
         }
-        let sleep = next.saturating_duration_since(Instant::now());
+        // Defense-in-depth: clamp to a 1s floor so an unforeseen "deadline == now" (e.g. a
+        // scheduled fire that maps to the present instant) can never spin the loop faster
+        // than once per second.
+        let sleep = next
+            .saturating_duration_since(Instant::now())
+            .max(Duration::from_secs(1));
 
         let woke = match rx.recv_timeout(sleep) {
             Ok(_) => true,
@@ -323,6 +347,10 @@ pub fn run(args: WatchArgs, cfg: &Config) -> Result<()> {
         };
 
         let now = Instant::now();
+        // Track whether state mutated this tick so we only persist when something changed,
+        // not on every idle poll wakeup. (reconcile_pass saves its own baseline advances
+        // internally, so `dirty` here covers scheduler + reactive mutations.)
+        let mut dirty = false;
         if woke || now >= poll_deadline {
             if let Err(e) = reconcile_pass(&cloud, &rules, &exclude, &mut state, &mut debouncer) {
                 eprintln!("[rmapps] watch: reconcile failed: {e:#}");
@@ -330,13 +358,17 @@ pub fn run(args: WatchArgs, cfg: &Config) -> Result<()> {
             poll_deadline = Instant::now() + poll_interval;
         }
         // Fire any scheduled tasks now due (every/at), then run any debounced jobs whose
-        // window elapsed, then retry previously-failed jobs.
-        run_due_scheduled(cfg, &mut state);
+        // window elapsed. Both mutate state (last_run/last_attempt, baseline/failed_attempts).
+        if run_due_scheduled(cfg, &mut state) {
+            dirty = true;
+        }
         for job in debouncer.ready(Instant::now()) {
             run_one_job(&cloud, cfg, &mut state, &job);
+            dirty = true;
         }
-        retry_pending(&cloud, cfg, &mut state);
-        let _ = state::save(&state);
+        if dirty {
+            let _ = state::save(&state);
+        }
     }
 }
 
@@ -353,11 +385,19 @@ fn next_scheduled_instant(cfg: &Config, state: &state::WatchState, now: Instant)
             continue;
         };
         let key = format!("{}#{}", task.app, i);
-        let last_dt = state
-            .last_run
-            .get(&key)
-            .copied()
-            .and_then(|s| chrono::DateTime::from_timestamp(s as i64, 0));
+        // For `Every`, anchor the base time on the LATER of last_run and last_attempt so a
+        // just-failed task's next fire is a full interval out (matching run_due_scheduled's
+        // every_due pacing) rather than ~now (which would spin the loop). For `At`, only the
+        // last successful run matters for "have we run since this time".
+        let anchor_secs = match &sched {
+            Sched::Every(_) => state
+                .last_run
+                .get(&key)
+                .copied()
+                .max(state.last_attempt.get(&key).copied()),
+            Sched::At(_) => state.last_run.get(&key).copied(),
+        };
+        let last_dt = anchor_secs.and_then(|s| chrono::DateTime::from_timestamp(s as i64, 0));
         let fire_utc = schedule::next_fire(&sched, tz, last_dt, utc_now);
         // chrono Duration -> std Duration; negative (past) clamps to zero so we wake now.
         let until = (fire_utc - utc_now)

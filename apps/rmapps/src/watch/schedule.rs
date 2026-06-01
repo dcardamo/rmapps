@@ -76,8 +76,29 @@ pub fn next_fire(
     }
 }
 
+/// Pure due-check for an `Every` task. Anchors on the LATER of the last successful run and
+/// the last attempt: `last_run` records success, but `last_attempt` (recorded on every
+/// attempt regardless of outcome) governs pacing. A task that just failed therefore waits its
+/// full interval before retrying instead of busy-looping. `every_secs == 0` is treated as
+/// always-due (degenerate config).
+///
+/// - Never attempted and never run => due.
+/// - Anchored < interval ago => NOT due.
+/// - Anchored >= interval ago => due.
+pub fn every_due(
+    last_run: Option<u64>,
+    last_attempt: Option<u64>,
+    every_secs: u64,
+    now_secs: u64,
+) -> bool {
+    let anchor = match (last_run, last_attempt) {
+        (None, None) => return true,
+        (a, b) => a.max(b).unwrap_or(0),
+    };
+    now_secs.saturating_sub(anchor) >= every_secs
+}
+
 /// True if an `At` time for *today* has already passed and the task has not run since it.
-#[allow(dead_code)]
 pub fn due_on_startup(
     sched: &Sched,
     tz: Tz,
@@ -150,6 +171,24 @@ mod tests {
         let next = next_fire(&task_at(&[(6, 0), (18, 0)]), Halifax, None, now);
         let local = next.with_timezone(&Halifax);
         assert_eq!((local.hour(), local.day()), (6, 2));
+    }
+
+    #[test]
+    fn every_due_paces_on_attempt() {
+        let every = 3600u64;
+        let now = 100_000u64;
+        // Never attempted, never run => due.
+        assert!(every_due(None, None, every, now));
+        // Attempted < interval ago, even with a stale last_run => NOT due (no busy-loop).
+        assert!(!every_due(Some(0), Some(now - 10), every, now));
+        // Attempted just now with no prior success => NOT due (failed task waits).
+        assert!(!every_due(None, Some(now - 10), every, now));
+        // Last attempt > interval ago => due again.
+        assert!(every_due(Some(0), Some(now - every - 1), every, now));
+        // Only last_run set (e.g. pre-upgrade state), interval elapsed => due.
+        assert!(every_due(Some(now - every - 1), None, every, now));
+        // Only last_run set, within interval => NOT due.
+        assert!(!every_due(Some(now - 10), None, every, now));
     }
 
     #[test]
