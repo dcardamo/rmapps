@@ -10,6 +10,9 @@ pub mod state;
 #[cfg(test)]
 mod reactor_tests;
 
+#[cfg(test)]
+mod live_tests;
+
 use anyhow::Result;
 use clap::Args;
 use std::collections::{BTreeMap, BTreeSet};

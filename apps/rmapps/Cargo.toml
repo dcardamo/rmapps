@@ -36,3 +36,6 @@ tokio = { version = "1", features = ["test-util"] }
 # (apps/rmapps/src/watch/reactor_tests.rs), which drives the app Cloud against
 # the in-repo fake cloud.
 rm-cloud = { path = "../../crates/rm-cloud", features = ["fake"] }
+# Unique run-id isolation folders for the gated Tier A live e2e tests
+# (apps/rmapps/tests/watch_live.rs, apps/rmapps/src/watch/live_tests.rs).
+uuid = { version = "1", features = ["v4"] }
