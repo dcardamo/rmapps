@@ -1,5 +1,12 @@
 use rmreader::cache::{key, Cache};
+use rmreader::content::ImageProcessing;
 use std::time::{Duration, SystemTime};
+
+const IP: ImageProcessing = ImageProcessing {
+    max_width: 1000,
+    quality: 72,
+    grayscale: false,
+};
 
 fn tmp_cache() -> (tempfile::TempDir, Cache) {
     let dir = tempfile::tempdir().unwrap();
@@ -9,16 +16,28 @@ fn tmp_cache() -> (tempfile::TempDir, Cache) {
 
 #[test]
 fn key_is_sensitive_to_each_input() {
-    let base = key("d1", "<p>hi</p>", 80_000, true);
-    assert_ne!(base, key("d2", "<p>hi</p>", 80_000, true), "doc_id");
-    assert_ne!(base, key("d1", "<p>HI</p>", 80_000, true), "html");
-    assert_ne!(base, key("d1", "<p>hi</p>", 40_000, true), "max_bytes");
+    let base = key("d1", "<p>hi</p>", 80_000, true, &IP);
+    assert_ne!(base, key("d2", "<p>hi</p>", 80_000, true, &IP), "doc_id");
+    assert_ne!(base, key("d1", "<p>HI</p>", 80_000, true, &IP), "html");
+    assert_ne!(base, key("d1", "<p>hi</p>", 40_000, true, &IP), "max_bytes");
     assert_ne!(
         base,
-        key("d1", "<p>hi</p>", 80_000, false),
+        key("d1", "<p>hi</p>", 80_000, false, &IP),
         "images_enabled"
     );
-    assert_eq!(base, key("d1", "<p>hi</p>", 80_000, true), "stable");
+    let wider = ImageProcessing {
+        max_width: 800,
+        ..IP
+    };
+    assert_ne!(base, key("d1", "<p>hi</p>", 80_000, true, &wider), "max_width");
+    let lowq = ImageProcessing { quality: 50, ..IP };
+    assert_ne!(base, key("d1", "<p>hi</p>", 80_000, true, &lowq), "quality");
+    let gray = ImageProcessing {
+        grayscale: true,
+        ..IP
+    };
+    assert_ne!(base, key("d1", "<p>hi</p>", 80_000, true, &gray), "grayscale");
+    assert_eq!(base, key("d1", "<p>hi</p>", 80_000, true, &IP), "stable");
 }
 
 #[test]

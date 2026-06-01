@@ -60,27 +60,122 @@ fn collect_img_urls(html: &str) -> Vec<String> {
     urls.into_inner()
 }
 
-/// Decode bytes, drop tracking pixels (<=2px on either side), transcode
-/// WebP/AVIF to PNG. Returns (final_bytes, ext) or None to drop the image.
-fn normalize_image(bytes: &[u8]) -> Option<(Vec<u8>, String)> {
-    let fmt = image::guess_format(bytes).ok()?;
-    let img = image::load_from_memory(bytes).ok()?;
+/// Image-processing knobs (from `ImagesConfig`). Threaded into the normalizer so
+/// fetched article images are downscaled + recompressed before embedding, which
+/// cuts reader PDFs from tens of MB to a few MB.
+#[derive(Clone, Copy, Debug)]
+pub struct ImageProcessing {
+    /// Max width in px; larger images are downscaled (aspect preserved, never up).
+    pub max_width: u32,
+    /// JPEG re-encode quality (1-100).
+    pub quality: u8,
+    /// Convert to grayscale.
+    pub grayscale: bool,
+}
+
+impl Default for ImageProcessing {
+    fn default() -> Self {
+        Self {
+            max_width: 1000,
+            quality: 72,
+            grayscale: false,
+        }
+    }
+}
+
+/// Decode bytes, drop tracking pixels (<=2px on either side), downscale to a max
+/// width, optionally grayscale, and re-encode as JPEG (flattening any alpha onto
+/// white first, since JPEG has no alpha). Returns (final_bytes, "jpg"). Falls
+/// back to the original bytes if decoding/encoding fails so we never drop a real
+/// image or crash. Returns `None` only for tracking pixels.
+fn normalize_image(bytes: &[u8], proc: &ImageProcessing) -> Option<(Vec<u8>, String)> {
+    let Ok(img) = image::load_from_memory(bytes) else {
+        // Undecodable: keep the original bytes rather than dropping the image.
+        // Tag with a best-effort extension so the asset key looks sane.
+        let ext = image::guess_format(bytes)
+            .ok()
+            .and_then(|f| f.extensions_str().first().copied())
+            .unwrap_or("bin");
+        return Some((bytes.to_vec(), ext.to_string()));
+    };
     let (w, h) = image::GenericImageView::dimensions(&img);
     if w <= 2 || h <= 2 {
         return None; // tracking pixel
     }
-    use image::ImageFormat as F;
-    match fmt {
-        F::Png => Some((bytes.to_vec(), "png".into())),
-        F::Jpeg => Some((bytes.to_vec(), "jpg".into())),
-        F::Gif => Some((bytes.to_vec(), "gif".into())),
-        _ => {
-            // WebP/AVIF/etc -> re-encode to PNG (krilla supports png/jpeg/gif/svg)
-            let mut out = std::io::Cursor::new(Vec::new());
-            img.write_to(&mut out, F::Png).ok()?;
-            Some((out.into_inner(), "png".into()))
-        }
+
+    // Downscale to max width (only shrink, never upscale; preserve aspect ratio).
+    let mut img = if proc.max_width > 0 && w > proc.max_width {
+        let new_h = ((h as u64 * proc.max_width as u64) / w as u64).max(1) as u32;
+        img.resize_exact(proc.max_width, new_h, image::imageops::FilterType::Lanczos3)
+    } else {
+        img
+    };
+
+    if proc.grayscale {
+        img = image::DynamicImage::ImageLuma8(img.to_luma8());
     }
+
+    // JPEG has no alpha: flatten onto white, then encode as RGB (or luma if gray).
+    let mut out = Vec::new();
+    let enc_result = {
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, proc.quality);
+        if proc.grayscale {
+            let gray = img.to_luma8();
+            encode_jpeg_luma(encoder, &gray)
+        } else {
+            let rgb = flatten_to_rgb(&img);
+            encode_jpeg_rgb(encoder, &rgb)
+        }
+    };
+    match enc_result {
+        Ok(()) => Some((out, "jpg".into())),
+        // Encoding failed (very unlikely): keep original bytes as a fallback.
+        Err(_) => Some((bytes.to_vec(), "bin".into())),
+    }
+}
+
+/// Flatten any alpha channel onto a white background, yielding an RGB image.
+fn flatten_to_rgb(img: &image::DynamicImage) -> image::RgbImage {
+    use image::GenericImageView;
+    if img.color().has_alpha() {
+        let rgba = img.to_rgba8();
+        let (w, h) = img.dimensions();
+        let mut rgb = image::RgbImage::new(w, h);
+        for (x, y, px) in rgba.enumerate_pixels() {
+            let [r, g, b, a] = px.0;
+            let a = a as u32;
+            // alpha-composite over white
+            let blend = |c: u8| -> u8 { ((c as u32 * a + 255 * (255 - a)) / 255) as u8 };
+            rgb.put_pixel(x, y, image::Rgb([blend(r), blend(g), blend(b)]));
+        }
+        rgb
+    } else {
+        img.to_rgb8()
+    }
+}
+
+fn encode_jpeg_rgb(
+    mut enc: image::codecs::jpeg::JpegEncoder<&mut Vec<u8>>,
+    rgb: &image::RgbImage,
+) -> image::ImageResult<()> {
+    enc.encode(
+        rgb.as_raw(),
+        rgb.width(),
+        rgb.height(),
+        image::ExtendedColorType::Rgb8,
+    )
+}
+
+fn encode_jpeg_luma(
+    mut enc: image::codecs::jpeg::JpegEncoder<&mut Vec<u8>>,
+    gray: &image::GrayImage,
+) -> image::ImageResult<()> {
+    enc.encode(
+        gray.as_raw(),
+        gray.width(),
+        gray.height(),
+        image::ExtendedColorType::L8,
+    )
 }
 
 /// Strip all HTML tags from a fragment, returning the plain text.
@@ -259,6 +354,7 @@ pub fn assemble_processed(
     images_enabled: bool,
     urls: &[String],
     fetched: &std::collections::HashMap<String, FetchedImage>,
+    proc: &ImageProcessing,
 ) -> Processed {
     use std::collections::HashMap;
 
@@ -282,7 +378,7 @@ pub fn assemble_processed(
             let normalized = if f.ext == "svg" {
                 Some((f.bytes.clone(), "svg".to_string()))
             } else {
-                normalize_image(&f.bytes)
+                normalize_image(&f.bytes, proc)
             };
             if let Some((bytes, ext)) = normalized {
                 // Include doc_id so keys are unique across articles when assets
@@ -375,6 +471,7 @@ pub fn process_html(
     images_enabled: bool,
     max_bytes: usize,
     fetcher: &dyn ImageFetcher,
+    proc: &ImageProcessing,
 ) -> Processed {
     let (truncated_html, truncated, urls) = collect_doc_urls(html, max_bytes, images_enabled);
     let results = fetcher.fetch_many(&urls);
@@ -391,6 +488,7 @@ pub fn process_html(
         images_enabled,
         &urls,
         &fetched,
+        proc,
     )
 }
 
@@ -418,6 +516,70 @@ mod tests {
             "lines should merge, got {} <p>",
             out.matches("<p>").count()
         );
+    }
+
+    #[test]
+    fn normalize_downscales_and_jpeg_encodes_large_image() {
+        // Synthesize a 3000x2000 RGB image and run it through the processor.
+        let mut src = image::RgbImage::new(3000, 2000);
+        for (x, y, px) in src.enumerate_pixels_mut() {
+            *px = image::Rgb([(x % 256) as u8, (y % 256) as u8, 128]);
+        }
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgb8(src)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+
+        let proc = ImageProcessing::default();
+        let (out, ext) = normalize_image(&png, &proc).expect("should not drop a real image");
+        assert_eq!(ext, "jpg", "output should be JPEG");
+        assert_eq!(
+            image::guess_format(&out).unwrap(),
+            image::ImageFormat::Jpeg,
+            "bytes should decode as JPEG"
+        );
+        let decoded = image::load_from_memory(&out).expect("output should decode");
+        let (w, h) = image::GenericImageView::dimensions(&decoded);
+        assert!(w <= 1000, "width should be downscaled to <=1000, got {w}");
+        assert_eq!(h, 666, "aspect ratio preserved: 2000*1000/3000 = 666");
+        // The transform shrinks 6M source pixels to <0.7M, so the output covers
+        // far fewer pixels than the original regardless of codec entropy.
+        assert!(
+            (w as u64 * h as u64) < (3000u64 * 2000),
+            "downscaled image covers fewer pixels than the 3000x2000 source"
+        );
+    }
+
+    #[test]
+    fn normalize_flattens_alpha_to_jpeg() {
+        // RGBA image with transparency must encode (JPEG has no alpha).
+        let img = image::RgbaImage::from_pixel(50, 40, image::Rgba([10, 20, 30, 128]));
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let proc = ImageProcessing::default();
+        let (out, ext) = normalize_image(&png, &proc).unwrap();
+        assert_eq!(ext, "jpg");
+        assert!(image::load_from_memory(&out).is_ok());
+    }
+
+    #[test]
+    fn normalize_keeps_undecodable_bytes() {
+        // Garbage that isn't an image: fall back to original bytes, don't crash.
+        let junk = b"not an image at all";
+        let (out, _ext) = normalize_image(junk, &ImageProcessing::default()).unwrap();
+        assert_eq!(out, junk);
+    }
+
+    #[test]
+    fn normalize_drops_tracking_pixel() {
+        let img = image::RgbImage::from_pixel(1, 1, image::Rgb([0, 0, 0]));
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        assert!(normalize_image(&png, &ImageProcessing::default()).is_none());
     }
 
     #[test]

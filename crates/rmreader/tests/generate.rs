@@ -51,6 +51,7 @@ fn generate_writes_pdfs_and_manifests() {
             enabled: false,
             timeout_secs: 8,
             concurrency: 12,
+            ..Default::default()
         },
         content: ContentConfig::default(),
         deploy: DeployConfig {
@@ -95,6 +96,7 @@ fn cold_and_warm_runs_produce_identical_pdfs() {
             enabled: false,
             timeout_secs: 8,
             concurrency: 12,
+            ..Default::default()
         },
         content: ContentConfig::default(),
         deploy: DeployConfig {
@@ -195,6 +197,7 @@ fn cold_and_warm_runs_identical_with_images() {
             enabled: true,
             timeout_secs: 8,
             concurrency: 12,
+            ..Default::default()
         },
         content: ContentConfig::default(),
         deploy: DeployConfig {
@@ -222,15 +225,17 @@ fn cold_and_warm_runs_identical_with_images() {
     assert_eq!(a, b, "Library.pdf: cold and warm differ with images");
 
     // The normalized image blob must actually be cached (proves the blob round-trip).
-    let mut found_png = false;
+    // Raster images are re-encoded to JPEG by the processing step, so the cached
+    // blob is a .jpg even though the source was served as PNG.
+    let mut found_jpg = false;
     for e in std::fs::read_dir(&cache_dir).unwrap().flatten() {
         if e.path().is_dir() {
             for f in std::fs::read_dir(e.path()).unwrap().flatten() {
-                if f.file_name().to_string_lossy().ends_with(".png") {
-                    found_png = true;
+                if f.file_name().to_string_lossy().ends_with(".jpg") {
+                    found_jpg = true;
                 }
             }
         }
     }
-    assert!(found_png, "normalized image blob should be cached");
+    assert!(found_jpg, "normalized image blob should be cached");
 }

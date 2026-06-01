@@ -16,7 +16,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Bump to invalidate every cache entry when the on-disk format or the
 /// processing pipeline changes in a way that affects rendered output.
-pub const CACHE_FORMAT_VERSION: u32 = 1;
+pub const CACHE_FORMAT_VERSION: u32 = 2;
 
 #[inline]
 fn mix(h: &mut u64, bytes: &[u8]) {
@@ -29,13 +29,24 @@ fn mix(h: &mut u64, bytes: &[u8]) {
 /// Content-addressed cache key (FNV-1a, 64-bit, hex). Any change to the document
 /// id, its HTML, the byte cap, the images flag, or the format version yields a
 /// different key — i.e. a "new or changed document".
-pub fn key(doc_id: &str, html_content: &str, max_bytes: usize, images_enabled: bool) -> String {
+pub fn key(
+    doc_id: &str,
+    html_content: &str,
+    max_bytes: usize,
+    images_enabled: bool,
+    img: &crate::content::ImageProcessing,
+) -> String {
     let mut h = FNV_OFFSET;
     mix(&mut h, &CACHE_FORMAT_VERSION.to_le_bytes());
     mix(&mut h, doc_id.as_bytes());
     mix(&mut h, &[0]); // field separator
     mix(&mut h, &(max_bytes as u64).to_le_bytes());
     mix(&mut h, &[images_enabled as u8]);
+    // Fold image-processing knobs in: changing width/quality/grayscale must
+    // invalidate cached (downscaled/recompressed) image blobs.
+    mix(&mut h, &img.max_width.to_le_bytes());
+    mix(&mut h, &[img.quality]);
+    mix(&mut h, &[img.grayscale as u8]);
     mix(&mut h, html_content.as_bytes());
     format!("{h:016x}")
 }

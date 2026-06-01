@@ -123,6 +123,11 @@ fn build_one(
     type DocOutput = (String, Vec<(String, Vec<u8>)>);
     let images_enabled = config.images.enabled;
     let max_bytes = config.content.max_article_bytes;
+    let img_proc = crate::content::ImageProcessing {
+        max_width: config.images.max_width,
+        quality: config.images.quality,
+        grayscale: config.images.grayscale,
+    };
 
     // Pass A: classify each doc as a cache hit (reuse processed output) or a miss
     // (collect its image URLs for the shared fetch below).
@@ -137,7 +142,7 @@ fn build_one(
     let mut misses: Vec<Miss> = Vec::new();
     for d in docs {
         let raw = d.html_content.clone().unwrap_or_default();
-        let key = crate::cache::key(&d.id, &raw, max_bytes, images_enabled);
+        let key = crate::cache::key(&d.id, &raw, max_bytes, images_enabled, &img_proc);
         if let Some(c) = cache.get(&key) {
             processed.insert(d.id.clone(), (c.html, c.assets));
         } else {
@@ -191,6 +196,7 @@ fn build_one(
             images_enabled,
             &m.urls,
             &fetched,
+            &img_proc,
         );
         cache.put(&m.key, &p.html, &p.assets);
         processed.insert(m.id, (p.html, p.assets));

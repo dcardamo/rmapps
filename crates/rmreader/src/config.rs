@@ -56,6 +56,17 @@ pub struct ImagesConfig {
     pub timeout_secs: u64,
     #[serde(default = "default_concurrency")]
     pub concurrency: usize,
+    /// Max image width in px; larger images are downscaled (aspect preserved).
+    /// Images are never upscaled. A reader page renders well under ~1000px.
+    #[serde(default = "default_max_width")]
+    pub max_width: u32,
+    /// JPEG re-encode quality (1-100). Lower = smaller files.
+    #[serde(default = "default_quality")]
+    pub quality: u8,
+    /// Convert images to grayscale. Off by default: the Paper Pro is a color
+    /// e-ink device, so keep color unless the user opts out.
+    #[serde(default)]
+    pub grayscale: bool,
 }
 fn default_timeout_secs() -> u64 {
     8
@@ -63,12 +74,21 @@ fn default_timeout_secs() -> u64 {
 fn default_concurrency() -> usize {
     12
 }
+fn default_max_width() -> u32 {
+    1000
+}
+fn default_quality() -> u8 {
+    72
+}
 impl Default for ImagesConfig {
     fn default() -> Self {
         Self {
             enabled: true,
             timeout_secs: default_timeout_secs(),
             concurrency: default_concurrency(),
+            max_width: default_max_width(),
+            quality: default_quality(),
+            grayscale: false,
         }
     }
 }

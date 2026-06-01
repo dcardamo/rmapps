@@ -1,8 +1,14 @@
 use rmreader::content::{
-    assemble_processed, collect_doc_urls, process_html, FetchedImage, ImageFetcher,
+    assemble_processed, collect_doc_urls, process_html, FetchedImage, ImageFetcher, ImageProcessing,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
+
+const IP: ImageProcessing = ImageProcessing {
+    max_width: 1000,
+    quality: 72,
+    grayscale: false,
+};
 
 struct FakeFetcher {
     map: std::collections::HashMap<String, Option<FetchedImage>>,
@@ -44,13 +50,13 @@ fn truncates_monster_articles_with_note() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(&big, "d1", false, 80_000, &f);
+    let out = process_html(&big, "d1", false, 80_000, &f, &IP);
     assert!(out.html.len() < big.len());
     assert!(out.html.contains("truncated"));
 
     // A normal-size article is left intact (no note).
     let small = "<p>just a short article</p>";
-    let out2 = process_html(small, "d1", false, 80_000, &f);
+    let out2 = process_html(small, "d1", false, 80_000, &f, &IP);
     assert!(out2.html.contains("just a short article"));
     assert!(!out2.html.contains("truncated"));
 }
@@ -65,7 +71,7 @@ fn strips_inline_styles_and_presentational_attrs() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(html, "d1", false, 80_000, &f);
+    let out = process_html(html, "d1", false, 80_000, &f, &IP);
     assert!(out.html.contains("Hello there"));
     assert!(out.html.contains("Body text"));
     assert!(
@@ -85,7 +91,7 @@ fn strips_scripts_and_handlers_keeps_text() {
         map: Default::default(),
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(html, "d1", true, 80_000, &f);
+    let out = process_html(html, "d1", true, 80_000, &f, &IP);
     assert!(out.html.contains("Hello"));
     assert!(!out.html.contains("script"));
     assert!(!out.html.contains("iframe"));
@@ -112,6 +118,7 @@ fn embeds_real_image_and_rewrites_src() {
         true,
         80_000,
         &f,
+        &IP,
     );
     assert_eq!(out.assets.len(), 1);
     let key = &out.assets[0].0;
@@ -133,7 +140,14 @@ fn drops_tracking_pixel() {
         map,
         fetched: RefCell::new(vec![]),
     };
-    let out = process_html(r#"<img src="https://x/track.png">"#, "d1", true, 80_000, &f);
+    let out = process_html(
+        r#"<img src="https://x/track.png">"#,
+        "d1",
+        true,
+        80_000,
+        &f,
+        &IP,
+    );
     assert_eq!(out.assets.len(), 0);
     assert!(!out.html.contains("img"));
 }
@@ -150,6 +164,7 @@ fn images_disabled_drops_all_imgs_without_fetch() {
         false,
         80_000,
         &f,
+        &IP,
     );
     assert!(out.html.contains("text"));
     assert!(!out.html.contains("img"));
@@ -178,8 +193,8 @@ fn distinct_doc_ids_yield_distinct_asset_keys() {
         map,
         fetched: RefCell::new(vec![]),
     };
-    let a = process_html(r#"<img src="https://x/p.png">"#, "doc-a", true, 80_000, &fa);
-    let b = process_html(r#"<img src="https://x/p.png">"#, "doc-b", true, 80_000, &fb);
+    let a = process_html(r#"<img src="https://x/p.png">"#, "doc-a", true, 80_000, &fa, &IP);
+    let b = process_html(r#"<img src="https://x/p.png">"#, "doc-b", true, 80_000, &fb, &IP);
     assert_eq!(a.assets.len(), 1);
     assert_eq!(b.assets.len(), 1);
     assert_ne!(
@@ -283,10 +298,11 @@ fn assemble_processed_matches_legacy_keys_and_sanitizes() {
     );
     let html = r#"<p onclick="x()" style="font-family:Georgia"><img src="https://x/p.png"></p><script>e()</script>"#;
     let (thtml, truncated, urls) = collect_doc_urls(html, 80_000, true);
-    let out = assemble_processed("d1", &thtml, truncated, true, &urls, &fetched);
+    let out = assemble_processed("d1", &thtml, truncated, true, &urls, &fetched, &IP);
     assert_eq!(out.assets.len(), 1);
-    assert_eq!(out.assets[0].0, "img-d1-0.png");
-    assert!(out.html.contains("img-d1-0.png"));
+    // Raster images are now re-encoded to JPEG regardless of source format.
+    assert_eq!(out.assets[0].0, "img-d1-0.jpg");
+    assert!(out.html.contains("img-d1-0.jpg"));
     assert!(!out.html.contains("https://x/p.png"));
     assert!(!out.html.contains("script"));
     assert!(!out.html.contains("onclick"));
