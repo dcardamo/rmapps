@@ -2,6 +2,7 @@
 pub mod actions;
 pub mod debounce;
 pub mod notify;
+pub mod notify_ws;
 pub mod reconcile;
 pub mod schedule;
 pub mod state;
@@ -303,16 +304,54 @@ pub fn run(args: WatchArgs, cfg: &Config) -> Result<()> {
     // fire). The safety-net poll IS the recv_timeout cadence: a timeout triggers a reconcile.
     let poll_interval =
         schedule::parse_duration(&args.poll_interval).unwrap_or(Duration::from_secs(300));
-    // Task 7 will feed `_tx` from the websocket source thread; for 8b nothing sends, so the
-    // loop is driven purely by recv_timeout deadlines.
-    let (_tx, rx) = std::sync::mpsc::channel::<crate::watch::notify::Wakeup>();
+    // The websocket source thread (spawned below, unless --poll-only) feeds `tx`; each frame
+    // becomes a Wakeup that the loop's recv_timeout picks up for an immediate reconcile. The
+    // recv_timeout deadline is still the safety-net poll, so a dead/absent socket degrades to
+    // poll-only behavior.
+    let (tx, rx) = std::sync::mpsc::channel::<crate::watch::notify::Wakeup>();
 
     if args.poll_only {
         println!("[rmapps] watch: poll-only mode, reconciling every {poll_interval:?}");
+        // Drop the sender so the loop sees a Disconnected channel (treated as a timeout).
+        drop(tx);
     } else {
         println!(
-            "[rmapps] watch: websocket push not yet available; running in poll mode ({poll_interval:?})"
+            "[rmapps] watch: websocket push enabled (poll safety-net every {poll_interval:?})"
         );
+        // The websocket source runs on its OWN std::thread with its OWN current-thread tokio
+        // runtime — separate from the app Cloud's runtime and from this synchronous main loop
+        // (which never awaits; it blocks on recv_timeout). That isolation is what avoids the
+        // nested-runtime panic. The thread owns a cheap Client clone and forwards a Wakeup per
+        // notification; if the main loop drops `rx` (process exit), the send fails and the
+        // thread exits.
+        let client = cloud.client().clone();
+        std::thread::Builder::new()
+            .name("rmapps-ws".into())
+            .spawn(move || {
+                let rt = match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(rt) => rt,
+                    Err(e) => {
+                        eprintln!(
+                            "[rmapps] watch: failed to start ws runtime: {e}; relying on poll only"
+                        );
+                        return;
+                    }
+                };
+                rt.block_on(async move {
+                    use crate::watch::notify::NotificationSource;
+                    let mut src = crate::watch::notify_ws::WsSource::new(client);
+                    loop {
+                        let _ = src.next_wakeup().await;
+                        if tx.send(crate::watch::notify::Wakeup).is_err() {
+                            break; // main loop gone; stop pushing.
+                        }
+                    }
+                });
+            })
+            .map_err(|e| anyhow::anyhow!("spawning ws thread: {e}"))?;
     }
 
     // Startup: catch up missed scheduled tasks + one reconcile so downtime changes are

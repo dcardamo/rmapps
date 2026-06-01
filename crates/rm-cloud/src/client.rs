@@ -216,4 +216,35 @@ impl Client {
         }
         Err(Error::CommitExhausted(MAX_ATTEMPTS))
     }
+
+    /// Connect to the notification websocket, authenticated with the user token.
+    /// Returns the message stream; the caller maps each message to a wakeup.
+    ///
+    /// One-way (receive-only): the server pushes a frame whenever the account may have
+    /// changed (some other client committed with `broadcast: true`). We never send.
+    pub async fn notifications_subscribe(&self) -> Result<NotifyStream> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
+        let token = self.user_token().await?;
+        let mut req = self
+            .config
+            .notifications_ws()
+            .into_client_request()
+            .map_err(|e| Error::Http(format!("ws request: {e}")))?;
+        req.headers_mut().insert(
+            AUTHORIZATION,
+            format!("Bearer {token}")
+                .parse()
+                .map_err(|e| Error::Http(format!("ws auth header: {e}")))?,
+        );
+        let (stream, _resp) = tokio_tungstenite::connect_async(req)
+            .await
+            .map_err(|e| Error::Http(format!("ws connect: {e}")))?;
+        Ok(stream)
+    }
 }
+
+/// The notification websocket stream returned by [`Client::notifications_subscribe`].
+pub type NotifyStream = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;

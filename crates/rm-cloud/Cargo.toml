@@ -25,6 +25,10 @@ rm-files = { path = "../rmfiles", package = "rmfiles" }
 zip = "2"
 tempfile = "3"
 axum = { version = "0.8", optional = true }
+# Notification push websocket. rustls (not native-tls) for the same OpenSSL-atexit
+# reason as reqwest above; native-roots so we don't need to bundle a CA store.
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3"
 
 [features]
 fake = ["dep:axum", "tokio/full"]
