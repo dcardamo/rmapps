@@ -10,6 +10,11 @@ banners, no tracking junk), uploads them to the reMarkable cloud, and — on the
 next sync — reads your on-device highlights and triage decisions back out and
 applies them to Readwise.
 
+> **This is a library crate.** `rmreader` is the rendering/read-back engine inside
+> the [`rmapps`](../../README.md) workspace; the user-facing command is `rmapps
+> reader`. Configuration lives in the unified `~/.config/rmapps/config.toml` under
+> a `[reader]` section. Everything below describes the engine and that command.
+
 <p align="center">
   <img src="docs/screenshots/index.png" alt="Feed index: a typographic table of contents, newest first" width="30%">
   &nbsp;
@@ -62,12 +67,12 @@ links). Content images are kept in color for the Paper Pro's color e-ink display
 ```
 Readwise Reader API  ──fetch──▶  clean HTML  ──fulgur (HTML→PDF)──▶  Library.pdf / Feed.pdf
                                                                           │
-                                                                  rmapi put │ (reMarkable cloud)
+                                                              cloud upload │ (reMarkable cloud)
                                                                           ▼
                                                                    reMarkable Paper Pro
                                                                   (read · highlight · triage)
                                                                           │
-                                                            rmapi get │ next sync
+                                                            cloud fetch │ next sync
                                                                           ▼
         Readwise  ◀──archive / later / delete / highlights──  read back highlighter strokes
 ```
@@ -87,76 +92,68 @@ Readwise Reader API  ──fetch──▶  clean HTML  ──fulgur (HTML→PDF)
 
 ## Install
 
-rmreader is a Rust CLI. The easiest path is Nix (a `flake.nix` is provided):
+Build the `rmapps` binary from the workspace root — one build gives you every
+subcommand, `reader` included:
 
 ```sh
-nix build              # builds the rmreader binary into ./result/bin
-# or, for development:
-nix develop -c cargo build --release
+cargo build --release        # binary at ./target/release/rmapps
 ```
 
-The dev shell brings its own toolchain plus the runtime tools rmreader shells out
-to — [`rmapi`](https://github.com/ddvk/rmapi) for reMarkable cloud sync and
-`poppler-utils` for the PDF text layer. Without Nix you'll need a recent Rust
-toolchain and those tools on your `PATH`.
+On Nix, a dev shell for this crate is available for working on the engine itself
+(`nix develop ./crates/rmreader`); a plain `cargo build` from the repo root builds
+the whole workspace. The dev shell also brings `poppler-utils` for the PDF text
+layer (`pdftotext`). reMarkable cloud sync is native — a pure-Rust client built
+into the `rmapps` binary, with no external `rmapi` tool to install.
 
 ## Usage
 
-**First run — interactive setup:**
+Pair the machine once (native — no rmapi), then add a `[reader]` section to
+`~/.config/rmapps/config.toml` (see below) and sync:
 
 ```sh
-rmreader init
+rmapps auth login            # paste the 8-char code from my.remarkable.com
+rmapps reader                # read back, regenerate, and re-upload
 ```
 
-The wizard asks for your device, an output directory, your Readwise access token
-(from [readwise.io/access_token](https://readwise.io/access_token) — it validates
-it for you), how many items to include, and where to put the PDFs in your
-reMarkable cloud. It writes an `rmreader.toml` and does a full generate + upload.
+`rmapps reader` reads back your on-device highlights and triage, applies them to
+Readwise, regenerates fresh PDFs from the post-action state, and re-uploads them.
 
-**Every run after that — sync:**
-
-```sh
-rmreader path/to/rmreader.toml
-```
-
-This reads back your on-device highlights and triage, applies them to Readwise,
-regenerates fresh PDFs from the post-action state, and re-uploads them.
-
-Run it on a schedule (cron, a systemd timer, etc.) and your reMarkable stays in
-step with your Readwise queue.
+Run it on a schedule (cron, a systemd timer, or via `rmapps sync`) and your
+reMarkable stays in step with your Readwise queue.
 
 ### Configuration
 
-`rmreader.toml` lives beside the output. Because it holds your Readwise token it is
-gitignored by default.
+Add a `[reader]` section to `~/.config/rmapps/config.toml`. Because it holds your
+Readwise token, keep that file private (mode 0600).
 
 ```toml
-device = "paper-pro-move"          # or "paper-pro"
-output_dir = "."                   # where PDFs + manifests are written
+[reader]
+device = "paper-pro-move"            # or "paper-pro"
 theme = "reader"
 
-[readwise]
-token = "..."                      # from readwise.io/access_token
+  [reader.readwise]
+  token = "..."                      # from readwise.io/access_token
 
-[library]
-locations = ["new", "later", "shortlist"]
-max_items = 100
+  [reader.library]
+  locations = ["new", "later", "shortlist"]
+  max_items = 100
 
-[feed]
-enabled = true
-max_items = 100
+  [reader.feed]
+  enabled = true
+  max_items = 100
 
-[images]
-enabled = true                     # fetch + embed content images (color)
+  [reader.images]
+  enabled = true                     # fetch + embed content images (color)
 
-[deploy]
-backend = "rmapi"                  # or "none" to just write PDFs locally
-library_folder = "/Readwise"       # reMarkable cloud folder for Library.pdf
-feed_folder = "/Readwise"          # reMarkable cloud folder for Feed.pdf
+  [reader.deploy]
+  backend = "rmapi"                  # any value uploads; "none" writes PDFs locally only
+  library_folder = "/Readwise"       # reMarkable cloud folder for Library.pdf
+  feed_folder = "/Readwise"          # reMarkable cloud folder for Feed.pdf
 ```
 
 Set `backend = "none"` to generate the PDFs on disk without touching the
-reMarkable cloud — handy for trying it out.
+reMarkable cloud — handy for trying it out. (The `"rmapi"` value is a legacy name
+kept for compatibility; transport is always the native cloud client now.)
 
 ## Triage from the device
 
@@ -197,7 +194,7 @@ make hooks          # enable the pre-commit fmt hook (once per clone)
 
 The codebase has no manual test steps — the Readwise client, content pipeline, PDF
 assembly, manifest round-trip, read-back classification, and deploy command
-sequences are all unit-tested (the Readwise/rmapi boundaries use injectable
+sequences are all unit-tested (the Readwise and cloud boundaries use injectable
 transports so they're tested against fakes). Layout is guarded by golden-image
 visual-regression tests; regenerate them with `make update-goldens` after an
 intentional design change.
@@ -215,7 +212,7 @@ src/
   postprocess.rs    stamp nav bar + action band, embed the manifest
   embed.rs          write/read the PDF-embedded manifest
   readback/         strokes → coords → text layer → classify → Readwise plan
-  deploy/           rmapi (cloud) and none (local) backends
+  deploy/           bundle-fetch seam for read-back (native cloud impl lives in rmapps)
   generate.rs       orchestration
 themes/             reader.toml — the "Newsprint" palette
 assets/fonts/       embedded TTFs (Newsreader, Hanken Grotesk, …)

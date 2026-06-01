@@ -12,6 +12,11 @@ It's written in Rust and renders HTML/CSS straight to PDF with
 [fulgur](https://crates.io/crates/fulgur) (Blitz + krilla) — there is no headless
 browser involved, so output is fast and byte-for-byte deterministic.
 
+> **This is a library crate.** `rmbujo` is the generation engine inside the
+> [`rmapps`](../../README.md) workspace; the user-facing command is `rmapps bujo`.
+> Configuration lives in the unified `~/.config/rmapps/config.toml` under a
+> `[bujo]` section. Everything below describes the engine and that command.
+
 <p align="center">
   <img src="docs/images/cover.png" width="240" alt="Future Log cover">
   &nbsp;&nbsp;
@@ -71,61 +76,67 @@ A single flat folder per year, one PDF per notebook:
 
 ## Install
 
-Dependencies are managed with [Nix](https://nixos.org). With
-[direnv](https://direnv.net):
+Build the `rmapps` binary from the workspace root — one build gives you every
+subcommand, `bujo` included:
 
 ```sh
-direnv allow        # loads the flake dev shell automatically
+cargo build --release        # binary at ./target/release/rmapps
 ```
 
-Or manually:
-
-```sh
-nix develop         # drops you into a shell with everything available
-nix build           # builds the rmbujo binary into ./result/bin/rmbujo
-```
+On Nix, a dev shell for this crate is available for working on the engine
+itself (`nix develop ./crates/rmbujo`), but a plain `cargo build` from the repo
+root builds the whole workspace.
 
 ## Quick start
 
-Create a new year with the interactive wizard. It asks for the base folder, year,
-device, calendar feeds, and sync settings, writes a `<base>/<year>/rmbujo.toml`, then
-generates (and optionally uploads) the PDFs:
+Pair the machine once (native — no rmapi), then add a `[bujo]` section to
+`~/.config/rmapps/config.toml` and generate the year:
 
 ```sh
-rmbujo new
+rmapps auth login            # paste the 8-char code from my.remarkable.com
+rmapps bujo                  # generate the whole year and deploy it
 ```
 
-That's the whole setup. Everything below is for re-running once a config exists.
+Set `deploy.backend = "none"` in the `[bujo]` section to generate the PDFs
+without uploading.
 
 ## Usage
 
 ```sh
-# Regenerate an existing year from its config (reuses cached calendar feeds — fast & offline).
-rmbujo path/to/2026/rmbujo.toml
+# Generate the whole year and deploy it (reuses cached calendar feeds — fast & offline).
+rmapps bujo
 
 # Same, but re-fetch every ICS feed first.
-rmbujo path/to/2026/rmbujo.toml --refresh-feeds
+rmapps bujo --refresh-feeds
 
-# Regenerate a single month and upsert it to a target folder (used by automated jobs).
-rmbujo month path/to/2026/rmbujo.toml --month 5 --target /
+# Refresh just one month (upsert), leaving every other month — and your ink — alone.
+rmapps bujo --only-month 5
+
+# Generate this month and later only; earlier months are kept on-device.
+rmapps bujo --from-month 5
+
+# Regenerate a single month and upsert it to a specific target folder.
+rmapps bujo --month 5 --target /
 ```
 
 ## Calendar feeds (ICS)
 
-Add feeds to `rmbujo.toml` (or let `rmbujo new` prompt you for them one at a time).
-Each feed's events are overlaid on the monthly notebooks:
+Add feeds under the `[bujo]` section of `~/.config/rmapps/config.toml`. Each
+feed's events are overlaid on the monthly notebooks:
 
 ```toml
+[bujo]
+year = 2026
 timezone = "America/Toronto"   # IANA timezone — used for all event rendering
 
-[[ics]]
-name = "Holidays"
-url  = "https://example.com/holidays.ics"   # color omitted → auto-assigned
+  [[bujo.ics]]
+  name = "Holidays"
+  url  = "https://example.com/holidays.ics"   # color omitted → auto-assigned
 
-[[ics]]
-name  = "Work"
-url   = "webcal://example.com/work.ics"      # webcal:// is accepted (treated as https)
-color = "primary"                            # optional override
+  [[bujo.ics]]
+  name  = "Work"
+  url   = "webcal://example.com/work.ics"      # webcal:// is accepted (treated as https)
+  color = "primary"                            # optional override
 ```
 
 - **Colors are automatic.** Omit `color` and each feed gets a distinct shade from a
@@ -142,20 +153,21 @@ color = "primary"                            # optional override
   plain regenerate reuses the snapshot — fast, deterministic, and offline. Pass
   `--refresh-feeds` to force a re-fetch.
 
-## Syncing to the reMarkable (rmapi)
+## Syncing to the reMarkable
 
-Set `deploy.backend = "rmapi"` and `deploy.base_folder = "/rmbujo"` in `rmbujo.toml`
-(the `new` wizard prompts for both). Pair once: run `rmapi` and paste a code from
+Set `deploy.base_folder = "/rmbujo"` in the `[bujo]` section (leave
+`deploy.backend` at its default to upload, or set it to `"none"` to generate
+only). Cloud sync is native — a pure-Rust client, no external `rmapi` tool. Pair
+once with `rmapps auth login` and paste a code from
 <https://my.remarkable.com/device/desktop/connect>. After that:
 
-- `rmbujo new` uploads the year's PDFs to `<base_folder>/<year>` (e.g. `/rmbujo/2026`).
-- `rmbujo path/to/rmbujo.toml` regenerates and re-syncs with `rmapi put
-  --content-only`, which **replaces each PDF's printed background without touching
-  your handwriting**.
+- `rmapps bujo` uploads the year's PDFs to `<base_folder>/<year>` (e.g. `/rmbujo/2026`).
+- It re-syncs each notebook with a **content-only** cloud update, which
+  **replaces each PDF's printed background without touching your handwriting**.
 
-**Device sync rule:** always sync the device *before* running rmbujo, then sync again
-after. This guarantees handwriting you added on the device reaches the cloud before
-the content-only push, so nothing is lost.
+**Device sync rule:** always sync the device *before* running `rmapps bujo`, then
+sync again after. This guarantees handwriting you added on the device reaches the
+cloud before the content-only push, so nothing is lost.
 
 ## Adding pages on the device
 
@@ -178,7 +190,7 @@ Paper Pro Move is the primary, most-tested target.
 make test             # full suite in the Nix shell
 make update-goldens   # regenerate visual-regression golden images
 make clippy           # lints (warnings are errors)
-make build            # nix build the rmbujo package
+make build            # nix build (compiles + checks this crate)
 make hooks            # enable the tracked pre-commit hook (cargo fmt --check)
 ```
 
