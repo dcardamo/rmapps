@@ -31,3 +31,7 @@ chrono-tz = "0.10"
 # test-util enables `#[tokio::test(start_paused = true)]` and virtual-time control
 # used by the poll-source test; kept out of the production build.
 tokio = { version = "1", features = ["test-util"] }
+# Turn on rm-cloud's `fake` feature for the in-crate reactor integration test
+# (apps/rmapps/src/watch/reactor_tests.rs), which drives the app Cloud against
+# the in-repo fake cloud.
+rm-cloud = { path = "../../crates/rm-cloud", features = ["fake"] }
