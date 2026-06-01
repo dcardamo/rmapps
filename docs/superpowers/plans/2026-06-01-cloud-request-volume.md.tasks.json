@@ -4,56 +4,64 @@
     {
       "id": 1,
       "subject": "Task 1: Surface doc hash through ls/RemoteDoc/CloudDoc.version",
-      "status": "pending",
+      "status": "completed",
       "description": "Carry the cloud doc hash out through ls -> Entry -> RemoteDoc -> CloudDoc.version. No behavior change.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/porcelain/fs.rs\", \"apps/rmapps/src/cloud.rs\", \"apps/rmapps/src/cloud_adapters.rs\"], \"verifyCommand\": \"cargo build -p rm-cloud -p rmapps\", \"acceptanceCriteria\": [\"Entry has hash field\", \"RemoteDoc has hash field\", \"CloudBackend::list sets version: Some(hash)\", \"builds clean\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Wire digest cheap-skip (skip download for unchanged docs)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "process_doc returns before backend.fetch when doc.version == prev.cloud_version and page_hashes non-empty.\n\n```json:metadata\n{\"files\": [\"crates/rmdigest/src/generate.rs\"], \"verifyCommand\": \"cargo test -p rmdigest cheap_skip\", \"acceptanceCriteria\": [\"unchanged doc skips before fetch\", \"changed doc refetches\", \"first-sight fetches\", \"cloud_version persisted\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Add per-hash blob-GET counter to FakeCloud",
-      "status": "pending",
+      "status": "completed",
       "description": "Add State.blob_gets HashMap, increment in blob-GET handler, expose FakeCloud::blob_get_count(hash).\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/fake/mod.rs\", \"crates/rm-cloud/src/fake/handlers.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake\", \"acceptanceCriteria\": [\"State.blob_gets exists\", \"GET handler increments\", \"blob_get_count helper\", \"no regressions\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Implement BlobCache content-addressed disk store",
-      "status": "pending",
+      "status": "completed",
       "description": "Standalone hash-keyed disk store: get (verify+discard corrupt), put (atomic), sharded layout, entries/total_size.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/cache.rs\", \"crates/rm-cloud/src/lib.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud cache::\", \"acceptanceCriteria\": [\"put/get round-trips\", \"miss returns None\", \"corrupt entry rejected+removed\", \"total_size sums\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Wire BlobCache into Client get_blob/put_blob",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "Client gains Option<Arc<BlobCache>> + with_cache; get_blob read-through, put_blob write-through.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/client.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake cache_integration\", \"acceptanceCriteria\": [\"Client has cache field\", \"with_cache builder\", \"cache hit avoids GET\", \"put write-through\", \"cacheless unchanged\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Generation-keyed snapshot memoization",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "snapshot() polls current_generation(); reuse cached snapshot when generation matches, else rebuild+store.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/client.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake snapshot_memo\", \"acceptanceCriteria\": [\"snap_cache field\", \"reuse on matching generation\", \"rebuild on change\", \"root-index fetched once when unchanged\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Snapshot-once recursive walk via ls_with",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 6],
       "description": "Add ls_with(&snap,parent); ls delegates. Refactor list_recursive/walk/resolve_folder_in to snapshot once.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/porcelain/fs.rs\", \"apps/rmapps/src/cloud.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake ls_with\", \"acceptanceCriteria\": [\"ls_with(&snap,parent) exists\", \"ls delegates\", \"walk snapshots once\", \"no per-folder root refetch\", \"results unchanged\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: Default cache dir + rmapps cache CLI",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "Build rmapps Client with cache at ~/.cache/rmapps/blobs (RMAPPS_CACHE_DIR override); add rmapps cache {info,gc,clear}.\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/cloud.rs\", \"apps/rmapps/src/cache_cmd.rs\", \"apps/rmapps/src/main.rs\"], \"verifyCommand\": \"cargo test -p rmapps cache_cmd && cargo build -p rmapps\", \"acceptanceCriteria\": [\"client built with cache\", \"cache dir default + RMAPPS_CACHE_DIR override\", \"cache info\", \"gc evicts to cap\", \"cache clear\"], \"requiresUserVerification\": false}\n```"
     }
+    ,
+    {
+      "id": 9,
+      "subject": "Task 9: Fix doc-index blobs never caching (re-hash rejects doc-hash-keyed blobs)",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "Per-doc index blob keyed by Merkle doc hash (not sha256(bytes)) was rejected by re-hash verification and refetched every read. Added BlobCache::get_unverified + Client::get_blob_unverified; routed the two per-doc .docSchema fetches through it. Found by final holistic review.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/cache.rs\", \"crates/rm-cloud/src/client.rs\", \"crates/rm-cloud/src/porcelain/document.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake\", \"acceptanceCriteria\": [\"doc-index blob cached across reads\", \"content blobs still verified\", \"regression test\"], \"requiresUserVerification\": false}\n```"
+    }
   ],
-  "lastUpdated": "2026-06-01"
+  "lastUpdated": "2026-06-01T00:00:00Z"
 }
