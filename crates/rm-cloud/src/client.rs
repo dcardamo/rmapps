@@ -23,6 +23,9 @@ pub struct Client {
     pub(crate) config: Config,
     pub(crate) creds: Arc<RwLock<Credentials>>,
     pub(crate) cache: Option<Arc<BlobCache>>,
+    /// Generation-keyed snapshot memo: avoids re-downloading + re-parsing the root index
+    /// when the account's generation hasn't changed since the last call.
+    pub(crate) snap_cache: Arc<RwLock<Option<Snapshot>>>,
 }
 
 #[derive(Deserialize)]
@@ -83,6 +86,7 @@ impl Client {
             config,
             creds: Arc::new(RwLock::new(creds)),
             cache: None,
+            snap_cache: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -114,9 +118,21 @@ impl Client {
         Ok(token)
     }
 
-    /// Fetch the current account snapshot (empty if the account never synced).
+    /// Fetch the current account snapshot, reusing a cached one when the account's
+    /// generation is unchanged (cheap root-ref poll), else rebuilding it.
     pub async fn snapshot(&self) -> Result<Snapshot> {
-        // Fetch the root ref, with one transparent refresh on 401.
+        let current_gen = self.current_generation().await?;
+
+        // Reuse the cached snapshot when the generation matches.
+        if let Some(gen) = current_gen {
+            if let Some(snap) = self.snap_cache.read().await.as_ref() {
+                if snap.generation == gen {
+                    return Ok(snap.clone());
+                }
+            }
+        }
+
+        // Rebuild from the root ref. `None` => account never synced.
         let root = match self.get_root_ref().await {
             Err(Error::Unauthorized) => {
                 self.force_refresh().await?;
@@ -124,12 +140,13 @@ impl Client {
             }
             other => other?,
         };
-
         let Some(root) = root else {
             return Ok(Snapshot::empty());
         };
         let bytes = self.get_blob(&root.hash, "root.docSchema").await?;
-        Snapshot::from_root_index(root.generation, root.hash, &bytes)
+        let snap = Snapshot::from_root_index(root.generation, root.hash, &bytes)?;
+        *self.snap_cache.write().await = Some(snap.clone());
+        Ok(snap)
     }
 
     /// Cheap root-generation poll: fetch just the root ref and return its
@@ -305,6 +322,38 @@ impl Client {
 pub type NotifyStream = tokio_tungstenite::WebSocketStream<
     tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
 >;
+
+#[cfg(all(test, feature = "fake"))]
+mod snapshot_memo {
+    use super::*;
+    use crate::fake::FakeCloud;
+    use crate::porcelain::docfiles::DocFiles;
+
+    #[tokio::test]
+    async fn unchanged_generation_reuses_snapshot() {
+        let fake = FakeCloud::spawn().await;
+        // No BlobCache: only the generation memo can prevent the second root-index fetch.
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token");
+
+        // Create one doc so a non-empty root index exists.
+        client
+            .put(DocFiles::new_pdf("Doc", "", b"%PDF-1.4\n".to_vec()))
+            .await
+            .unwrap();
+
+        let s1 = client.snapshot().await.unwrap();
+        let root_hash = s1.root_hash.clone();
+        let gets_after_first = fake.blob_get_count(&root_hash);
+
+        let s2 = client.snapshot().await.unwrap();
+        assert_eq!(s1.generation, s2.generation);
+        assert_eq!(
+            fake.blob_get_count(&root_hash),
+            gets_after_first,
+            "unchanged generation must not refetch the root-index blob"
+        );
+    }
+}
 
 #[cfg(all(test, feature = "fake"))]
 mod cache_integration {
