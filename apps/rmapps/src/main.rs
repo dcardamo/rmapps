@@ -14,6 +14,7 @@
 
 mod auth;
 mod bujo;
+mod cache_cmd;
 mod cloud;
 mod cloud_adapters;
 mod config;
@@ -59,6 +60,8 @@ enum Command {
     Ls(ls::LsArgs),
     /// Delete a document or folder in the cloud (`--recursive` for folders).
     Rm(rm::RmArgs),
+    /// Inspect and prune the local blob cache.
+    Cache(cache_cmd::CacheArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -89,5 +92,6 @@ fn main() -> anyhow::Result<()> {
         Command::Push(args) => push::run(args),
         Command::Ls(args) => ls::run(args),
         Command::Rm(args) => rm::run(args),
+        Command::Cache(args) => cache_cmd::run(args),
     }
 }

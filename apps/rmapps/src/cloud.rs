@@ -17,8 +17,22 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use rm_cloud::{Client, Config, DocFiles};
+use rm_cloud::{BlobCache, Client, Config, DocFiles};
 use tokio::runtime::Runtime;
+
+/// Default blob-cache directory: `$RMAPPS_CACHE_DIR`, else `$XDG_CACHE_HOME/rmapps/blobs`,
+/// else `~/.cache/rmapps/blobs`.
+pub fn default_cache_dir() -> PathBuf {
+    if let Ok(d) = std::env::var("RMAPPS_CACHE_DIR") {
+        return PathBuf::from(d);
+    }
+    let base = std::env::var("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cache")
+        });
+    base.join("rmapps").join("blobs")
+}
 
 /// A document discovered by [`Cloud::list_recursive`].
 #[derive(Debug, Clone)]
@@ -54,7 +68,8 @@ impl Cloud {
             .enable_all()
             .build()
             .context("building Tokio runtime")?;
-        let client = Client::from_device_token(Config::from_env(), token);
+        let client = Client::from_device_token(Config::from_env(), token)
+            .with_cache(BlobCache::new(default_cache_dir()));
         Ok(Self { rt, client })
     }
 
