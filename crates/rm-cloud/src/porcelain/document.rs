@@ -29,8 +29,8 @@ impl Client {
     /// redundant root fetch when iterating many docs (used by `ls`/`sync`).
     pub(crate) async fn get_from(&self, snap: &Snapshot, id: &str) -> Result<DocFiles> {
         let doc = snap.doc(id).ok_or(Error::NotFound)?;
-        // doc-index blob is keyed by the doc hash, named "<id>.docSchema".
-        let index = self.get_blob(&doc.hash, &format!("{id}.docSchema")).await?;
+        // doc-index blob is keyed by the doc hash (Merkle, not sha256(bytes)) — use unverified read.
+        let index = self.get_blob_unverified(&doc.hash, &format!("{id}.docSchema")).await?;
         let entries = parse_doc_index(&index)?;
         let mut files = Vec::with_capacity(entries.len());
         for e in &entries {
@@ -62,7 +62,8 @@ impl Client {
         doc_hash: &str,
         id: &str,
     ) -> Result<crate::porcelain::docfiles::Metadata> {
-        let index = self.get_blob(doc_hash, &format!("{id}.docSchema")).await?;
+        // doc-index blob is keyed by the doc hash (Merkle, not sha256(bytes)) — use unverified read.
+        let index = self.get_blob_unverified(doc_hash, &format!("{id}.docSchema")).await?;
         let entries = parse_doc_index(&index)?;
         let meta = entries
             .iter()
@@ -177,5 +178,48 @@ impl Client {
             .ok_or_else(|| Error::Parse("document has no .pdf to replace".into()))?;
         slot.1 = new_pdf;
         self.put_broadcast(docfiles).await
+    }
+}
+
+#[cfg(all(test, feature = "fake"))]
+mod doc_index_cache {
+    use crate::cache::BlobCache;
+    use crate::client::Client;
+    use crate::config::Config;
+    use crate::fake::FakeCloud;
+    use crate::porcelain::docfiles::DocFiles;
+
+    #[tokio::test]
+    async fn doc_index_blob_is_cached_across_reads() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token")
+            .with_cache(BlobCache::new(dir.path()));
+        client.put(DocFiles::new_pdf("Doc", "", b"%PDF\n".to_vec())).await.unwrap();
+
+        let snap = client.snapshot().await.unwrap();
+        let (id, doc_hash) = {
+            let d = snap.docs().next().expect("one doc");
+            (d.id.clone(), d.hash.clone())
+        };
+
+        // Wipe the cache so the first stat must hit the network for the doc-index blob.
+        // (The put() already wrote it to the fake; the write-through cache holds a copy
+        // from put_blob, so we drop the whole dir and use a fresh one.)
+        drop(client);
+        let dir2 = tempfile::tempdir().unwrap();
+        let client2 = Client::from_user_token(Config::single_host(&fake.base), "user-token")
+            .with_cache(BlobCache::new(dir2.path()));
+
+        // Two metadata reads against a cold cache. The doc-index blob must be fetched
+        // from the server on the first read, then served from cache on the second.
+        let _ = client2.stat(&id).await.unwrap();
+        let before = fake.blob_get_count(&doc_hash);
+        let _ = client2.stat(&id).await.unwrap();
+        assert_eq!(
+            fake.blob_get_count(&doc_hash), before,
+            "per-doc index blob must be served from cache on the second read"
+        );
+        assert!(before >= 1, "doc-index blob should have been fetched at least once from the network");
     }
 }

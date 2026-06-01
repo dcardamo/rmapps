@@ -41,6 +41,13 @@ impl BlobCache {
         }
     }
 
+    /// Read the blob for `hash` WITHOUT re-hash verification. For blobs whose key is not
+    /// `sha256(bytes)` (e.g. the per-doc index blob, keyed by the Merkle doc hash). The key
+    /// is still a stable immutable identifier; we simply can't self-verify the bytes.
+    pub fn get_unverified(&self, hash: &str) -> Option<Vec<u8>> {
+        std::fs::read(self.path_for(hash)).ok()
+    }
+
     /// Write `bytes` under `hash` atomically (temp file + rename within the shard dir).
     pub fn put(&self, hash: &str, bytes: &[u8]) -> std::io::Result<()> {
         let path = self.path_for(hash);

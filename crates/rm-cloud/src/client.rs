@@ -182,11 +182,21 @@ impl Client {
 
     // --- internal helpers reused by commit/porcelain (later tasks) ---
 
-    /// GET a blob by hash and logical filename.
+    /// GET a content-addressed blob (key == sha256(bytes)); cache reads are re-hash-verified.
     pub(crate) async fn get_blob(&self, hash: &str, name: &str) -> Result<Vec<u8>> {
-        // Cache hit: return without a network call.
+        self.get_blob_inner(hash, name, true).await
+    }
+
+    /// GET an opaque-keyed blob (key is a stable id but NOT sha256(bytes), e.g. the per-doc
+    /// index blob keyed by the Merkle doc hash); cache reads are NOT re-hash-verified.
+    pub(crate) async fn get_blob_unverified(&self, hash: &str, name: &str) -> Result<Vec<u8>> {
+        self.get_blob_inner(hash, name, false).await
+    }
+
+    async fn get_blob_inner(&self, hash: &str, name: &str, verify: bool) -> Result<Vec<u8>> {
         if let Some(cache) = &self.cache {
-            if let Some(bytes) = cache.get(hash) {
+            let hit = if verify { cache.get(hash) } else { cache.get_unverified(hash) };
+            if let Some(bytes) = hit {
                 return Ok(bytes);
             }
         }
