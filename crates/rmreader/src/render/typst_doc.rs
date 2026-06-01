@@ -179,7 +179,8 @@ pub fn build(
 }}
 
 // Per-page chrome: nav bar + action band. Article pages only — on the index
-// (no active section) the top margin is reserved (device toolbar) but left blank.
+// (no active section) there is no chrome and the small toolbar-clearance top
+// margin keeps the masthead near the top.
 #let page-header() = context {{
   if section-state.at(here()) == "" {{ none }} else {{
     block(width: 100%, height: 112pt)[
@@ -194,7 +195,13 @@ pub fn build(
 // One article: mark the section, force a page, then headline/byline/rule/body.
 // Emits a <region> metadata recording this article's first page (for page_range
 // recovery) and attaches the article link target to the headline.
+//
+// Article pages restore the tall top margin (120pt) that reserves room for the
+// per-page chrome header (nav bar + action band) drawn in the margin. The index
+// pages keep the small toolbar-clearance margin set globally below, so they
+// don't waste the top of every page.
 #let article(id, title-text, byline-text, body) = {{
+  set page(margin: (top: 120pt, right: 16pt, bottom: 30pt, left: 16pt))
   section-state.update(id)
   pagebreak(weak: true)
   context [#metadata((name: "art-" + id, page: here().position().page - 1)) <region>]
@@ -206,9 +213,14 @@ pub fn build(
   body
 }}
 
+// Index pages get a small top margin that just clears the reMarkable toolbar
+// (~80px ≈ 22pt at the device ppi) plus a little breathing room. Article pages
+// restore the tall 120pt top margin inside `#article` to reserve the per-page
+// chrome header. This keeps the index masthead near the top instead of pushed
+// down by a header-sized gap that the index never uses.
 #set page(
   width: {w}pt, height: {h}pt,
-  margin: (top: 120pt, right: 16pt, bottom: 30pt, left: 16pt),
+  margin: (top: 28pt, right: 16pt, bottom: 30pt, left: 16pt),
   fill: paper,
   header-ascent: 8pt,
   header: page-header(),
@@ -243,7 +255,7 @@ fn build_index(collection: &str, rows: &[Row]) -> String {
     // CSS asked for text-transform:uppercase but fulgur/Blitz ignored it, so the
     // real output was never uppercased.
     s.push_str(&format!(
-        "#block(above: 14pt, below: 2pt, text(font: \"Fraunces\", weight: \"semibold\", \
+        "#block(above: 0pt, below: 2pt, text(font: \"Fraunces\", weight: \"semibold\", \
          size: 25pt, fill: heading-col, [{title}])) #label(\"index-home\")\n\
          #block(below: 12pt, text(font: \"Hanken Grotesk\", size: 7.5pt, tracking: 0.12em, \
          fill: muted, [{count} articles · newest first]))\n",
