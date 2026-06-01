@@ -23,7 +23,7 @@ impl Backend for CloudBackend<'_> {
                 path: d.path,
                 name: d.name,
                 folder: d.folder,
-                version: None,
+                version: Some(d.hash),
             })
             .collect())
     }

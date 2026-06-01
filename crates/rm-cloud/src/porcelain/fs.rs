@@ -39,6 +39,8 @@ pub struct Entry {
     pub parent: String,
     /// True if a folder (`CollectionType`).
     pub is_folder: bool,
+    /// Cloud content hash of the document (changes when any blob changes).
+    pub hash: String,
 }
 
 impl Client {
@@ -68,13 +70,13 @@ impl Client {
             set.spawn(async move {
                 let _permit = sem.acquire_owned().await.expect("semaphore not closed");
                 let meta = client.metadata_by(&hash, &id).await;
-                (id, meta)
+                (id, hash, meta)
             });
         }
 
         let mut out = Vec::new();
         while let Some(joined) = set.join_next().await {
-            let (id, meta) =
+            let (id, hash, meta) =
                 joined.map_err(|e| crate::error::Error::Http(format!("ls join: {e}")))?;
             // Skip docs whose metadata can't be read rather than failing the whole listing.
             let Ok(meta) = meta else { continue };
@@ -86,6 +88,7 @@ impl Client {
                 name: meta.visible_name,
                 parent: meta.parent,
                 is_folder: meta.doc_type == "CollectionType",
+                hash,
             });
         }
         out.sort_by(|a, b| a.name.cmp(&b.name));

@@ -31,6 +31,8 @@ pub struct RemoteDoc {
     pub folder: String,
     /// Full path, e.g. `/Books/Author/Title`.
     pub path: String,
+    /// Cloud content hash (used by the digest cheap-skip).
+    pub hash: String,
 }
 
 /// A native cloud client with synchronous, path-shaped deploy helpers.
@@ -238,6 +240,7 @@ impl Cloud {
                     name: e.name,
                     folder: folder_path.to_string(),
                     path: child_path,
+                    hash: e.hash,
                 });
             }
         }
