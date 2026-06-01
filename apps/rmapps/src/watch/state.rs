@@ -29,6 +29,15 @@ pub struct WatchState {
 }
 
 pub fn state_path() -> PathBuf {
+    // Test/override hook (mirrors rmdigest's RMDIGEST_STATE): point the daemon at an
+    // explicit state file. Used by the reactor integration test to stay hermetic so it
+    // never clobbers the real ~/.local/state/rmapps/watch-state.json on a host running
+    // the watch daemon.
+    if let Ok(p) = std::env::var("RMAPPS_WATCH_STATE") {
+        if !p.is_empty() {
+            return PathBuf::from(p);
+        }
+    }
     let base = dirs::state_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("state")))
         .unwrap_or_else(|| PathBuf::from(".local/state"));
@@ -89,6 +98,25 @@ mod tests {
         assert!(back.baseline.is_empty());
         assert!(back.baseline_generation.is_none());
         assert!(back.failed_attempts.is_empty());
+    }
+
+    #[test]
+    fn state_path_honors_env_override() {
+        // Single test that sets + restores the env var to avoid cross-test interference
+        // (these run in the same process). An empty value is ignored (falls back to default).
+        let prev = std::env::var("RMAPPS_WATCH_STATE").ok();
+
+        std::env::set_var("RMAPPS_WATCH_STATE", "/tmp/rmapps-test-override.json");
+        assert_eq!(state_path(), PathBuf::from("/tmp/rmapps-test-override.json"));
+
+        // Empty => ignored, so the default path is used (ends with the well-known filename).
+        std::env::set_var("RMAPPS_WATCH_STATE", "");
+        assert!(state_path().ends_with("rmapps/watch-state.json"));
+
+        match prev {
+            Some(v) => std::env::set_var("RMAPPS_WATCH_STATE", v),
+            None => std::env::remove_var("RMAPPS_WATCH_STATE"),
+        }
     }
 
     #[test]

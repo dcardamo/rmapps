@@ -104,6 +104,22 @@ fn reactor_enqueues_digest_job_and_ignores_self_writes() {
         .unwrap();
     });
 
+    // ── Hermetic state file ──────────────────────────────────────────────────────────
+    // reconcile_pass calls state::save, which would otherwise clobber the REAL
+    // ~/.local/state/rmapps/watch-state.json (dangerous on a host running the daemon).
+    // Redirect it to a unique temp file via the RMAPPS_WATCH_STATE override. We set this
+    // BEFORE the first reconcile_pass and remove it at the end of the test. (Same single
+    // test already owns the process-global RM_CLOUD_HOST, so one more env var is fine.)
+    let state_file = std::env::temp_dir().join(format!(
+        "rmapps-reactor-test-{}-{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::env::set_var("RMAPPS_WATCH_STATE", &state_file);
+
     // ── App Cloud pointed at the fake via RM_CLOUD_HOST ──────────────────────────────
     // Set the host BEFORE constructing the app Cloud (Config::from_env reads it once).
     std::env::set_var("RM_CLOUD_HOST", &fake.base);
@@ -180,6 +196,16 @@ fn reactor_enqueues_digest_job_and_ignores_self_writes() {
         !jobs.iter().any(|j| j.doc.id == digest_id),
         "self-write digest doc must never be enqueued (no-loop guarantee)"
     );
+
+    // Hermeticity: reconcile_pass wrote ONLY the override file, not the user state dir.
+    assert!(
+        state_file.exists(),
+        "reconcile_pass should have written the override state file"
+    );
+
+    // Clean up: remove the temp state file and unset the override so we leave no trace.
+    let _ = std::fs::remove_file(&state_file);
+    std::env::remove_var("RMAPPS_WATCH_STATE");
 
     // Keep the fake's runtime alive until the very end of the test (the axum server
     // task runs on it; dropping earlier would stop serving the app Cloud).
