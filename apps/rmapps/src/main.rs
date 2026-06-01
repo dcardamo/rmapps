@@ -5,7 +5,7 @@
 //! - `bujo`  — generate/deploy bullet-journal PDFs.
 //! - `reader`— pull Readwise Reader collections, read-back, deploy.
 //! - `digest`— summarize reMarkable docs into per-source digests.
-//! - `sync`  — run the config-driven `[[sync]]` tasks once (schedule + on-change triggers).
+//! - `sync`  — run the config-driven `[[sync]]` scheduled tasks once.
 //! - `watch` — run the resident daemon: scheduled tasks + push-driven reactions.
 //! - `push`  — upload a single PDF to a cloud folder (replace or content-only).
 //!
