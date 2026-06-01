@@ -146,14 +146,18 @@ fn reconcile_pass(
     }
 
     state.baseline = current;
-    state.baseline_generation = gen;
+    // Use the snapshot's own generation so the next pass's cheap generation check matches
+    // and skips a redundant snapshot (rather than the separately-polled `gen` above, which
+    // could differ if the account changed between the two calls).
+    state.baseline_generation = Some(snap.generation);
     state::save(state)?;
     Ok(())
 }
 
-/// Run scheduled tasks that are due. On startup, fire any `at` time already passed today
-/// (catch-up) and any `every` task that is due. Updates last_run on success.
-fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState, startup: bool) {
+/// Run scheduled tasks that are due. Fires any `every` task whose interval elapsed and any
+/// `at` time already passed today that hasn't been run since (catch-up on startup, and at
+/// each `at` time during the resident loop). Updates last_run on success.
+fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState) {
     let tz = timezone(cfg);
     let now_utc = chrono::Utc::now();
     let now_s = now_secs();
@@ -171,10 +175,16 @@ fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState, startup: bool)
                 None => true,
                 Some(last) => now_s.saturating_sub(last) >= d.as_secs(),
             },
+            // `due_on_startup` means "a past `at` time today exists that we haven't run
+            // since". That is exactly the steady-state firing condition too: at each `at`
+            // time the most-recent past time advances past `last_run`, so the task fires
+            // once and `last_run` advancing on success prevents a re-fire until the next
+            // `at` time. So this is NOT gated on `startup` — `at` tasks fire whenever their
+            // time arrives, in both the startup catch-up and the resident loop.
             Sched::At(_) => {
                 let last_dt = last_s
                     .and_then(|s| chrono::DateTime::from_timestamp(s as i64, 0));
-                startup && schedule::due_on_startup(&sched, tz, last_dt, now_utc)
+                schedule::due_on_startup(&sched, tz, last_dt, now_utc)
             }
         };
         if due {
@@ -256,12 +266,150 @@ pub fn run(args: WatchArgs, cfg: &Config) -> Result<()> {
     );
 
     if args.once {
-        run_due_scheduled(cfg, &mut state, /*startup=*/ true);
+        run_due_scheduled(cfg, &mut state);
         reconcile_pass(&cloud, &rules, &exclude, &mut state, &mut debouncer)?;
         drain_and_run(&cloud, cfg, &mut state, &mut debouncer);
         state::save(&state)?;
         return Ok(());
     }
-    // 8b will implement the resident loop here.
-    anyhow::bail!("the resident watch loop is not implemented yet; run with --once for now");
+
+    // ── Resident loop ──────────────────────────────────────────────────────────────────
+    // SYNCHRONOUS: all cloud work runs on this thread, never inside a tokio context, which
+    // avoids the nested-runtime panic (Cloud::block_on already drives a runtime internally).
+    // Wakeups arrive over a std mpsc channel; the loop blocks on rx.recv_timeout(sleep)
+    // where `sleep` is the time until the soonest deadline (poll / debounce / next `at`/`every`
+    // fire). The safety-net poll IS the recv_timeout cadence: a timeout triggers a reconcile.
+    let poll_interval =
+        schedule::parse_duration(&args.poll_interval).unwrap_or(Duration::from_secs(300));
+    // Task 7 will feed `_tx` from the websocket source thread; for 8b nothing sends, so the
+    // loop is driven purely by recv_timeout deadlines.
+    let (_tx, rx) = std::sync::mpsc::channel::<crate::watch::notify::Wakeup>();
+
+    if args.poll_only {
+        println!("[rmapps] watch: poll-only mode, reconciling every {poll_interval:?}");
+    } else {
+        println!(
+            "[rmapps] watch: websocket push not yet available; running in poll mode ({poll_interval:?})"
+        );
+    }
+
+    // Startup: catch up missed scheduled tasks + one reconcile so downtime changes are
+    // processed before we settle into the wait loop.
+    run_due_scheduled(cfg, &mut state);
+    reconcile_pass(&cloud, &rules, &exclude, &mut state, &mut debouncer)?;
+    drain_and_run(&cloud, cfg, &mut state, &mut debouncer);
+    let _ = state::save(&state);
+
+    let mut poll_deadline = Instant::now() + poll_interval;
+
+    loop {
+        let now = Instant::now();
+        // Next wake = soonest of: poll deadline, debounce deadline, next scheduled fire.
+        let mut next = poll_deadline;
+        if let Some(d) = debouncer.next_deadline() {
+            next = next.min(d);
+        }
+        if let Some(d) = next_scheduled_instant(cfg, &state, now) {
+            next = next.min(d);
+        }
+        let sleep = next.saturating_duration_since(Instant::now());
+
+        let woke = match rx.recv_timeout(sleep) {
+            Ok(_) => true,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => false,
+            // No sender exists yet (Task 7 adds one); a disconnected channel behaves like a
+            // timeout so the loop keeps running on its deadlines.
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => false,
+        };
+
+        let now = Instant::now();
+        if woke || now >= poll_deadline {
+            if let Err(e) = reconcile_pass(&cloud, &rules, &exclude, &mut state, &mut debouncer) {
+                eprintln!("[rmapps] watch: reconcile failed: {e:#}");
+            }
+            poll_deadline = Instant::now() + poll_interval;
+        }
+        // Fire any scheduled tasks now due (every/at), then run any debounced jobs whose
+        // window elapsed, then retry previously-failed jobs.
+        run_due_scheduled(cfg, &mut state);
+        for job in debouncer.ready(Instant::now()) {
+            run_one_job(&cloud, cfg, &mut state, &job);
+        }
+        retry_pending(&cloud, cfg, &mut state);
+        let _ = state::save(&state);
+    }
+}
+
+/// Soonest scheduled fire (as a monotonic `Instant`) across all sync tasks, or None if no
+/// task has a schedule. Converts each task's next chrono fire-time into an Instant relative
+/// to `now`. Tasks without a schedule are skipped. A fire already in the past yields
+/// `Some(now)` so the loop wakes promptly to process it.
+fn next_scheduled_instant(cfg: &Config, state: &state::WatchState, now: Instant) -> Option<Instant> {
+    let tz = timezone(cfg);
+    let utc_now = chrono::Utc::now();
+    let mut soonest: Option<Instant> = None;
+    for (i, task) in cfg.sync.iter().enumerate() {
+        let Some(sched) = task_sched(task) else {
+            continue;
+        };
+        let key = format!("{}#{}", task.app, i);
+        let last_dt = state
+            .last_run
+            .get(&key)
+            .copied()
+            .and_then(|s| chrono::DateTime::from_timestamp(s as i64, 0));
+        let fire_utc = schedule::next_fire(&sched, tz, last_dt, utc_now);
+        // chrono Duration -> std Duration; negative (past) clamps to zero so we wake now.
+        let until = (fire_utc - utc_now)
+            .to_std()
+            .unwrap_or(Duration::ZERO);
+        let inst = now + until;
+        soonest = Some(soonest.map_or(inst, |s| s.min(inst)));
+    }
+    soonest
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::SyncTask;
+
+    fn task_every(app: &str, every: &str) -> SyncTask {
+        SyncTask {
+            app: app.to_string(),
+            every: Some(every.to_string()),
+            at: None,
+            month_window: None,
+        }
+    }
+
+    #[test]
+    fn next_scheduled_instant_returns_soonest_of_two_tasks() {
+        // Two never-run `every` tasks: next_fire for a never-run interval task is
+        // `now + interval`, so the soonest deadline is the shorter interval (1m).
+        let mut cfg = Config::default();
+        cfg.sync = vec![task_every("digest", "1h"), task_every("reader", "1m")];
+
+        let now = Instant::now();
+        let got = next_scheduled_instant(&cfg, &state::WatchState::default(), now)
+            .expect("two scheduled tasks => Some");
+
+        // The soonest fire is ~1 minute out. Allow generous slack for the Utc::now()
+        // calls inside the function vs. the test's `now`.
+        let delta = got.saturating_duration_since(now);
+        assert!(
+            delta <= Duration::from_secs(70),
+            "expected soonest deadline ~1m, got {delta:?}"
+        );
+        assert!(
+            delta >= Duration::from_secs(50),
+            "expected soonest deadline ~1m, got {delta:?}"
+        );
+    }
+
+    #[test]
+    fn next_scheduled_instant_none_without_schedules() {
+        let cfg = Config::default(); // no sync tasks
+        assert!(next_scheduled_instant(&cfg, &state::WatchState::default(), Instant::now()).is_none());
+    }
 }

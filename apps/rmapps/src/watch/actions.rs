@@ -17,7 +17,6 @@ fn folder_of(path: &str) -> String {
 }
 
 /// Run a single reactive job against the cloud.
-#[allow(dead_code)] // wired by Task 8 (daemon).
 pub fn run_job(cloud: &Cloud, cfg: &Config, job: &Job) -> Result<()> {
     match job.action {
         WatchAction::Digest => {
