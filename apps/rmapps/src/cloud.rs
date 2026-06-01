@@ -112,6 +112,22 @@ impl Cloud {
             .map(|e| e.id))
     }
 
+    /// The ids of ALL (non-folder) documents named `name` directly under
+    /// `folder_id`. Unlike [`Self::doc_id_in`], this returns every match — used by
+    /// [`Self::replace`] to sweep duplicate docs that can accumulate from repeated
+    /// pushes under eventual consistency.
+    fn doc_ids_in(&self, folder_id: &str, name: &str) -> Result<Vec<String>> {
+        let entries = self
+            .rt
+            .block_on(self.client.ls(folder_id))
+            .map_err(|e| anyhow!("ls: {e}"))?;
+        Ok(entries
+            .into_iter()
+            .filter(|e| !e.is_folder && e.name == name)
+            .map(|e| e.id)
+            .collect())
+    }
+
     /// Create the doc if absent, else replace only its PDF blob (content-only),
     /// preserving on-device handwriting (mechanics §3). `folder` is created if
     /// missing.
@@ -141,12 +157,17 @@ impl Cloud {
             .map_err(|e| anyhow!("create {name}: {e}"))
     }
 
-    /// Destructive replace: remove any existing doc of this name, then create a
+    /// Destructive replace: remove EVERY existing doc of this name, then create a
     /// fresh one. For write-only docs (reader PDFs, digests) with no ink to keep.
+    ///
+    /// We delete all same-named matches (not just the first) so this is idempotent
+    /// against pre-existing duplicates: repeated pushes and the cloud's eventual
+    /// consistency could otherwise leave several "Feed"/"Library" docs in a folder,
+    /// and a one-doc remove would never converge back to a single copy.
     pub fn replace(&self, folder: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
         let folder_id = self.ensure_folder(folder)?;
-        if let Some(id) = self.doc_id_in(&folder_id, name)? {
-            // Best-effort remove; a failure here surfaces on the create below.
+        for id in self.doc_ids_in(&folder_id, name)? {
+            // Best-effort remove; individual failures surface on the create below.
             let _ = self.rt.block_on(self.client.rm(&id));
         }
         self.rt
