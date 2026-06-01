@@ -19,7 +19,7 @@ enum CacheCmd {
     /// Evict oldest entries until the store is under --max-size bytes.
     Gc {
         /// Maximum total size in bytes (default 3 GiB).
-        #[arg(long, default_value_t = 3 * 1024 * 1024 * 1024)]
+        #[arg(long, default_value_t = 3u64 * 1024 * 1024 * 1024)]
         max_size: u64,
     },
     /// Remove the entire cache.
