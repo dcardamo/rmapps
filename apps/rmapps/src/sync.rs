@@ -127,7 +127,7 @@ pub fn run(cfg: &Config) -> Result<()> {
         // Resolve whether this task is due. Trigger-resolution errors (bad
         // `every`, unknown trigger) are per-task failures too — record them and
         // move on rather than aborting the whole run.
-        let (due, reason) = match resolve_due(task, &key, &state, cur_gen, now) {
+        let (due, reason) = match resolve_due(task, &key, &state, now) {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("[rmapps] sync: task {key} failed: {e:#}");
@@ -176,34 +176,25 @@ pub fn run(cfg: &Config) -> Result<()> {
 }
 
 /// Decide whether `task` is due this run, returning `(due, reason)`.
+///
+/// NOTE: this is a stopgap. The `on-change` trigger and clock-time `at`
+/// scheduling are handled by the reactive daemon (Task 8); here every task is
+/// treated as a simple interval schedule.
 fn resolve_due(
     task: &crate::config::SyncTask,
     key: &str,
     state: &SyncState,
-    cur_gen: Option<i64>,
     now: u64,
 ) -> Result<(bool, &'static str)> {
-    let trigger = task.trigger.as_deref().unwrap_or("schedule");
-    Ok(match trigger {
-        "on-change" => {
-            // TODO: filter on-change by `watch` via snapshot diff — for now ANY
-            // account-generation change (or the first run) triggers the task.
-            let changed = cur_gen != state.last_generation;
-            (changed, if changed { "generation changed" } else { "generation unchanged" })
+    Ok(match &task.every {
+        None => (true, "no interval (always due)"),
+        Some(every) => {
+            let interval = parse_every(every)?;
+            let last = state.last_run.get(key).copied().unwrap_or(0);
+            let elapsed = now.saturating_sub(last);
+            let due = elapsed >= interval.as_secs();
+            (due, if due { "interval elapsed" } else { "interval not elapsed" })
         }
-        "schedule" => match &task.every {
-            None => (true, "no interval (always due)"),
-            Some(every) => {
-                let interval = parse_every(every)?;
-                let last = state.last_run.get(key).copied().unwrap_or(0);
-                let elapsed = now.saturating_sub(last);
-                let due = elapsed >= interval.as_secs();
-                (due, if due { "interval elapsed" } else { "interval not elapsed" })
-            }
-        },
-        other => anyhow::bail!(
-            "task {key}: unknown trigger {other:?} (expected \"schedule\" or \"on-change\")"
-        ),
     })
 }
 

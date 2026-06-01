@@ -27,28 +27,93 @@ pub struct Config {
     pub bujo: Option<rmbujo::config::Config>,
     pub reader: Option<rmreader::config::Config>,
     pub digest: Option<rmdigest::config::Config>,
+    /// IANA timezone (e.g. "America/Halifax") for resolving clock-time `at` schedules.
+    #[serde(default)]
+    pub timezone: Option<String>,
     #[serde(default)]
     pub sync: Vec<SyncTask>,
+    /// Reactive `[[watch]]` rules: react to cloud changes under `path`.
+    #[serde(default)]
+    pub watch: Vec<WatchRule>,
 }
 
 #[derive(Deserialize, Clone)]
 pub struct SyncTask {
     /// Which app to run: "bujo" | "reader" | "digest".
     pub app: String,
-    /// "schedule" (default) | "on-change".
-    #[serde(default)]
-    pub trigger: Option<String>,
-    /// Interval for `schedule` triggers: `<N>s|m|h|d` (e.g. "12h", "1d").
+    /// Interval schedule: `<N>s|m|h|d` (e.g. "12h", "1d"). Mutually exclusive with `at`.
     #[serde(default)]
     pub every: Option<String>,
-    /// Folder to watch for `on-change` triggers (filtering not yet implemented; see
-    /// the TODO in `sync.rs`).
+    /// Clock-time schedule: list of `HH:MM` (24h). Mutually exclusive with `every`.
     #[serde(default)]
-    #[allow(dead_code)]
-    pub watch: Option<String>,
+    pub at: Option<Vec<String>>,
     /// For `bujo`: when true, sync only the current calendar month.
     #[serde(default)]
     pub month_window: Option<bool>,
+}
+
+/// A reactive watch rule: when the cloud folder at `path` changes, run `action`
+/// (after a quiet period of `debounce`).
+#[derive(Deserialize, Clone)]
+pub struct WatchRule {
+    pub path: String,
+    pub action: WatchAction,
+    #[serde(default = "default_debounce")]
+    pub debounce: String,
+}
+
+fn default_debounce() -> String {
+    "30s".to_string()
+}
+
+/// The action a [`WatchRule`] fires. Unknown values are a load-time error.
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum WatchAction {
+    Digest,
+    Readback,
+}
+
+impl Config {
+    /// Validate the parsed config: timezone, `every`/`at` exclusivity, `HH:MM`
+    /// times, watch paths and debounce durations. Cheap, pure, called by `load`.
+    pub fn validate(&self) -> Result<()> {
+        if let Some(tz) = &self.timezone {
+            tz.parse::<chrono_tz::Tz>()
+                .map_err(|_| anyhow::anyhow!("unknown timezone {tz:?}"))?;
+        }
+        for (i, t) in self.sync.iter().enumerate() {
+            if t.every.is_some() && t.at.is_some() {
+                anyhow::bail!("[[sync]] #{i} ({}): set either `every` or `at`, not both", t.app);
+            }
+            if let Some(times) = &t.at {
+                for s in times {
+                    parse_hhmm(s).map_err(|e| anyhow::anyhow!("[[sync]] #{i}: {e}"))?;
+                }
+            }
+        }
+        for (i, r) in self.watch.iter().enumerate() {
+            if r.path.trim().is_empty() {
+                anyhow::bail!("[[watch]] #{i}: empty path");
+            }
+            crate::watch::schedule::parse_duration(&r.debounce)
+                .map_err(|e| anyhow::anyhow!("[[watch]] #{i} debounce: {e}"))?;
+        }
+        Ok(())
+    }
+}
+
+/// Parse "HH:MM" (24h) into (hour, minute).
+pub fn parse_hhmm(s: &str) -> Result<(u32, u32)> {
+    let (h, m) = s
+        .split_once(':')
+        .ok_or_else(|| anyhow::anyhow!("invalid time {s:?}: expected HH:MM"))?;
+    let h: u32 = h.parse().map_err(|_| anyhow::anyhow!("invalid hour in {s:?}"))?;
+    let m: u32 = m.parse().map_err(|_| anyhow::anyhow!("invalid minute in {s:?}"))?;
+    if h > 23 || m > 59 {
+        anyhow::bail!("time out of range: {s:?}");
+    }
+    Ok((h, m))
 }
 
 /// Resolve the config path: `explicit` if given, else
@@ -79,7 +144,11 @@ pub fn load(explicit: Option<&Path>) -> Result<Config> {
     let path = config_path(explicit)?;
     let text = std::fs::read_to_string(&path)
         .with_context(|| format!("reading rmapps config {}", path.display()))?;
-    load_str(&text).with_context(|| format!("parsing rmapps config {}", path.display()))
+    let cfg = load_str(&text)
+        .with_context(|| format!("parsing rmapps config {}", path.display()))?;
+    cfg.validate()
+        .with_context(|| format!("validating rmapps config {}", path.display()))?;
+    Ok(cfg)
 }
 
 /// Parse TOML `text`, resolve any `@file:`/`@env:` secret references, then
@@ -162,6 +231,103 @@ mod tests {
             toml::from_str::<toml::Value>(r#"token = "plain-value""#).unwrap();
         resolve_secret_refs(&mut value).unwrap();
         assert_eq!(value["token"].as_str(), Some("plain-value"));
+    }
+
+    #[test]
+    fn parses_watch_rules() {
+        let cfg = load_str(
+            r#"
+            [[watch]]
+            path = "/Books"
+            action = "digest"
+            debounce = "30s"
+
+            [[watch]]
+            path = "/Read/Library"
+            action = "readback"
+        "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.watch.len(), 2);
+        assert_eq!(cfg.watch[0].path, "/Books");
+        assert!(matches!(cfg.watch[0].action, WatchAction::Digest));
+        assert!(matches!(cfg.watch[1].action, WatchAction::Readback));
+        assert_eq!(cfg.watch[1].debounce, "30s"); // default applied
+    }
+
+    #[test]
+    fn rejects_unknown_action() {
+        let err = match load_str(
+            r#"
+            [[watch]]
+            path = "/X"
+            action = "frobnicate"
+        "#,
+        ) {
+            Ok(_) => panic!("expected unknown action to be a load-time error"),
+            Err(e) => e,
+        };
+        assert!(
+            format!("{err:#}").contains("frobnicate")
+                || format!("{err:#}").to_lowercase().contains("action")
+                || format!("{err:#}").contains("variant")
+        );
+    }
+
+    #[test]
+    fn parses_at_times_and_timezone() {
+        let cfg = load_str(
+            r#"
+            timezone = "America/Halifax"
+            [[sync]]
+            app = "bujo"
+            at = ["06:00", "18:00"]
+        "#,
+        )
+        .unwrap();
+        assert_eq!(
+            cfg.sync[0].at.as_ref().unwrap(),
+            &vec!["06:00".to_string(), "18:00".to_string()]
+        );
+        cfg.validate().unwrap();
+    }
+
+    #[test]
+    fn rejects_every_and_at_together() {
+        let cfg = load_str(
+            r#"
+            [[sync]]
+            app = "bujo"
+            every = "12h"
+            at = ["06:00"]
+        "#,
+        )
+        .unwrap();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_bad_time_and_timezone() {
+        let bad_time = load_str(
+            r#"
+            [[sync]]
+            app = "bujo"
+            at = ["6am"]
+        "#,
+        )
+        .unwrap();
+        assert!(bad_time.validate().is_err());
+
+        let bad_tz = load_str(
+            r#"
+            timezone = "Mars/Olympus"
+            [[sync]]
+            app = "bujo"
+            at = ["06:00"]
+        "#,
+        )
+        .unwrap();
+        assert!(bad_tz.validate().is_err());
     }
 
     #[test]
