@@ -95,6 +95,25 @@ impl Client {
         Ok(())
     }
 
+    /// Upload `docfiles` AND broadcast a change notification to the account's other
+    /// subscribers (the reMarkable notification websocket). Like [`put`](Self::put) but routes
+    /// through [`commit_broadcast`](Client::commit_broadcast). Normal sync uses `put`, which does
+    /// NOT broadcast. This exists for clients that want to actively notify other devices (and for
+    /// end-to-end push tests). The `rmapps watch` daemon never calls this — it must not
+    /// self-notify.
+    pub async fn put_broadcast(&self, docfiles: DocFiles) -> Result<()> {
+        let up = DocUpsert {
+            id: docfiles.id.clone(),
+            files: docfiles.files,
+        };
+        self.commit_broadcast(Mutation {
+            upserts: vec![up],
+            removals: vec![],
+        })
+        .await?;
+        Ok(())
+    }
+
     /// Remove a document.
     pub async fn rm(&self, id: &str) -> Result<()> {
         self.commit(Mutation {
@@ -139,5 +158,24 @@ impl Client {
             .ok_or_else(|| Error::Parse("document has no .pdf to replace".into()))?;
         slot.1 = new_pdf;
         self.put(docfiles).await
+    }
+
+    /// Ink-preserving PDF swap that ALSO broadcasts a change notification to the account's other
+    /// subscribers (the reMarkable notification websocket). Like
+    /// [`put_content_only`](Self::put_content_only) but routes through
+    /// [`commit_broadcast`](Client::commit_broadcast) via [`put_broadcast`](Self::put_broadcast).
+    /// Normal sync uses `put_content_only`, which does NOT broadcast. This exists for clients that
+    /// want to actively notify other devices (and for end-to-end push tests). The `rmapps watch`
+    /// daemon never calls this — it must not self-notify.
+    pub async fn put_content_only_broadcast(&self, id: &str, new_pdf: Vec<u8>) -> Result<()> {
+        let mut docfiles = self.get(id).await?;
+        let pdf_name = format!("{id}.pdf");
+        let slot = docfiles
+            .files
+            .iter_mut()
+            .find(|(n, _)| *n == pdf_name)
+            .ok_or_else(|| Error::Parse("document has no .pdf to replace".into()))?;
+        slot.1 = new_pdf;
+        self.put_broadcast(docfiles).await
     }
 }

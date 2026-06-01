@@ -170,8 +170,25 @@ impl Client {
     }
 
     /// Apply `mutation` atomically: upload new blobs, then CAS-put the root, rebasing on
-    /// a stale generation. Returns the post-commit snapshot.
+    /// a stale generation. Returns the post-commit snapshot. Does NOT broadcast a change
+    /// notification — see [`commit_broadcast`](Self::commit_broadcast).
     pub async fn commit(&self, mutation: Mutation) -> Result<Snapshot> {
+        self.commit_with(mutation, false).await
+    }
+
+    /// Commit AND broadcast a change notification to the account's other subscribers (the
+    /// reMarkable notification websocket). Normal sync uses [`commit`](Self::commit), which
+    /// does NOT broadcast. This exists for clients that want to actively notify other devices
+    /// (and for end-to-end push tests). The `rmapps watch` daemon never calls this — it must
+    /// not self-notify.
+    pub async fn commit_broadcast(&self, mutation: Mutation) -> Result<Snapshot> {
+        self.commit_with(mutation, true).await
+    }
+
+    /// Shared commit implementation. `broadcast` controls the root PUT `broadcast` flag, which
+    /// determines whether the reMarkable cloud pushes a wakeup frame to the account's other
+    /// notification-socket subscribers. All normal callers pass `false`.
+    async fn commit_with(&self, mutation: Mutation, broadcast: bool) -> Result<Snapshot> {
         // Prepare + upload doc blobs once (content-addressed → safe across retries).
         let prepared: Vec<_> = mutation.upserts.iter().map(prepare_doc).collect();
         for p in &prepared {
@@ -195,7 +212,7 @@ impl Client {
                 .bearer_auth(&token)
                 .header(crate::plumbing::blob::RM_FILENAME, "roothash")
                 .json(&RootPutReq {
-                    broadcast: false,
+                    broadcast,
                     hash: &rhash,
                     generation: snap.generation,
                 })
