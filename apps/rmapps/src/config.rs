@@ -10,6 +10,12 @@
 //! a "generate only" switch: `backend == "none"` means build the PDFs but skip
 //! the upload. The folder fields (`base_folder`, `library_folder`,
 //! `feed_folder`) still say WHERE to deploy.
+//!
+//! Secrets stay out of this file: it can be nix-managed and committed safely.
+//! Any string value may instead reference a dotvault-deployed 0600 file with
+//! `@file:~/.config/secrets/NAME` (a leading `~/` expands to the home dir, and
+//! the file's contents are trimmed) or an env var with `@env:NAME`. References
+//! are resolved at load time, before deserialization.
 
 use std::path::{Path, PathBuf};
 
@@ -73,7 +79,97 @@ pub fn load(explicit: Option<&Path>) -> Result<Config> {
     let path = config_path(explicit)?;
     let text = std::fs::read_to_string(&path)
         .with_context(|| format!("reading rmapps config {}", path.display()))?;
-    let cfg: Config =
-        toml::from_str(&text).with_context(|| format!("parsing rmapps config {}", path.display()))?;
+    load_str(&text).with_context(|| format!("parsing rmapps config {}", path.display()))
+}
+
+/// Parse TOML `text`, resolve any `@file:`/`@env:` secret references, then
+/// deserialize into [`Config`].
+fn load_str(text: &str) -> Result<Config> {
+    let mut value: toml::Value = toml::from_str(text).context("parsing config TOML")?;
+    resolve_secret_refs(&mut value)?;
+    let cfg: Config = value.try_into().context("deserializing resolved config")?;
     Ok(cfg)
+}
+
+/// Recursively replace every string in `value` that is a secret reference:
+/// `@file:<path>` → trimmed file contents (leading `~/` expands to home), and
+/// `@env:<VARNAME>` → the env var's value. Any other string is left as-is.
+fn resolve_secret_refs(value: &mut toml::Value) -> Result<()> {
+    match value {
+        toml::Value::String(s) => {
+            if let Some(rest) = s.strip_prefix("@file:") {
+                let path = expand_tilde(rest);
+                let contents = std::fs::read_to_string(&path)
+                    .with_context(|| format!("reading secret file {}", path.display()))?;
+                *s = contents.trim().to_string();
+            } else if let Some(var) = s.strip_prefix("@env:") {
+                *s = std::env::var(var)
+                    .with_context(|| format!("reading secret env var {var}"))?;
+            }
+        }
+        toml::Value::Table(table) => {
+            for (_k, v) in table.iter_mut() {
+                resolve_secret_refs(v)?;
+            }
+        }
+        toml::Value::Array(array) => {
+            for v in array.iter_mut() {
+                resolve_secret_refs(v)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Expand a leading `~/` to the user's home directory; other paths pass through.
+fn expand_tilde(path: &str) -> PathBuf {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolves_file_ref_to_trimmed_contents() {
+        let path = std::env::temp_dir().join("rmapps_secret_token.txt");
+        std::fs::write(&path, "  super-secret-token\n").unwrap();
+        let mut value =
+            toml::Value::String(format!("@file:{}", path.display()));
+        resolve_secret_refs(&mut value).unwrap();
+        assert_eq!(value.as_str(), Some("super-secret-token"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn resolves_env_ref() {
+        std::env::set_var("RMAPPS_TEST_SECRET", "env-value");
+        let mut value = toml::Value::String("@env:RMAPPS_TEST_SECRET".to_string());
+        resolve_secret_refs(&mut value).unwrap();
+        assert_eq!(value.as_str(), Some("env-value"));
+        std::env::remove_var("RMAPPS_TEST_SECRET");
+    }
+
+    #[test]
+    fn leaves_plain_string_unchanged() {
+        let mut value =
+            toml::from_str::<toml::Value>(r#"token = "plain-value""#).unwrap();
+        resolve_secret_refs(&mut value).unwrap();
+        assert_eq!(value["token"].as_str(), Some("plain-value"));
+    }
+
+    #[test]
+    fn missing_file_ref_errors() {
+        let mut value = toml::Value::String(
+            "@file:/no/such/rmapps/secret/file".to_string(),
+        );
+        let err = resolve_secret_refs(&mut value).unwrap_err();
+        assert!(err.to_string().contains("/no/such/rmapps/secret/file"));
+    }
 }
