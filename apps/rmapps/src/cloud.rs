@@ -166,28 +166,14 @@ impl Cloud {
     /// missing.
     pub fn upsert(&self, folder: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
         let folder_id = self.ensure_folder(folder)?;
-        match self.doc_id_in(&folder_id, name)? {
-            Some(id) => self
-                .rt
-                .block_on(self.client.put_content_only(&id, pdf))
-                .map_err(|e| anyhow!("content-only update {name}: {e}")),
-            None => self
-                .rt
-                .block_on(self.client.put(DocFiles::new_pdf(name, &folder_id, pdf)))
-                .map_err(|e| anyhow!("create {name}: {e}")),
-        }
+        self.upsert_in(&folder_id, name, pdf)
     }
 
     /// Create the doc only if it does not already exist; existing docs are left
     /// completely untouched (no upload), so on-device edits survive.
     pub fn create_if_missing(&self, folder: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
         let folder_id = self.ensure_folder(folder)?;
-        if self.doc_id_in(&folder_id, name)?.is_some() {
-            return Ok(());
-        }
-        self.rt
-            .block_on(self.client.put(DocFiles::new_pdf(name, &folder_id, pdf)))
-            .map_err(|e| anyhow!("create {name}: {e}"))
+        self.create_if_missing_in(&folder_id, name, pdf)
     }
 
     /// Destructive replace: remove EVERY existing doc of this name, then create a
@@ -199,12 +185,42 @@ impl Cloud {
     /// and a one-doc remove would never converge back to a single copy.
     pub fn replace(&self, folder: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
         let folder_id = self.ensure_folder(folder)?;
-        for id in self.doc_ids_in(&folder_id, name)? {
+        self.replace_in(&folder_id, name, pdf)
+    }
+
+    /// `upsert` against an already-resolved folder id (no path resolution).
+    pub fn upsert_in(&self, folder_id: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
+        match self.doc_id_in(folder_id, name)? {
+            Some(id) => self
+                .rt
+                .block_on(self.client.put_content_only(&id, pdf))
+                .map_err(|e| anyhow!("content-only update {name}: {e}")),
+            None => self
+                .rt
+                .block_on(self.client.put(DocFiles::new_pdf(name, folder_id, pdf)))
+                .map_err(|e| anyhow!("create {name}: {e}")),
+        }
+    }
+
+    /// `create_if_missing` against an already-resolved folder id (no path resolution).
+    pub fn create_if_missing_in(&self, folder_id: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
+        if self.doc_id_in(folder_id, name)?.is_some() {
+            return Ok(());
+        }
+        self.rt
+            .block_on(self.client.put(DocFiles::new_pdf(name, folder_id, pdf)))
+            .map_err(|e| anyhow!("create {name}: {e}"))
+    }
+
+    /// `replace` against an already-resolved folder id (no path resolution). Sweeps
+    /// EVERY same-named doc before creating, so it converges pre-existing duplicates.
+    pub fn replace_in(&self, folder_id: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
+        for id in self.doc_ids_in(folder_id, name)? {
             // Best-effort remove; individual failures surface on the create below.
             let _ = self.rt.block_on(self.client.rm(&id));
         }
         self.rt
-            .block_on(self.client.put(DocFiles::new_pdf(name, &folder_id, pdf)))
+            .block_on(self.client.put(DocFiles::new_pdf(name, folder_id, pdf)))
             .map_err(|e| anyhow!("replace {name}: {e}"))
     }
 
@@ -412,5 +428,22 @@ mod tests {
             blob_delta <= 3,
             "warm replace refetched unrelated docs' metadata: {blob_delta} blob GETs"
         );
+    }
+
+    /// `replace_in` deploys into an already-resolved folder id and sweeps duplicates,
+    /// without doing any path resolution itself.
+    #[test]
+    fn replace_in_targets_resolved_folder_id() {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let client = Client::from_user_token(CloudConfig::single_host(&fake.base), "user-token");
+        let cloud = cloud_from_client(client);
+
+        let folder_id = cloud.ensure_folder("/Readwise").unwrap();
+        cloud.replace_in(&folder_id, "Feed", b"%PDF-1".to_vec()).unwrap();
+        cloud.replace_in(&folder_id, "Feed", b"%PDF-2".to_vec()).unwrap();
+
+        // Exactly one "Feed" doc remains under the resolved folder id.
+        assert_eq!(cloud.doc_ids_in(&folder_id, "Feed").unwrap().len(), 1);
     }
 }
