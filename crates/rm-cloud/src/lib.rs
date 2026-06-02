@@ -15,6 +15,7 @@ mod error;
 pub mod plumbing;
 pub mod porcelain;
 mod sync;
+mod sync_store;
 mod transport;
 
 #[cfg(feature = "fake")]
@@ -34,3 +35,4 @@ pub use plumbing::snapshot::{DocRef, Snapshot, TreeDiff};
 pub use porcelain::docfiles::{DocFiles, Metadata};
 pub use porcelain::fs::Entry;
 pub use sync::{SyncReport, WorkingSet, APP_KEY_FIELD};
+pub use sync_store::{ResolvedDoc, ResolvedTree, SyncStore};
