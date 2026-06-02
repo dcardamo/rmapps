@@ -38,7 +38,8 @@ pub struct ResolvedTree {
 }
 
 impl ResolvedTree {
-    /// Direct, non-deleted children of `parent`, as listing `Entry`s, sorted by name.
+    /// Direct children of `parent`, as listing `Entry`s, sorted by name. Trash/deleted
+    /// exclusion is the tree builder's job — this filters purely on `parent`.
     pub fn children(&self, parent: &str) -> Vec<Entry> {
         let mut out: Vec<Entry> = self
             .docs
