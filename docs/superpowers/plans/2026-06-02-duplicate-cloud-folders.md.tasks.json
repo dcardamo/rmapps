@@ -4,29 +4,29 @@
     {
       "id": 0,
       "subject": "Task 1: Id-based deploy methods on Cloud",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Add `upsert_in`/`replace_in`/`create_if_missing_in` to `Cloud` (operate on a resolved folder id, no `ensure_folder`); refactor the path-based methods into thin wrappers.\n\n**Files:**\n- Modify: apps/rmapps/src/cloud.rs (methods ~167-209; tests in mod tests)\n\n**Verify:** cargo test -p rmapps cloud::\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/cloud.rs\"], \"verifyCommand\": \"cargo test -p rmapps cloud::\", \"acceptanceCriteria\": [\"three *_in methods exist\", \"path methods delegate via ensure_folder\", \"existing replace tests pass\", \"replace_in test passes\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: Fake-cloud staleness seam + bug-lock test",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Add `FakeCloud::lag_next_commit(n)` so a commit's effect is invisible to the next n root reads (poisoning the store); bug-lock test proves two `mkdir_p` of one path mint a duplicate under lag.\n\n**Files:**\n- Modify: crates/rm-cloud/src/fake/mod.rs (State lag fields + helper)\n- Modify: crates/rm-cloud/src/fake/handlers.rs (root_put arms; root_get serves stale)\n- Modify: crates/rm-cloud/src/porcelain/fs.rs (fs_tests bug-lock)\n\n**Verify:** cargo test -p rm-cloud --features fake fs_tests::lagging_index\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/fake/mod.rs\", \"crates/rm-cloud/src/fake/handlers.rs\", \"crates/rm-cloud/src/porcelain/fs.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake\", \"acceptanceCriteria\": [\"lag_next_commit arms next commit\", \"stale GETs serve pre-commit hash at current generation\", \"two mkdir_p under lag return different ids\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 2,
       "subject": "Task 3: FolderIds run-scoped resolver + fix tests",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 1],
       "description": "**Goal:** Add `FolderIds` (path->id memo, resolve once per run); fix test proves two docs to /Readwise under lag yield exactly one folder; bujo-shaped guard test.\n\n**Files:**\n- Modify: apps/rmapps/src/cloud.rs (FolderIds + tests)\n\n**Verify:** cargo test -p rmapps cloud::\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/cloud.rs\"], \"verifyCommand\": \"cargo test -p rmapps cloud::\", \"acceptanceCriteria\": [\"FolderIds::new + get memo, pub\", \"repeated get returns same id, one ensure_folder\", \"resolver yields one folder under lag\", \"14-doc single-target guard passes\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 3,
       "subject": "Task 4: Wire reader and bujo to the resolver",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0, 2],
       "description": "**Goal:** reader upload loop and bujo deploy loops resolve each distinct path once via FolderIds and call the *_in methods.\n\n**Files:**\n- Modify: apps/rmapps/src/reader.rs (upload loop ~74-79)\n- Modify: apps/rmapps/src/bujo.rs (deploy loops ~146-153 and ~159-166)\n\n**Verify:** cargo test --workspace\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/reader.rs\", \"apps/rmapps/src/bujo.rs\"], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"reader uses FolderIds + replace_in\", \"bujo loops use FolderIds + upsert_in/create_if_missing_in\", \"workspace tests green\", \"clean build\"], \"requiresUserVerification\": false}\n```"
     }
   ],
-  "lastUpdated": "2026-06-02"
+  "lastUpdated": "2026-06-02T00:00:00Z"
 }
