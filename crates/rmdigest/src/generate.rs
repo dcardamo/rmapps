@@ -92,10 +92,11 @@ fn process_doc(
         return Ok(());
     }
 
-    let bundle_path = match {
+    let fetched = {
         let _s = tracing::info_span!("digest.bundle_fetch", doc = %doc.path).entered();
         backend.fetch(doc)?
-    } {
+    };
+    let bundle_path = match fetched {
         Some(p) => p,
         None => {
             eprintln!("rmdigest: fetch returned None for {}, skipping", doc.path);
