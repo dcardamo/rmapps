@@ -18,6 +18,7 @@ mod cloud;
 mod cloud_adapters;
 mod config;
 mod digest;
+mod lock;
 mod ls;
 mod push;
 mod reader;
