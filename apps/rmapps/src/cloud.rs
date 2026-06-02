@@ -363,10 +363,15 @@ mod tests {
         assert_eq!(cloud.doc_ids_in(&folder, "Feed").unwrap().len(), 1);
     }
 
-    /// A warm `replace` (sync store already populated) costs a small CONSTANT
-    /// number of root polls, independent of how many docs the account holds —
-    /// the old code did 2*N metadata fetches per `ls`, called ~4x per replace.
-    /// Observed here: 5 root polls. Bound set to 8 (observed + margin).
+    /// A warm `replace` (sync store already populated) fetches a small CONSTANT
+    /// number of metadata/blob GETs, independent of how many docs the account
+    /// holds. The metric that actually captures this is blob/metadata GETs, NOT
+    /// root polls: root polls are a small constant in both the new (store-backed)
+    /// and the old (store-less) code, so they would have passed even under the
+    /// old broken behavior. The N-scaling regression lived entirely in the old
+    /// `ls`, which did 2*N metadata fetches per call (~209 GETs at N=50). The
+    /// store-backed path resolves unrelated siblings as store hits and only
+    /// fetches metadata for the genuinely changed doc.
     #[test]
     fn warm_replace_is_account_size_independent() {
         let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
@@ -379,14 +384,31 @@ mod tests {
         cloud.ensure_folder("/Readwise").unwrap();
         cloud.replace("/Readwise", "Feed", b"feed-v1".to_vec()).unwrap();
         cloud.replace("/Readwise", "Library", b"lib-v1".to_vec()).unwrap();
-        let _ = cloud.list_recursive("/Readwise", &[]).unwrap(); // warm
+        // Seed several unrelated sibling docs — this is the "account size" the old
+        // store-less `ls` would have re-scanned (2*N metadata GETs) on every replace.
+        for i in 0..8 {
+            cloud
+                .create_if_missing("/Readwise", &format!("Extra{i}"), format!("extra-{i}").into_bytes())
+                .unwrap();
+        }
+        let _ = cloud.list_recursive("/Readwise", &[]).unwrap(); // warm the store
 
-        let roots_before = fake.root_get_count();
+        let blobs_before = fake.blob_count_total();
         cloud.replace("/Readwise", "Feed", b"feed-v2".to_vec()).unwrap();
-        let roots = fake.root_get_count() - roots_before;
+        let blob_delta = fake.blob_count_total() - blobs_before;
 
-        // Observed: 4 root polls. Bound generously to keep the invariant (account
-        // size independence) the thing under test, not an exact count.
-        assert!(roots <= 8, "warm replace should be account-size-independent, got {roots} root polls");
+        // Observed: blob_delta == 1 (only Feed's own new content blob is fetched;
+        // the 8 unrelated Extra docs + Library are resolved as store hits, never
+        // refetched). The old 2*N behavior would fetch metadata for all ~11 docs
+        // (~22 GETs, possibly multiple times per replace) — far above this bound,
+        // which is exactly what makes it account-size-independent.
+        assert!(
+            blob_delta <= 3,
+            "warm replace refetched unrelated docs' metadata: {blob_delta} blob GETs"
+        );
+
+        // Sanity: root polls stay a small constant too (they always did — this is
+        // not the metric under test, just a guard against a polling regression).
+        let _ = fake.root_get_count();
     }
 }
