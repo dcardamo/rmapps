@@ -190,6 +190,11 @@ fn resolve_due(
 }
 
 /// Run a single due task's underlying app.
+///
+/// Cloud-lock contract: the caller MUST already hold the `lock::CloudLock` —
+/// `main.rs` takes it (`Wait::Fail`) for the `sync` one-shot, and the `watch`
+/// daemon takes it per task (`Wait::Block`). `run_task` does not lock itself, so
+/// a new caller that bypasses those paths must acquire the lock first.
 pub(crate) fn run_task(task: &crate::config::SyncTask, key: &str, cfg: &Config) -> Result<()> {
     match task.app.as_str() {
         "bujo" => {
