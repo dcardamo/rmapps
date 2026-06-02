@@ -16,8 +16,12 @@ pub fn generate_year(
     let mut paths = Vec::new();
 
     // Build the per-day event map once; every month reads from it.
-    let events =
-        crate::ics::build_event_map(config, out_dir, refresh, &crate::ics::fetch::UreqFetcher)?;
+    let events = {
+        let _s = tracing::info_span!("bujo.ics_fetch").entered();
+        crate::ics::build_event_map(config, out_dir, refresh, &crate::ics::fetch::UreqFetcher)?
+    };
+
+    let _gen_span = tracing::info_span!("bujo.generate").entered();
 
     let fl = out_dir.join(format!("{y} Future Log.pdf"));
     future_log::build_future_log_pdf(config, &fl)?;
@@ -40,5 +44,6 @@ pub fn generate_year(
     reference::build_reference_pdf(config, &r)?;
     paths.push(r);
 
+    drop(_gen_span);
     Ok(paths)
 }

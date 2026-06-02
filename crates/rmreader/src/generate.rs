@@ -175,6 +175,7 @@ fn build_one(
         }
     }
     let t = Instant::now();
+    let _img_span = tracing::info_span!("reader.image_fetch", collection, urls = union.len()).entered();
     let results = fetcher.fetch_many(&union);
     let fetched: HashMap<String, crate::content::FetchedImage> = union
         .into_iter()
@@ -186,6 +187,7 @@ fn build_one(
         fetched.len(),
         t.elapsed().as_secs_f32()
     );
+    drop(_img_span);
 
     // Pass B: normalize + sanitize each miss from the shared bytes, then cache it.
     for m in misses {
@@ -215,6 +217,7 @@ fn build_one(
         built.typst_articles.len()
     );
     let t = Instant::now();
+    let _render_span = tracing::info_span!("reader.typst_render", collection, articles = built.typst_articles.len()).entered();
     // Typst references images at /assets/{key}; serve them there.
     let assets: Vec<(String, Vec<u8>)> = built
         .assets
@@ -233,6 +236,7 @@ fn build_one(
         "[rmreader] {collection}: rendered in {:.1}s",
         t.elapsed().as_secs_f32()
     );
+    drop(_render_span);
 
     // Fill the embedded manifest with the recovered read-back geometry, embed it
     // in the PDF catalog, and write the PDF. Typst draws the chrome (paper fill,

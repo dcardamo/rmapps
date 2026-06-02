@@ -92,7 +92,10 @@ fn process_doc(
         return Ok(());
     }
 
-    let bundle_path = match backend.fetch(doc)? {
+    let bundle_path = match {
+        let _s = tracing::info_span!("digest.bundle_fetch", doc = %doc.path).entered();
+        backend.fetch(doc)?
+    } {
         Some(p) => p,
         None => {
             eprintln!("rmdigest: fetch returned None for {}, skipping", doc.path);
@@ -119,14 +122,20 @@ fn process_doc(
     // Dirty (or first sight): regenerate from ALL pages.
     let device = crate::device::get_device(&cfg.device)?;
     let all_pages: Vec<usize> = (0..ing.bundle.pages().len()).collect();
-    let marks = extract(&ing.bundle, &all_pages)?;
+    let marks = {
+        let _s = tracing::info_span!("digest.extract", doc = %doc.path).entered();
+        extract(&ing.bundle, &all_pages)?
+    };
     let meta = digest_meta(&ing.bundle, &marks);
 
     // Single pure-typst output: the hyperlinked digest followed by a rasterized
     // image of each annotated page (highlights painted on). No lopdf page-tree
     // surgery, so it works on any source PDF and carries real #link jumps.
-    let (src, assets) = crate::linked_doc::build_linked(&meta, &marks, &ing.bundle, &device)?;
-    let digest_pdf = compile(&src, &assets)?;
+    let digest_pdf = {
+        let _s = tracing::info_span!("digest.render", doc = %doc.path).entered();
+        let (src, assets) = crate::linked_doc::build_linked(&meta, &marks, &ing.bundle, &device)?;
+        compile(&src, &assets)?
+    };
 
     if opts.dry_run {
         // Generate but neither upload nor persist state: a dry run must not poison
@@ -141,7 +150,10 @@ fn process_doc(
     let digest_name = format!("{}{}", meta.title, cfg.output.digest_suffix);
     let digest_file = stage.path().join(format!("{}.pdf", digest_name));
     std::fs::write(&digest_file, &digest_pdf)?;
-    backend.put(&digest_file, &doc.folder, &digest_name)?;
+    {
+        let _s = tracing::info_span!("digest.upload", doc = %doc.path).entered();
+        backend.put(&digest_file, &doc.folder, &digest_name)?;
+    }
 
     // Persist state only after the upload succeeds, so a crash re-processes.
     prev.cloud_version = doc.version.clone();
