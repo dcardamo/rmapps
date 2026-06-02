@@ -205,6 +205,13 @@ fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState) -> bool {
             // leave an `every` task eligible to immediately re-fire.
             state.last_attempt.insert(key.clone(), now_secs());
             println!("[rmapps] watch: running scheduled {key}");
+            let _lock = match crate::lock::acquire(&key, crate::lock::Wait::Block) {
+                Ok(l) => l,
+                Err(e) => {
+                    eprintln!("[rmapps] watch: cloud lock error for {key}: {e:#}");
+                    continue;
+                }
+            };
             match crate::sync::run_task(task, &key, cfg) {
                 Ok(()) => {
                     state.last_run.insert(key, now_secs());
@@ -244,6 +251,13 @@ fn drain_and_run(
 /// reconcile_pass before this drain) so the doc is no longer re-detected. On success we clear
 /// the counter; the baseline already holds the current hash.
 fn run_one_job(cloud: &Cloud, cfg: &Config, state: &mut state::WatchState, job: &Job) {
+    let _lock = match crate::lock::acquire("watch-job", crate::lock::Wait::Block) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("[rmapps] watch: cloud lock error for job: {e:#}");
+            return;
+        }
+    };
     match crate::watch::actions::run_job(cloud, cfg, job) {
         Ok(()) => {
             println!("[rmapps] watch: reacted: {:?} {}", job.action, job.doc.path);
