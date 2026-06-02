@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
-use rm_cloud::{register_device, BlobCache, Client, Config};
+use rm_cloud::{register_device, BlobCache, Client, Config, SyncStore};
 use serde::{Deserialize, Serialize};
 
 #[derive(Args)]
@@ -99,7 +99,8 @@ async fn login(code: Option<String>) -> Result<()> {
 
     // Prove the token end-to-end: refresh a user token and list the cloud root.
     let client = Client::from_device_token(Config::from_env(), token)
-        .with_cache(BlobCache::new(crate::cloud::default_cache_dir()));
+        .with_cache(BlobCache::new(crate::cloud::default_cache_dir()))
+        .with_sync_store(SyncStore::new(crate::cloud::default_sync_index_path()));
     let entries = client
         .ls("")
         .await
@@ -116,7 +117,8 @@ async fn status() -> Result<()> {
     }
     let token = load_device_token()?;
     let client = Client::from_device_token(Config::from_env(), token)
-        .with_cache(BlobCache::new(crate::cloud::default_cache_dir()));
+        .with_cache(BlobCache::new(crate::cloud::default_cache_dir()))
+        .with_sync_store(SyncStore::new(crate::cloud::default_sync_index_path()));
     let entries = client
         .ls("")
         .await

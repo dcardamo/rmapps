@@ -95,4 +95,19 @@ mod tests {
         assert!(cache.total_size() <= 150, "must evict down to cap");
         assert!(freed >= 150 && removed >= 1, "freed {freed} removed {removed}");
     }
+
+    /// `gc` operates on the blob root only; the sync index lives as a SIBLING of
+    /// `blobs/`, so eviction must never touch it.
+    #[test]
+    fn gc_ignores_sync_index_sibling() {
+        let dir = tempfile::tempdir().unwrap();
+        let blobs = dir.path().join("blobs");
+        let cache = BlobCache::new(&blobs);
+        let h = sha256_hex(b"x");
+        cache.put(&h, b"x").unwrap();
+        let idx = dir.path().join("sync-index.json");
+        std::fs::write(&idx, b"{}").unwrap();
+        super::gc(&cache, 0); // evict everything
+        assert!(idx.exists(), "sync index must survive gc");
+    }
 }
