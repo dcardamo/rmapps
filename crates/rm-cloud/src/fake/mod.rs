@@ -30,6 +30,8 @@ pub struct State {
     pub rate_limited_remaining: u32,
     /// Per-hash count of blob GETs served (test assertion of cache effectiveness).
     pub blob_gets: HashMap<String, u32>,
+    /// Count of root-ref GETs served (test assertion of generation-poll cost).
+    pub root_gets: u32,
 }
 
 impl State {
@@ -105,6 +107,11 @@ impl FakeCloud {
     /// Number of blob GETs served for `hash` (test helper).
     pub fn blob_get_count(&self, hash: &str) -> u32 {
         self.state.lock().unwrap().blob_gets.get(hash).copied().unwrap_or(0)
+    }
+
+    /// Number of root-ref GETs served (test helper).
+    pub fn root_get_count(&self) -> u32 {
+        self.state.lock().unwrap().root_gets
     }
 
     /// Spawn a new fake cloud, hydrating its state from `dir/state.json` if present.

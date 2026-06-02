@@ -80,10 +80,11 @@ async fn root_get(AxState(state): AxState<Shared>) -> impl IntoResponse {
             return (StatusCode::UNAUTHORIZED, "forced unauthorized").into_response();
         }
     }
-    let s = state.lock().unwrap();
+    let mut s = state.lock().unwrap();
     if s.generation == 0 && s.root_hash.is_empty() {
         return (StatusCode::NOT_FOUND, "no root yet").into_response();
     }
+    s.root_gets += 1;
     Json(RootResp {
         hash: s.root_hash.clone(),
         generation: s.generation,

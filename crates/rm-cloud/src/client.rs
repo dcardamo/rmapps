@@ -23,6 +23,9 @@ pub struct Client {
     pub(crate) config: Config,
     pub(crate) creds: Arc<RwLock<Credentials>>,
     pub(crate) cache: Option<Arc<BlobCache>>,
+    /// Persistent local sync index: listing/path resolution route through it, so unchanged
+    /// docs cost no metadata fetch. `None` => every resolve rebuilds from the cloud.
+    pub(crate) sync_store: Option<Arc<crate::sync_store::SyncStore>>,
     /// Generation-keyed snapshot memo: avoids re-downloading + re-parsing the root index
     /// when the account's generation hasn't changed since the last call.
     pub(crate) snap_cache: Arc<RwLock<Option<Snapshot>>>,
@@ -86,6 +89,7 @@ impl Client {
             config,
             creds: Arc::new(RwLock::new(creds)),
             cache: None,
+            sync_store: None,
             snap_cache: Arc::new(RwLock::new(None)),
         }
     }
@@ -93,6 +97,13 @@ impl Client {
     /// Attach a content-addressed disk cache. All blob reads/writes route through it.
     pub fn with_cache(mut self, cache: BlobCache) -> Self {
         self.cache = Some(Arc::new(cache));
+        self
+    }
+
+    /// Attach a persistent local sync index. Listing/path resolution route through it,
+    /// so unchanged docs cost no metadata fetch.
+    pub fn with_sync_store(mut self, store: crate::sync_store::SyncStore) -> Self {
+        self.sync_store = Some(Arc::new(store));
         self
     }
 
@@ -147,6 +158,63 @@ impl Client {
         let snap = Snapshot::from_root_index(root.generation, root.hash, &bytes)?;
         *self.snap_cache.write().await = Some(snap.clone());
         Ok(snap)
+    }
+
+    /// Resolve the account to ids + paths, reusing the persistent sync index. Polls the
+    /// root generation (one request); if the store is current, returns it verbatim with no
+    /// metadata fetches. Otherwise diffs the root index by doc hash and fetches `.metadata`
+    /// only for added/changed docs (skipping deleted docs), then persists the updated index.
+    pub async fn resolved_snapshot(&self) -> Result<crate::sync_store::ResolvedTree> {
+        use crate::sync_store::{ResolvedDoc, ResolvedTree};
+
+        let Some(gen) = self.current_generation().await? else {
+            return Ok(ResolvedTree::default());
+        };
+
+        let prev = self
+            .sync_store
+            .as_ref()
+            .map(|s| s.tree())
+            .unwrap_or_default();
+
+        // Fast path: store already built at this generation.
+        if self.sync_store.is_some() && prev.generation == gen && !prev.docs.is_empty() {
+            return Ok(prev);
+        }
+
+        // Rebuild: fetch the root index (blob-cache served when its hash is known) and diff.
+        let snap = self.snapshot().await?;
+        let mut docs = std::collections::BTreeMap::new();
+        for d in snap.docs() {
+            if let Some(p) = prev.docs.get(&d.id) {
+                if p.hash == d.hash {
+                    docs.insert(d.id.clone(), p.clone()); // unchanged -> no fetch
+                    continue;
+                }
+            }
+            // Added or changed -> read just this doc's metadata.
+            let meta = self.metadata_by(&d.hash, &d.id).await?;
+            if meta.deleted {
+                continue; // trashed/deleted docs never enter the resolved tree
+            }
+            docs.insert(
+                d.id.clone(),
+                ResolvedDoc {
+                    hash: d.hash.clone(),
+                    parent: meta.parent,
+                    name: meta.visible_name,
+                    is_folder: meta.doc_type == "CollectionType",
+                },
+            );
+        }
+        let tree = ResolvedTree {
+            generation: snap.generation,
+            docs,
+        };
+        if let Some(store) = &self.sync_store {
+            store.store(&tree);
+        }
+        Ok(tree)
     }
 
     /// Cheap root-generation poll: fetch just the root ref and return its
@@ -392,5 +460,131 @@ mod cache_integration {
             1,
             "second read must be served from cache"
         );
+    }
+}
+
+#[cfg(all(test, feature = "fake"))]
+mod resolved_tests {
+    use super::*;
+    use crate::fake::FakeCloud;
+    use crate::porcelain::docfiles::DocFiles;
+    use crate::sync_store::SyncStore;
+    use crate::Metadata;
+
+    fn pdf_doc(id: &str, name: &str, parent: &str) -> DocFiles {
+        let meta = Metadata {
+            visible_name: name.into(),
+            doc_type: "DocumentType".into(),
+            parent: parent.into(),
+            last_modified: "0".into(),
+            deleted: false,
+            extra: Default::default(),
+        };
+        DocFiles {
+            id: id.into(),
+            files: vec![
+                (format!("{id}.metadata"), serde_json::to_vec(&meta).unwrap()),
+                (format!("{id}.content"), b"{}".to_vec()),
+                (format!("{id}.pdf"), format!("pdf-{name}").into_bytes()),
+            ],
+        }
+    }
+
+    fn client_with_store(base: &str, dir: &std::path::Path) -> Client {
+        Client::from_user_token(Config::single_host(base), "user-token")
+            .with_sync_store(SyncStore::new(dir.join("sync-index.json")))
+    }
+
+    #[tokio::test]
+    async fn current_generation_returns_store_without_metadata_fetches() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = client_with_store(&fake.base, dir.path());
+
+        client.put(pdf_doc("a", "Alpha", "")).await.unwrap();
+        client.put(pdf_doc("b", "Beta", "")).await.unwrap();
+        let _ = client.resolved_snapshot().await.unwrap();
+
+        let a_hash = client.snapshot().await.unwrap().doc("a").unwrap().hash.clone();
+        let a_gets_before = fake.blob_get_count(&a_hash);
+        // Capture AFTER the intervening snapshot() (which itself polls the root) so the
+        // delta measures only resolved_snapshot()'s generation poll.
+        let roots_before = fake.root_get_count();
+
+        let tree = client.resolved_snapshot().await.unwrap();
+        assert_eq!(tree.docs.len(), 2);
+        assert_eq!(fake.root_get_count() - roots_before, 1, "exactly one generation poll");
+        assert_eq!(
+            fake.blob_get_count(&a_hash),
+            a_gets_before,
+            "no doc-index refetch when generation unchanged"
+        );
+    }
+
+    #[tokio::test]
+    async fn only_changed_doc_is_refetched() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = client_with_store(&fake.base, dir.path());
+        client.put(pdf_doc("a", "Alpha", "")).await.unwrap();
+        client.put(pdf_doc("b", "Beta", "")).await.unwrap();
+        let _ = client.resolved_snapshot().await.unwrap();
+
+        let a_hash = client.snapshot().await.unwrap().doc("a").unwrap().hash.clone();
+        let a_gets_before = fake.blob_get_count(&a_hash);
+
+        client.put(pdf_doc("b", "Beta v2", "")).await.unwrap();
+        let tree = client.resolved_snapshot().await.unwrap();
+
+        assert_eq!(tree.docs.get("b").unwrap().name, "Beta v2");
+        assert_eq!(
+            fake.blob_get_count(&a_hash),
+            a_gets_before,
+            "unchanged doc a must not be refetched"
+        );
+    }
+
+    #[tokio::test]
+    async fn removed_doc_drops_from_tree() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = client_with_store(&fake.base, dir.path());
+        client.put(pdf_doc("a", "Alpha", "")).await.unwrap();
+        client.put(pdf_doc("b", "Beta", "")).await.unwrap();
+        let _ = client.resolved_snapshot().await.unwrap();
+
+        client.rm("a").await.unwrap();
+        let tree = client.resolved_snapshot().await.unwrap();
+        assert!(tree.docs.get("a").is_none());
+        assert!(tree.docs.get("b").is_some());
+    }
+
+    #[tokio::test]
+    async fn deleted_doc_excluded_from_tree() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = client_with_store(&fake.base, dir.path());
+        // A doc whose metadata is marked deleted must not surface in the resolved tree.
+        let meta = crate::Metadata {
+            visible_name: "Ghost".into(),
+            doc_type: "DocumentType".into(),
+            parent: "".into(),
+            last_modified: "0".into(),
+            deleted: true,
+            extra: Default::default(),
+        };
+        let df = DocFiles {
+            id: "ghost".into(),
+            files: vec![
+                ("ghost.metadata".into(), serde_json::to_vec(&meta).unwrap()),
+                ("ghost.content".into(), b"{}".to_vec()),
+                ("ghost.pdf".into(), b"x".to_vec()),
+            ],
+        };
+        client.put(df).await.unwrap();
+        client.put(pdf_doc("real", "Real", "")).await.unwrap();
+        let tree = client.resolved_snapshot().await.unwrap();
+        assert!(tree.docs.get("ghost").is_none(), "deleted doc must be excluded");
+        assert!(tree.docs.get("real").is_some());
     }
 }
