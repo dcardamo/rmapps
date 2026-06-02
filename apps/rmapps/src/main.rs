@@ -25,6 +25,7 @@ mod push;
 mod reader;
 mod rm;
 mod sync;
+mod timing;
 mod watch;
 
 use std::path::PathBuf;
@@ -37,6 +38,9 @@ struct Cli {
     /// Path to the rmapps config (default: <config_dir>/rmapps/config.toml).
     #[arg(long, global = true)]
     config: Option<PathBuf>,
+    /// Print per-stage timing for the run (also enabled by `RMAPPS_TIMINGS=1`).
+    #[arg(long, global = true)]
+    timings: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -67,6 +71,8 @@ enum Command {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let timings = timing::timings_enabled(cli.timings, std::env::var("RMAPPS_TIMINGS").ok().as_deref());
+    timing::init(timings);
     let cfg_path = cli.config.as_deref();
     match cli.command {
         Command::Auth(args) => auth::run(args),
