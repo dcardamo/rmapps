@@ -192,6 +192,31 @@ mod fs_tests {
         assert_eq!(tree.docs.len(), 3, "no duplicate folders created");
         assert_eq!(tree.resolve_folder("A/B/C"), Some(again));
     }
+
+    /// Faithful eventual-consistency repro: when the mkdir commit's new folder is not
+    /// yet visible to the immediately-following resolve, the sync store is rebuilt
+    /// missing it, so the next `mkdir_p` of the same path mints a DUPLICATE. This locks
+    /// in the defect that the run-scoped resolver (a later task) prevents.
+    #[tokio::test]
+    async fn lagging_index_after_mkdir_duplicates_folder() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token")
+            .with_sync_store(SyncStore::new(dir.path().join("idx.json")));
+
+        // Seed a pre-existing folder so there is a real, valid root index to serve stale.
+        // (A real account always has an existing index; lagging the very first commit would
+        // serve an *empty* index, modelling a missing index rather than a stale one.)
+        client.mkdir_p("/Seed").await.unwrap();
+
+        // Arm: the mkdir commit's effect is invisible for the next few root reads,
+        // poisoning the store so "/Readwise" looks absent on the second resolve.
+        fake.lag_next_commit(4);
+        let f1 = client.mkdir_p("/Readwise").await.unwrap();
+        let f2 = client.mkdir_p("/Readwise").await.unwrap();
+
+        assert_ne!(f1, f2, "stale index made the second resolve mint a duplicate folder");
+    }
 }
 
 #[cfg(test)]

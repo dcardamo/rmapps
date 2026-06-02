@@ -85,8 +85,14 @@ async fn root_get(AxState(state): AxState<Shared>) -> impl IntoResponse {
         return (StatusCode::NOT_FOUND, "no root yet").into_response();
     }
     s.root_gets += 1;
+    let hash = if s.active_lag > 0 {
+        s.active_lag -= 1;
+        s.lagged_hash.clone()
+    } else {
+        s.root_hash.clone()
+    };
     Json(RootResp {
-        hash: s.root_hash.clone(),
+        hash,
         generation: s.generation,
         schema_version: 4,
     })
@@ -116,8 +122,15 @@ async fn root_put(
     if req.generation != s.generation {
         return (StatusCode::PRECONDITION_FAILED, "wrong generation").into_response();
     }
+    let req_prev_hash = s.root_hash.clone();
     s.generation = req.generation + 1;
     s.root_hash = req.hash.clone();
+    if s.arm_lag > 0 {
+        s.active_lag = s.arm_lag;
+        s.arm_lag = 0;
+        // The index visible BEFORE this commit.
+        s.lagged_hash = req_prev_hash;
+    }
     let gen = s.generation;
     Json(RootResp {
         hash: req.hash,

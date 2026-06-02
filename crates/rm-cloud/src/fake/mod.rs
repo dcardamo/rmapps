@@ -32,6 +32,12 @@ pub struct State {
     pub blob_gets: HashMap<String, u32>,
     /// Count of root-ref GETs served (test assertion of generation-poll cost).
     pub root_gets: u32,
+    /// Reads to keep stale once the next commit arms the lag (0 = unarmed).
+    pub arm_lag: u32,
+    /// Remaining root GETs currently serving the pre-commit index (0 = none).
+    pub active_lag: u32,
+    /// Root hash to serve while a lag window is active (the pre-commit index).
+    pub lagged_hash: String,
 }
 
 impl State {
@@ -92,6 +98,14 @@ impl FakeCloud {
     /// Requests` + `Retry-After: 0` (to exercise the client's 429 backoff/retry).
     pub fn inject_rate_limited(&self, n: u32) {
         self.state.lock().unwrap().rate_limited_remaining = n;
+    }
+
+    /// Arm the NEXT root PUT so that the following `reads` root GETs report the new
+    /// generation but serve the PRE-commit root index — modelling reMarkable's
+    /// eventual consistency (commit accepted, read replica lags). Used to reproduce
+    /// the duplicate-folder race deterministically.
+    pub fn lag_next_commit(&self, reads: u32) {
+        self.state.lock().unwrap().arm_lag = reads;
     }
 
     /// Number of stored blobs (test helper).
