@@ -104,6 +104,14 @@ fn process_doc(
 
     // Skip if nothing changed since a prior successful run.
     if ing.changed.is_empty() && !prev.page_hashes.is_empty() {
+        // Backfill the cloud hash if we didn't have it (e.g. state written by a
+        // pre-hash binary, or a doc never re-uploaded since the hash landed).
+        // Without this, the cheap-skip never engages and every run re-downloads
+        // the full bundle just to rediscover it's unchanged.
+        if prev.cloud_version != doc.version {
+            prev.cloud_version = doc.version.clone();
+            state.save(state_path)?;
+        }
         eprintln!("rmdigest: {} unchanged, skipping", doc.path);
         return Ok(());
     }
@@ -316,6 +324,57 @@ mod cheap_skip_tests {
             fetches.load(Ordering::Relaxed),
             1,
             "first-sight doc must fetch exactly once"
+        );
+    }
+
+    #[test]
+    fn backfills_cloud_version_so_unchanged_doc_cheap_skips_next_run() {
+        // Regression: a doc carried over from a pre-hash state (page_hashes set,
+        // cloud_version=None) was re-downloading its full bundle on EVERY run,
+        // because the post-fetch "unchanged" branch returned without persisting
+        // the cloud hash — so cheap-skip could never engage. After the fix, the
+        // first run fetches once to confirm unchanged and backfills cloud_version;
+        // every subsequent run must cheap-skip with no fetch.
+        let fetches = Arc::new(AtomicU32::new(0));
+        let backend = CountingBackend {
+            bundle: fixture_path(),
+            fetches: fetches.clone(),
+        };
+        let cfg = test_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = test_opts();
+        let doc = test_doc(Some("hash-xyz"));
+
+        // Seed a pre-upgrade state: real fixture page_hashes, but no cloud_version.
+        let seed = ingest(&fixture_path(), &crate::state::DocState::default())
+            .expect("seed ingest");
+        let mut state = State::default();
+        state.docs.insert(
+            doc.path.clone(),
+            crate::state::DocState {
+                cloud_version: None,
+                page_hashes: seed.new_hashes.clone(),
+                digest_uuids: vec![],
+            },
+        );
+        state.save(&state_path).expect("save seed state");
+
+        // First run: cloud_version None ≠ Some(hash) → must fetch, find unchanged,
+        // and backfill cloud_version.
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("first run");
+        assert_eq!(
+            fetches.load(Ordering::Relaxed),
+            1,
+            "pre-upgrade doc fetches once to confirm unchanged"
+        );
+
+        // Second run: cloud_version now backfilled → cheap-skip, no fetch.
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("second run");
+        assert_eq!(
+            fetches.load(Ordering::Relaxed),
+            1,
+            "after backfill, unchanged doc must cheap-skip (no second fetch)"
         );
     }
 
