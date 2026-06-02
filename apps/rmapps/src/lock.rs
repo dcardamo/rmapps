@@ -56,6 +56,7 @@ pub fn acquire(op: &str, wait: Wait) -> Result<CloudLock> {
 
 /// Acquire the cloud lock at `path` (parameterised for tests).
 pub fn acquire_at(path: &Path, op: &str, wait: Wait) -> Result<CloudLock> {
+    debug_assert!(!op.contains(' '), "lock op label must not contain spaces: {op:?}");
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating lock dir {}", parent.display()))?;
@@ -87,7 +88,8 @@ pub fn acquire_at(path: &Path, op: &str, wait: Wait) -> Result<CloudLock> {
         },
     }
 
-    // We now hold the lock: record holder metadata for any future failing acquirer.
+    // Best-effort holder metadata for diagnostics; a garbled line only yields a
+    // confusing error message, never a correctness failure.
     let _ = file.set_len(0);
     let _ = file.seek(SeekFrom::Start(0));
     let _ = write!(
@@ -164,22 +166,40 @@ mod tests {
 
     #[test]
     fn block_waits_then_succeeds() {
+        use std::sync::mpsc::TryRecvError;
+
         let path = tmp_lock("block");
         let g = acquire_at(&path, "holder", Wait::Block).unwrap();
 
-        let (tx, rx) = mpsc::channel();
+        // `started` fires before the waiter blocks; `acquired` fires only after it
+        // obtains the lock. While we hold `g`, `acquired` must never arrive.
+        let (started_tx, started_rx) = mpsc::channel();
+        let (acquired_tx, acquired_rx) = mpsc::channel();
         let p2 = path.clone();
         let handle = thread::spawn(move || {
-            tx.send(()).unwrap(); // signal: about to block on acquire
+            started_tx.send(()).unwrap();
             let _g2 = acquire_at(&p2, "waiter", Wait::Block).unwrap();
-            "acquired"
+            acquired_tx.send(()).unwrap();
+            // Hold briefly so the receiver can observe the acquire ordering.
+            thread::sleep(Duration::from_millis(20));
         });
 
-        rx.recv().unwrap();
-        thread::sleep(Duration::from_millis(50));
-        drop(g); // release; waiter should now unblock
+        started_rx.recv().unwrap();
+        // Give the waiter ample time to reach (and block on) flock.
+        thread::sleep(Duration::from_millis(100));
+        // It must still be blocked: no acquire while we hold the lock.
+        assert_eq!(
+            acquired_rx.try_recv(),
+            Err(TryRecvError::Empty),
+            "waiter acquired the lock while it was still held"
+        );
 
-        assert_eq!(handle.join().unwrap(), "acquired");
+        drop(g); // release; the waiter should now unblock and acquire
+        acquired_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("waiter did not acquire after release");
+
+        handle.join().unwrap();
         let _ = std::fs::remove_file(&path);
     }
 }
