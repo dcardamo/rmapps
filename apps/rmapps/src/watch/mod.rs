@@ -205,6 +205,8 @@ fn run_due_scheduled(cfg: &Config, state: &mut state::WatchState) -> bool {
             // leave an `every` task eligible to immediately re-fire.
             state.last_attempt.insert(key.clone(), now_secs());
             println!("[rmapps] watch: running scheduled {key}");
+            // A cloud-lock error here skips the task for one interval (last_attempt
+            // was already recorded above) rather than spinning on a broken lock.
             let _lock = match crate::lock::acquire(&key, crate::lock::Wait::Block) {
                 Ok(l) => l,
                 Err(e) => {
