@@ -28,6 +28,8 @@ rustix = { version = "1", features = ["fs"] }
 tempfile = "3"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 chrono-tz = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 # test-util enables `#[tokio::test(start_paused = true)]` and virtual-time control

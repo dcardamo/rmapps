@@ -30,6 +30,7 @@ axum = { version = "0.8", optional = true }
 # reason as reqwest above; native-roots so we don't need to bundle a CA store.
 tokio-tungstenite = { version = "0.23", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
+tracing = "0.1"
 
 [features]
 fake = ["dep:axum", "tokio/full"]
