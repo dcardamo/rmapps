@@ -38,7 +38,7 @@
     {
       "id": 5,
       "subject": "Task 5: Live measurement + bottleneck confirmation",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "Run `rmapps sync --timings` live, capture per-stage breakdown, confirm dominant stage(s) with Dan via AskUserQuestion. Stop saturn rmapps-watch daemon first if cloud lock held; restart after.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"RMAPPS_TIMINGS=1 ./target/release/rmapps sync\", \"acceptanceCriteria\": [\"timing breakdown emitted\",\"dominant stage identified\",\"Dan confirms sufficiency\"], \"requiresUserVerification\": true, \"userVerificationPrompt\": \"Sync timing breakdown captured. The dominant stage(s) are <fill in>. Is this enough to decide what to optimize next?\"}\n```"
     }
