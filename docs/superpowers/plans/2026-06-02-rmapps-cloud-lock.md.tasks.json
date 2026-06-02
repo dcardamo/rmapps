@@ -1,0 +1,25 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-02-rmapps-cloud-lock.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: lock module with flock-based cloud lock",
+      "status": "pending",
+      "description": "**Goal:** Self-contained `lock` module providing `Wait`, `CloudLock`, `acquire`/`acquire_at`, with tests.\n\n**Files:** apps/rmapps/Cargo.toml, apps/rmapps/src/lock.rs (create), apps/rmapps/src/main.rs (register mod lock)\n\n```json:metadata\n{\"files\": [\"apps/rmapps/Cargo.toml\", \"apps/rmapps/src/lock.rs\", \"apps/rmapps/src/main.rs\"], \"verifyCommand\": \"nix develop --command cargo test -p rmapps lock\", \"acceptanceCriteria\": [\"fail-fast errors while held with pid+op\", \"release on drop\", \"block waits then succeeds\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Wire the lock into one-shot commands and the watch daemon",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Acquire the lock at exactly one layer per process: one-shots fail-fast in main.rs; watch blocks per task.\n\n**Files:** apps/rmapps/src/main.rs, apps/rmapps/src/watch/mod.rs\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/main.rs\", \"apps/rmapps/src/watch/mod.rs\"], \"verifyCommand\": \"nix develop --command cargo test -p rmapps\", \"acceptanceCriteria\": [\"one-shots fail-fast, auth/ls/watch unlocked at dispatch\", \"watch scheduled per-task block\", \"watch reactive job block\", \"builds + tests pass\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Document contention failure path in repo-root CLAUDE.md",
+      "status": "pending",
+      "description": "**Goal:** Repo-root CLAUDE.md documenting the contention failure path.\n\n**Files:** CLAUDE.md (create)\n\n```json:metadata\n{\"files\": [\"CLAUDE.md\"], \"verifyCommand\": \"test -f CLAUDE.md && grep -q rmapps-watch CLAUDE.md && echo OK\", \"acceptanceCriteria\": [\"documents contention handling referencing rmapps-watch\"], \"requiresUserVerification\": false}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-02"
+}
