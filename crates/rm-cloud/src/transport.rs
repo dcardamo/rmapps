@@ -21,6 +21,12 @@ const DEFAULT_MIN_INTERVAL_MS: u64 = 150;
 /// request *starts*. The reMarkable cloud rate-limits aggressively and the account-wide
 /// `ls` fan-out can otherwise burst hundreds of requests; the governor spreads them so a
 /// cold cache cannot trip 429.
+///
+/// The two knobs are NOT independent: the spacing gate admits at most one request start
+/// per `min_interval`, so sustained throughput is `1/min_interval` (~6.6 req/s at 150ms)
+/// regardless of `max_concurrency`. The concurrency cap only bites when individual requests
+/// outlast the interval (large blob PUTs). To go faster, lower `RM_CLOUD_MIN_INTERVAL_MS`;
+/// raising `RM_CLOUD_MAX_CONCURRENCY` alone changes little.
 #[derive(Clone)]
 pub(crate) struct Governor {
     sem: Arc<Semaphore>,
