@@ -494,8 +494,18 @@ mod tests {
 
         let mut folders = FolderIds::new(&cloud);
         let id_a = folders.get("/Readwise").unwrap();
-        let id_b = folders.get("/Readwise").unwrap();
 
+        // The second resolve must be a pure memo hit — zero cloud polls — which is
+        // exactly what stops a stale re-resolve from minting a duplicate. (Contrast the
+        // `mkdir_p` bug-lock, where the second resolve DOES re-query under this same lag
+        // and mints a second folder.)
+        let polls_before = fake.root_get_count();
+        let id_b = folders.get("/Readwise").unwrap();
+        assert_eq!(
+            fake.root_get_count(),
+            polls_before,
+            "second get re-queried the cloud instead of reusing the memoized id"
+        );
         assert_eq!(id_a, id_b);
     }
 
