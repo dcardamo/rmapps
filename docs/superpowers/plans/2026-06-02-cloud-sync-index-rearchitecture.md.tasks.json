@@ -1,0 +1,46 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-02-cloud-sync-index-rearchitecture.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Transport rate governor",
+      "status": "pending",
+      "description": "Process-global concurrency + min-spacing throttle on every cloud request, wired into send_retrying; remove LS_CONCURRENCY.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/transport.rs\", \"crates/rm-cloud/src/porcelain/fs.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud\", \"acceptanceCriteria\": [\"Governor caps concurrency\", \"Governor enforces min spacing\", \"send_retrying acquires a global permit\", \"LS_CONCURRENCY removed\", \"existing tests pass\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: SyncStore persistence layer + ResolvedTree",
+      "status": "pending",
+      "description": "New sync_store.rs: ResolvedDoc/ResolvedTree (children, resolve_folder) + SyncStore (tolerant load, atomic store). Export from lib.rs.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/sync_store.rs\", \"crates/rm-cloud/src/lib.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud sync_store\", \"acceptanceCriteria\": [\"children filters+sorts\", \"resolve_folder walks segments\", \"atomic store round-trips\", \"missing/corrupt/wrong-schema load empty\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Client::resolved_snapshot + wire SyncStore into Client",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "sync_store field + with_sync_store + resolved_snapshot (generation fast-path / Merkle diff). Add root_gets counter to fake.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/client.rs\", \"crates/rm-cloud/src/fake/mod.rs\", \"crates/rm-cloud/src/fake/handlers.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake resolved\", \"acceptanceCriteria\": [\"current store -> 1 request, 0 metadata GETs\", \"only changed doc refetched\", \"cold then warm\", \"removed doc drops\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Rewire rm-cloud porcelain onto resolved_snapshot",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "ls/mkdir_p/stat read the resolved tree; remove ls_with fan-out. Warm-ls request-count test.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/porcelain/fs.rs\", \"crates/rm-cloud/src/fake/mod.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake\", \"acceptanceCriteria\": [\"ls sourced from resolved_snapshot\", \"mkdir_p resolves from tree, creates only missing\", \"ls_with fan-out removed\", \"warm ls = 1 root GET, 0 blob GETs\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Rewire rmapps deploy path + wire SyncStore at construction sites",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "default_sync_index_path; attach SyncStore at 3 Client sites; list_recursive/walk/resolve/doc_id(s)_in via ResolvedTree; deploy request-count + gc-exemption tests.\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/cloud.rs\", \"apps/rmapps/src/auth.rs\", \"apps/rmapps/src/cache_cmd.rs\"], \"verifyCommand\": \"cargo test -p rmapps\", \"acceptanceCriteria\": [\"all 3 Client sites attach SyncStore\", \"list_recursive walks one tree\", \"doc_id(s)_in/resolve via tree\", \"warm replace is account-size-independent\", \"gc ignores sync-index.json\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Live verification with Dan",
+      "status": "pending",
+      "blockedBy": [1, 5],
+      "description": "Full workspace tests green + live `rmapps reader` deploy completes with no 429. Confirm with Dan via AskUserQuestion.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"cargo test --workspace\", \"acceptanceCriteria\": [\"workspace tests green\", \"live reader deploy completes with no 429\"], \"requiresUserVerification\": true, \"userVerificationPrompt\": \"Live check: run `cargo run -p rmapps -- reader` against the real cloud (after the rate-limit window clears). Did it complete the deploy with no 429?\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-02"
+}
