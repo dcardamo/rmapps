@@ -145,11 +145,13 @@ pub fn run(args: BujoArgs, cfg: &Config) -> Result<()> {
             .collect();
         {
             let _s = tracing::info_span!("bujo.upload", mode = "only_month").entered();
+            let mut folders = cloud::FolderIds::new(&cl);
+            let target_id = folders.get(&target)?;
             for pdf in &month_pdfs {
-                cl.upsert(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+                cl.upsert_in(&target_id, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
             }
             for pdf in &extras {
-                cl.create_if_missing(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+                cl.create_if_missing_in(&target_id, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
             }
         }
         println!(
@@ -160,8 +162,10 @@ pub fn run(args: BujoArgs, cfg: &Config) -> Result<()> {
     } else {
         {
             let _s = tracing::info_span!("bujo.upload", docs = paths.len()).entered();
+            let mut folders = cloud::FolderIds::new(&cl);
+            let target_id = folders.get(&target)?;
             for pdf in &paths {
-                cl.upsert(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+                cl.upsert_in(&target_id, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
             }
         }
         println!("Deployed {} PDF(s) to {target}", paths.len());

@@ -73,8 +73,10 @@ pub fn run(cfg: &Config) -> Result<()> {
         };
         {
             let _s = tracing::info_span!("reader.upload", docs = targets.len()).entered();
+            let mut folders = cloud::FolderIds::new(&cl);
             for (pdf, folder) in &targets {
-                cl.replace(folder, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+                let folder_id = folders.get(folder)?;
+                cl.replace_in(&folder_id, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
             }
         }
         println!("Deployed {} reader PDF(s)", targets.len());

@@ -6,7 +6,7 @@
 //! of path-shaped operations the apps need:
 //!
 //! - [`Cloud::upsert`] — create, or content-only refresh (preserves on-device ink).
-//! - [`Cloud::create_if_missing`] — create only when absent; leave existing docs alone.
+//! - [`Cloud::create_if_missing_in`] — create only when absent; leave existing docs alone.
 //! - [`Cloud::replace`] — destructive remove-then-create (for write-only docs).
 //! - [`Cloud::fetch_bundle`] — download a doc to a temp `.rmdoc`.
 //! - [`Cloud::list_recursive`] — walk a folder subtree, excluding generated docs.
@@ -170,13 +170,6 @@ impl Cloud {
         self.upsert_in(&folder_id, name, pdf)
     }
 
-    /// Create the doc only if it does not already exist; existing docs are left
-    /// completely untouched (no upload), so on-device edits survive.
-    pub fn create_if_missing(&self, folder: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
-        let folder_id = self.ensure_folder(folder)?;
-        self.create_if_missing_in(&folder_id, name, pdf)
-    }
-
     /// Destructive replace: remove EVERY existing doc of this name, then create a
     /// fresh one. For write-only docs (reader PDFs, digests) with no ink to keep.
     ///
@@ -203,7 +196,9 @@ impl Cloud {
         }
     }
 
-    /// `create_if_missing` against an already-resolved folder id (no path resolution).
+    /// Create the doc only if absent under an already-resolved folder id; existing docs
+    /// are left completely untouched (no upload), so on-device edits survive. No path
+    /// resolution.
     pub fn create_if_missing_in(&self, folder_id: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
         if self.doc_id_in(folder_id, name)?.is_some() {
             return Ok(());
@@ -435,14 +430,14 @@ mod tests {
             .with_sync_store(rm_cloud::SyncStore::new(dir.path().join("idx.json")));
         let cloud = cloud_from_client(client);
 
-        cloud.ensure_folder("/Readwise").unwrap();
+        let rw = cloud.ensure_folder("/Readwise").unwrap();
         cloud.replace("/Readwise", "Feed", b"feed-v1".to_vec()).unwrap();
         cloud.replace("/Readwise", "Library", b"lib-v1".to_vec()).unwrap();
         // Seed several unrelated sibling docs — this is the "account size" the old
         // store-less `ls` would have re-scanned (2*N metadata GETs) on every replace.
         for i in 0..8 {
             cloud
-                .create_if_missing("/Readwise", &format!("Extra{i}"), format!("extra-{i}").into_bytes())
+                .create_if_missing_in(&rw, &format!("Extra{i}"), format!("extra-{i}").into_bytes())
                 .unwrap();
         }
         let _ = cloud.list_recursive("/Readwise", &[]).unwrap(); // warm the store
