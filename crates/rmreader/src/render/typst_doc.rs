@@ -213,14 +213,15 @@ pub fn build(
   body
 }}
 
-// Index pages get a small top margin that just clears the reMarkable toolbar
-// (~80px ≈ 22pt at the device ppi) plus a little breathing room. Article pages
+// Index pages get a small top margin that clears the reMarkable toolbar (it
+// overlays ~36pt of the page) plus a little breathing room, so the masthead's
+// top edge isn't clipped under the toolbar. Article pages
 // restore the tall 120pt top margin inside `#article` to reserve the per-page
 // chrome header. This keeps the index masthead near the top instead of pushed
 // down by a header-sized gap that the index never uses.
 #set page(
   width: {w}pt, height: {h}pt,
-  margin: (top: 28pt, right: 16pt, bottom: 30pt, left: 16pt),
+  margin: (top: 44pt, right: 16pt, bottom: 30pt, left: 16pt),
   fill: paper,
   header-ascent: 8pt,
   header: page-header(),
