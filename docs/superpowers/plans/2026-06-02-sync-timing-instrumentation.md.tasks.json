@@ -4,34 +4,34 @@
     {
       "id": 0,
       "subject": "Task 0: Add tracing dependencies across the workspace",
-      "status": "pending",
+      "status": "completed",
       "description": "Add `tracing = \"0.1\"` to rmapps/rmreader/rmbujo/rmdigest/rm-cloud and `tracing-subscriber = { version = \"0.3\", features = [\"env-filter\"] }` to apps/rmapps. No instrumentation.\n\n```json:metadata\n{\"files\": [\"apps/rmapps/Cargo.toml\",\"crates/rmreader/Cargo.toml\",\"crates/rmbujo/Cargo.toml\",\"crates/rmdigest/Cargo.toml\",\"crates/rm-cloud/Cargo.toml\"], \"verifyCommand\": \"cargo build --workspace\", \"acceptanceCriteria\": [\"tracing in five crates\",\"tracing-subscriber in rmapps\",\"workspace builds\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: timing module — toggle, subscriber init, span helpers (with tests)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "timing module: pure `timings_enabled(flag, env)`, idempotent `init(enabled)` with FmtSpan::CLOSE subscriber, `sync_span()`/`task_span(name)`. Wire `--timings` flag + `RMAPPS_TIMINGS` env into main.rs; init before dispatch. Tests: toggle resolver + capturing-layer span-name assertions.\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/timing.rs\",\"apps/rmapps/src/main.rs\"], \"verifyCommand\": \"cargo test -p rmapps timing::\", \"acceptanceCriteria\": [\"toggle resolver\",\"span helpers emit named spans\",\"flag+env wired\",\"tests pass\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Orchestrator + app-wrapper spans (sync / reader / bujo)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "sync::run enters sync_span(); run_task enters task_span(&task.app); reader::run gets reader.generate + reader.upload spans; bujo::run gets bujo.generate_year + bujo.upload spans.\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/sync.rs\",\"apps/rmapps/src/reader.rs\",\"apps/rmapps/src/bujo.rs\"], \"verifyCommand\": \"cargo build --workspace && cargo test -p rmapps\", \"acceptanceCriteria\": [\"sync.run + task spans\",\"reader build/upload spans\",\"bujo build/upload spans\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Deep library spans (rmreader / rmbujo / rmdigest)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "reader.image_fetch / reader.typst_render; bujo.ics_fetch / bujo.generate; digest.bundle_fetch / digest.extract / digest.render / digest.upload. Keep existing eprintln timing lines.\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/generate.rs\",\"crates/rmbujo/src/generate.rs\",\"crates/rmdigest/src/generate.rs\"], \"verifyCommand\": \"cargo build --workspace && cargo test --workspace\", \"acceptanceCriteria\": [\"reader image/render spans\",\"bujo ics/generate spans\",\"digest phase spans\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: rm-cloud upload spans (cloud.commit / cloud.put_blob)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "Annotate put_blob (cloud.put_blob, skip_all, fields(name)) and commit_with (cloud.commit, skip_all) to isolate governed upload time.\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/client.rs\"], \"verifyCommand\": \"cargo build --workspace && cargo test -p rm-cloud\", \"acceptanceCriteria\": [\"put_blob span\",\"commit span\",\"skip_all\"], \"requiresUserVerification\": false}\n```"
     },
