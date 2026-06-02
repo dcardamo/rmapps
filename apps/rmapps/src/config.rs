@@ -38,6 +38,7 @@ pub struct Config {
 }
 
 #[derive(Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct SyncTask {
     /// Which app to run: "bujo" | "reader" | "digest".
     pub app: String,
@@ -55,6 +56,7 @@ pub struct SyncTask {
 /// A reactive watch rule: when the cloud folder at `path` changes, run `action`
 /// (after a quiet period of `debounce`).
 #[derive(Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct WatchRule {
     pub path: String,
     pub action: WatchAction,
@@ -85,6 +87,13 @@ impl Config {
         for (i, t) in self.sync.iter().enumerate() {
             if t.every.is_some() && t.at.is_some() {
                 anyhow::bail!("[[sync]] #{i} ({}): set either `every` or `at`, not both", t.app);
+            }
+            if t.every.is_none() && t.at.is_none() {
+                anyhow::bail!(
+                    "[[sync]] #{i} ({}): has neither `every` nor `at`, so it would never fire. \
+                     A reactive (on-change) task belongs in a [[watch]] rule, not [[sync]].",
+                    t.app
+                );
             }
             if let Some(times) = &t.at {
                 if times.is_empty() {
@@ -350,6 +359,42 @@ mod tests {
         )
         .unwrap();
         assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_sync_task_with_no_schedule() {
+        // A [[sync]] task with neither `every` nor `at` can never fire. This must be
+        // a load-time error, not a silent skip — it's the digest-on-change footgun:
+        // digest was written as a [[sync]] task and the daemon silently never ran it.
+        let cfg = load_str(
+            r#"
+            [[sync]]
+            app = "digest"
+        "#,
+        )
+        .unwrap();
+        assert!(
+            cfg.validate().is_err(),
+            "a sync task with no every/at must be rejected, not silently skipped"
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_sync_fields() {
+        // `trigger`/`watch` are not [[sync]] fields. serde must reject them loudly so a
+        // mistaken on-change sync task fails at load instead of being silently ignored
+        // (the reactive form belongs in a [[watch]] rule). `every` is present here so
+        // the ONLY reason to fail is the unknown fields.
+        let err = load_str(
+            r#"
+            [[sync]]
+            app = "digest"
+            trigger = "on-change"
+            watch = "/Books"
+            every = "1h"
+        "#,
+        );
+        assert!(err.is_err(), "unknown [[sync]] fields must be rejected at load");
     }
 
     #[test]
