@@ -14,6 +14,7 @@
 //! reMarkable visible names carry no extension, so callers pass the bare doc
 //! name (the PDF file stem), not a path.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
@@ -266,6 +267,37 @@ impl Cloud {
     }
 }
 
+/// Run-scoped memo of folder path → resolved id. The first `get` for a path performs
+/// the one `ensure_folder` (hence the one possible `mkdir`); later `get`s for the same
+/// path return the cached id with no cloud call. Construct one per run/task — NOT per
+/// `Cloud`, which the `watch` daemon keeps alive across tasks (a folder can be trashed
+/// and recreated between tasks, so a `Cloud`-lifetime cache would deploy into a deleted
+/// folder).
+pub struct FolderIds<'a> {
+    cloud: &'a Cloud,
+    ids: HashMap<String, String>,
+}
+
+impl<'a> FolderIds<'a> {
+    /// A fresh, empty resolver bound to `cloud`.
+    pub fn new(cloud: &'a Cloud) -> Self {
+        Self {
+            cloud,
+            ids: HashMap::new(),
+        }
+    }
+
+    /// Resolve `path` to a folder id, creating it on first miss; cached thereafter.
+    pub fn get(&mut self, path: &str) -> Result<String> {
+        if let Some(id) = self.ids.get(path) {
+            return Ok(id.clone());
+        }
+        let id = self.cloud.ensure_folder(path)?;
+        self.ids.insert(path.to_string(), id.clone());
+        Ok(id)
+    }
+}
+
 /// Pure recursive walk over a resolved tree (no IO). Collects non-folder docs,
 /// skipping any whose name ends with one of `exclude_suffixes`.
 fn walk_tree(
@@ -445,5 +477,49 @@ mod tests {
 
         // Exactly one "Feed" doc remains under the resolved folder id.
         assert_eq!(cloud.doc_ids_in(&folder_id, "Feed").unwrap().len(), 1);
+    }
+
+    /// Companion to the `mkdir_p` bug-lock (`lagging_index_after_mkdir_duplicates_folder`):
+    /// under the SAME eventual-consistency lag that makes a naive double-resolve mint a
+    /// duplicate folder, a run-scoped `FolderIds` resolves "/Readwise" once and reuses the
+    /// id (the second `get` is a memo hit that never re-queries the cloud), so no second
+    /// `mkdir` can happen. `/Seed` is created first so the lag window serves a valid stale
+    /// index rather than an empty one.
+    #[test]
+    fn resolver_prevents_duplicate_folder_under_lag() {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::from_user_token(CloudConfig::single_host(&fake.base), "user-token")
+            .with_sync_store(rm_cloud::SyncStore::new(dir.path().join("idx.json")));
+        let cloud = cloud_from_client(client);
+
+        cloud.ensure_folder("/Seed").unwrap();
+        fake.lag_next_commit(4);
+
+        let mut folders = FolderIds::new(&cloud);
+        let id_a = folders.get("/Readwise").unwrap();
+        let id_b = folders.get("/Readwise").unwrap();
+
+        assert_eq!(id_a, id_b);
+    }
+
+    /// bujo deploys many PDFs to ONE target folder; a single resolver must yield one
+    /// stable id for all of them (so only one folder is created).
+    #[test]
+    fn resolver_single_target_one_folder_for_many_docs() {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let client = Client::from_user_token(CloudConfig::single_host(&fake.base), "user-token");
+        let cloud = cloud_from_client(client);
+
+        let mut folders = FolderIds::new(&cloud);
+        let mut ids = std::collections::HashSet::new();
+        for i in 0..14 {
+            let id = folders.get("/2026").unwrap();
+            cloud.upsert_in(&id, &format!("2026.{i:02} Doc"), b"%PDF".to_vec()).unwrap();
+            ids.insert(id);
+        }
+        assert_eq!(ids.len(), 1, "all 14 docs resolved the same /2026 folder id");
     }
 }
