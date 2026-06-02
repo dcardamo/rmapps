@@ -282,6 +282,7 @@ impl Client {
     }
 
     /// PUT a blob under `hash` with the given logical filename.
+    #[tracing::instrument(name = "cloud.put_blob", skip_all, fields(name = %name))]
     pub(crate) async fn put_blob(&self, hash: &str, name: &str, bytes: Vec<u8>) -> Result<()> {
         let token = self.user_token().await?;
         if let Some(cache) = &self.cache {
@@ -313,6 +314,7 @@ impl Client {
     /// Shared commit implementation. `broadcast` controls the root PUT `broadcast` flag, which
     /// determines whether the reMarkable cloud pushes a wakeup frame to the account's other
     /// notification-socket subscribers. All normal callers pass `false`.
+    #[tracing::instrument(name = "cloud.commit", skip_all)]
     async fn commit_with(&self, mutation: Mutation, broadcast: bool) -> Result<Snapshot> {
         // Prepare + upload doc blobs once (content-addressed → safe across retries).
         let prepared: Vec<_> = mutation.upserts.iter().map(prepare_doc).collect();
