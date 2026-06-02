@@ -67,13 +67,22 @@ pub fn run(cfg: &Config) -> Result<()> {
             }
         }
 
-        let targets = rmreader::generate::generate(&reader, &transport, &fetcher)?;
-        for (pdf, folder) in &targets {
-            cl.replace(folder, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+        let targets = {
+            let _s = tracing::info_span!("reader.generate").entered();
+            rmreader::generate::generate(&reader, &transport, &fetcher)?
+        };
+        {
+            let _s = tracing::info_span!("reader.upload", docs = targets.len()).entered();
+            for (pdf, folder) in &targets {
+                cl.replace(folder, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+            }
         }
         println!("Deployed {} reader PDF(s)", targets.len());
     } else {
-        let targets = rmreader::generate::generate(&reader, &transport, &fetcher)?;
+        let targets = {
+            let _s = tracing::info_span!("reader.generate").entered();
+            rmreader::generate::generate(&reader, &transport, &fetcher)?
+        };
         println!("Generated {} reader PDF(s) (upload skipped)", targets.len());
     }
     Ok(())

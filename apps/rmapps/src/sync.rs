@@ -106,6 +106,7 @@ pub fn run(cfg: &Config) -> Result<()> {
     }
 
     let mut state = load_state();
+    let _sync_span = crate::timing::sync_span().entered();
 
     let now = now_secs();
     let mut ran = 0usize;
@@ -196,6 +197,7 @@ fn resolve_due(
 /// daemon takes it per task (`Wait::Block`). `run_task` does not lock itself, so
 /// a new caller that bypasses those paths must acquire the lock first.
 pub(crate) fn run_task(task: &crate::config::SyncTask, key: &str, cfg: &Config) -> Result<()> {
+    let _task_span = crate::timing::task_span(&task.app).entered();
     match task.app.as_str() {
         "bujo" => {
             let only_month = if task.month_window == Some(true) {

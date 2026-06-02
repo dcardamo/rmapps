@@ -109,7 +109,10 @@ pub fn run(args: BujoArgs, cfg: &Config) -> Result<()> {
     }
 
     // Whole-year generate.
-    let mut paths = rmbujo::generate::generate_year(bujo, &out_dir, args.refresh_feeds)?;
+    let mut paths = {
+        let _s = tracing::info_span!("bujo.generate_year").entered();
+        rmbujo::generate::generate_year(bujo, &out_dir, args.refresh_feeds)?
+    };
 
     if let Some(only) = args.only_month {
         anyhow::ensure!((1..=12).contains(&only), "--only-month must be 1..=12 (got {only})");
@@ -140,11 +143,14 @@ pub fn run(args: BujoArgs, cfg: &Config) -> Result<()> {
             .filter(|p| monthly_pdf_month(p).is_none())
             .cloned()
             .collect();
-        for pdf in &month_pdfs {
-            cl.upsert(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
-        }
-        for pdf in &extras {
-            cl.create_if_missing(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+        {
+            let _s = tracing::info_span!("bujo.upload", mode = "only_month").entered();
+            for pdf in &month_pdfs {
+                cl.upsert(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+            }
+            for pdf in &extras {
+                cl.create_if_missing(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+            }
         }
         println!(
             "Synced month {only} ({} PDF) + {} extra(s) if missing to {target}",
@@ -152,8 +158,11 @@ pub fn run(args: BujoArgs, cfg: &Config) -> Result<()> {
             extras.len()
         );
     } else {
-        for pdf in &paths {
-            cl.upsert(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+        {
+            let _s = tracing::info_span!("bujo.upload", docs = paths.len()).entered();
+            for pdf in &paths {
+                cl.upsert(&target, &cloud::doc_name(pdf)?, std::fs::read(pdf)?)?;
+            }
         }
         println!("Deployed {} PDF(s) to {target}", paths.len());
     }
