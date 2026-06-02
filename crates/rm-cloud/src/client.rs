@@ -183,6 +183,10 @@ impl Client {
         }
 
         // Rebuild: fetch the root index (blob-cache served when its hash is known) and diff.
+        // `snapshot()` re-polls the root ref internally, so the non-fast path costs a second
+        // (cheap) root GET on top of the one above — acceptable next to the metadata fetches
+        // it precedes, and never paid on the warm fast path. The stored tree takes its
+        // generation from the snapshot, not the earlier poll, so it reflects the bytes read.
         let snap = self.snapshot().await?;
         let mut docs = std::collections::BTreeMap::new();
         for d in snap.docs() {
