@@ -20,32 +20,34 @@ use anyhow::{anyhow, Context, Result};
 use rm_cloud::{BlobCache, Client, Config, DocFiles, SyncStore};
 use tokio::runtime::Runtime;
 
-/// Default blob-cache directory: `$RMAPPS_CACHE_DIR`, else `$XDG_CACHE_HOME/rmapps/blobs`,
-/// else `~/.cache/rmapps/blobs`.
+/// Per-user rmapps cache base: `$XDG_CACHE_HOME/rmapps`, else `~/.cache/rmapps`. The blob
+/// cache and the sync index both live under here, so they stay siblings by construction
+/// (the invariant `cache gc` relies on to never touch the index).
+fn cache_base() -> PathBuf {
+    std::env::var("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cache")
+        })
+        .join("rmapps")
+}
+
+/// Default blob-cache directory: `$RMAPPS_CACHE_DIR`, else `<cache-base>/blobs`
+/// (`~/.cache/rmapps/blobs`).
 pub fn default_cache_dir() -> PathBuf {
     if let Ok(d) = std::env::var("RMAPPS_CACHE_DIR") {
         return PathBuf::from(d);
     }
-    let base = std::env::var("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cache")
-        });
-    base.join("rmapps").join("blobs")
+    cache_base().join("blobs")
 }
 
-/// Default sync-index path: `$RMAPPS_SYNC_INDEX`, else `<cache-base>/rmapps/sync-index.json`
+/// Default sync-index path: `$RMAPPS_SYNC_INDEX`, else `<cache-base>/sync-index.json`
 /// (a sibling of the `blobs/` dir, so `cache gc` never touches it).
 pub fn default_sync_index_path() -> PathBuf {
     if let Ok(p) = std::env::var("RMAPPS_SYNC_INDEX") {
         return PathBuf::from(p);
     }
-    let base = std::env::var("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cache")
-        });
-    base.join("rmapps").join("sync-index.json")
+    cache_base().join("sync-index.json")
 }
 
 /// A document discovered by [`Cloud::list_recursive`].
@@ -126,6 +128,10 @@ impl Cloud {
     }
 
     /// The id of the (non-folder) document named `name` directly under `folder_id`.
+    ///
+    /// Each call re-resolves via one cheap generation poll (a warm store returns the tree
+    /// with zero blob fetches). This is intentional in a multi-step op like `replace` so a
+    /// later read observes an earlier mutation rather than a stale cached tree.
     fn doc_id_in(&self, folder_id: &str, name: &str) -> Result<Option<String>> {
         let tree = self
             .rt
@@ -406,9 +412,5 @@ mod tests {
             blob_delta <= 3,
             "warm replace refetched unrelated docs' metadata: {blob_delta} blob GETs"
         );
-
-        // Sanity: root polls stay a small constant too (they always did — this is
-        // not the metric under test, just a guard against a polling regression).
-        let _ = fake.root_get_count();
     }
 }
