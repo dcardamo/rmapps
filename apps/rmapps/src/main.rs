@@ -19,6 +19,7 @@ mod cloud;
 mod cloud_adapters;
 mod config;
 mod digest;
+mod lock;
 mod ls;
 mod push;
 mod reader;
@@ -71,27 +72,38 @@ fn main() -> anyhow::Result<()> {
         Command::Auth(args) => auth::run(args),
         Command::Bujo(args) => {
             let cfg = config::load(cfg_path)?;
+            let _lock = lock::acquire("bujo", lock::Wait::Fail)?;
             bujo::run(args, &cfg)
         }
         Command::Reader => {
             let cfg = config::load(cfg_path)?;
+            let _lock = lock::acquire("reader", lock::Wait::Fail)?;
             reader::run(&cfg)
         }
         Command::Digest(args) => {
             let cfg = config::load(cfg_path)?;
+            let _lock = lock::acquire("digest", lock::Wait::Fail)?;
             digest::run(args, &cfg)
         }
         Command::Sync => {
             let cfg = config::load(cfg_path)?;
+            let _lock = lock::acquire("sync", lock::Wait::Fail)?;
             sync::run(&cfg)
         }
         Command::Watch(args) => {
             let cfg = config::load(cfg_path)?;
             watch::run(args, &cfg)
         }
-        Command::Push(args) => push::run(args),
+        Command::Push(args) => {
+            let _lock = lock::acquire("push", lock::Wait::Fail)?;
+            push::run(args)
+        }
         Command::Ls(args) => ls::run(args),
-        Command::Rm(args) => rm::run(args),
+        Command::Rm(args) => {
+            let _lock = lock::acquire("rm", lock::Wait::Fail)?;
+            rm::run(args)
+        }
+        // `cache` only inspects/prunes the local blob cache — no cloud mutation, so no lock.
         Command::Cache(args) => cache_cmd::run(args),
     }
 }
