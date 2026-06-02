@@ -1,4 +1,5 @@
-//! Path/listing view over a snapshot: names and parents come from each doc's metadata.
+//! Path/listing view over the resolved sync index: names and parents come from the
+//! persistent `ResolvedTree` (built once per generation), not a per-call metadata scan.
 
 use uuid::Uuid;
 
