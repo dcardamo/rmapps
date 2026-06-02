@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 use crate::client::Client;
 use crate::error::{Error, Result};
-use crate::plumbing::snapshot::Snapshot;
 use crate::porcelain::docfiles::{DocFiles, Metadata};
 use crate::porcelain::document::now_millis;
 
@@ -44,54 +43,11 @@ impl Client {
         self.metadata_from(&snap, id).await
     }
 
-    /// List direct children of `parent` against an already-fetched snapshot.
-    ///
-    /// The cloud has no server-side child listing, so this reads every document's
-    /// `.metadata` (only that blob, not the PDF/ink) and filters by `parent`. Fetch
-    /// concurrency is bounded by the transport's process-global request governor. Docs
-    /// whose metadata can't be read are skipped.
-    /// Because the snapshot is provided by the caller, no generation poll is issued.
-    pub async fn ls_with(&self, snap: &Snapshot, parent: &str) -> Result<Vec<Entry>> {
-        let docs: Vec<(String, String)> = snap
-            .docs()
-            .map(|d| (d.id.clone(), d.hash.clone()))
-            .collect();
-
-        let mut set = tokio::task::JoinSet::new();
-        for (id, hash) in docs {
-            let client = self.clone();
-            set.spawn(async move {
-                let meta = client.metadata_by(&hash, &id).await;
-                (id, hash, meta)
-            });
-        }
-
-        let mut out = Vec::new();
-        while let Some(joined) = set.join_next().await {
-            let (id, hash, meta) =
-                joined.map_err(|e| crate::error::Error::Http(format!("ls join: {e}")))?;
-            // Skip docs whose metadata can't be read rather than failing the whole listing.
-            let Ok(meta) = meta else { continue };
-            if meta.deleted || meta.parent != parent {
-                continue;
-            }
-            out.push(Entry {
-                id,
-                name: meta.visible_name,
-                parent: meta.parent,
-                is_folder: meta.doc_type == "CollectionType",
-                hash,
-            });
-        }
-        out.sort_by(|a, b| a.name.cmp(&b.name));
-        Ok(out)
-    }
-
-    /// List the direct children of `parent` ("" = root). Snapshots, then delegates to
-    /// [`Self::ls_with`].
+    /// List the direct children of `parent` ("" = root), sourced from the resolved sync
+    /// index. One generation poll; metadata is read only for docs whose hash moved.
     pub async fn ls(&self, parent: &str) -> Result<Vec<Entry>> {
-        let snap = self.snapshot().await?;
-        self.ls_with(&snap, parent).await
+        let tree = self.resolved_snapshot().await?;
+        Ok(tree.children(parent))
     }
 
     /// Resolve a slash-separated folder path to its folder id, creating any missing
@@ -100,18 +56,27 @@ impl Client {
     /// case-sensitively against existing `CollectionType` children. This is the
     /// path→id bridge for callers that think in rmapi-style paths (e.g. a device
     /// transport deploying under `/ReadingQueue`).
+    ///
+    /// Resolution reads from one resolved snapshot; only genuinely missing segments
+    /// trigger a `mkdir`. Each real `mkdir` bumps the generation, so the tree is
+    /// re-resolved before matching the next segment.
     pub async fn mkdir_p(&self, path: &str) -> Result<String> {
+        let mut tree = self.resolved_snapshot().await?;
         let mut parent = String::new();
         for segment in path.split('/').filter(|s| !s.is_empty()) {
             validate_segment(segment)?;
-            let existing = self
-                .ls(&parent)
-                .await?
+            let existing = tree
+                .children(&parent)
                 .into_iter()
                 .find(|e| e.is_folder && e.name == segment);
             parent = match existing {
                 Some(e) => e.id,
-                None => self.mkdir(segment, &parent).await?,
+                None => {
+                    let id = self.mkdir(segment, &parent).await?;
+                    // A real mkdir bumped the generation; re-resolve so later segments see it.
+                    tree = self.resolved_snapshot().await?;
+                    id
+                }
             };
         }
         Ok(parent)
@@ -143,34 +108,88 @@ impl Client {
 }
 
 #[cfg(all(test, feature = "fake"))]
-mod ls_with_tests {
+mod fs_tests {
     use crate::client::Client;
     use crate::config::Config;
     use crate::fake::FakeCloud;
     use crate::porcelain::docfiles::DocFiles;
+    use crate::sync_store::SyncStore;
+    use crate::Metadata;
+
+    /// A `CollectionType` (folder) doc with a fixed id, for deterministic test trees.
+    fn folder_doc(id: &str, name: &str, parent: &str) -> DocFiles {
+        let meta = Metadata {
+            visible_name: name.into(),
+            doc_type: "CollectionType".into(),
+            parent: parent.into(),
+            last_modified: "0".into(),
+            deleted: false,
+            extra: Default::default(),
+        };
+        DocFiles {
+            id: id.into(),
+            files: vec![
+                (format!("{id}.metadata"), serde_json::to_vec(&meta).unwrap()),
+                (format!("{id}.content"), b"{}".to_vec()),
+            ],
+        }
+    }
 
     #[tokio::test]
-    async fn recursive_listing_reuses_one_snapshot() {
+    async fn warm_ls_costs_one_root_get() {
         let fake = FakeCloud::spawn().await;
-        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token");
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token")
+            .with_sync_store(SyncStore::new(dir.path().join("idx.json")));
+
+        client.put(folder_doc("f", "Folder", "")).await.unwrap();
+        let _ = client.ls("").await.unwrap(); // warm the store
+
+        let roots_before = fake.root_get_count();
+        let blobs_before = fake.blob_count_total();
+        let entries = client.ls("").await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(fake.root_get_count() - roots_before, 1, "one generation poll");
+        assert_eq!(fake.blob_count_total(), blobs_before, "no blob GETs when warm");
+    }
+
+    #[tokio::test]
+    async fn ls_lists_children_by_parent() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token")
+            .with_sync_store(SyncStore::new(dir.path().join("idx.json")));
 
         let a = client.mkdir("FolderA", "").await.unwrap();
         let b = client.mkdir("FolderB", "").await.unwrap();
         client.put(DocFiles::new_pdf("DocA", &a, b"%PDF\n".to_vec())).await.unwrap();
         client.put(DocFiles::new_pdf("DocB", &b, b"%PDF\n".to_vec())).await.unwrap();
 
-        let snap = client.snapshot().await.unwrap();
-        let root_hash = snap.root_hash.clone();
-        let before = fake.blob_get_count(&root_hash);
+        let roots: Vec<String> = client.ls("").await.unwrap().into_iter().map(|e| e.name).collect();
+        assert_eq!(roots, vec!["FolderA", "FolderB"]);
 
-        let _ = client.ls_with(&snap, "").await.unwrap();
-        let _ = client.ls_with(&snap, &a).await.unwrap();
-        let _ = client.ls_with(&snap, &b).await.unwrap();
+        let in_a: Vec<String> = client.ls(&a).await.unwrap().into_iter().map(|e| e.name).collect();
+        assert_eq!(in_a, vec!["DocA"]);
+        let in_b: Vec<String> = client.ls(&b).await.unwrap().into_iter().map(|e| e.name).collect();
+        assert_eq!(in_b, vec!["DocB"]);
+    }
 
-        assert_eq!(
-            fake.blob_get_count(&root_hash), before,
-            "ls_with must not refetch the root index per folder"
-        );
+    #[tokio::test]
+    async fn mkdir_p_creates_only_missing_segments() {
+        let fake = FakeCloud::spawn().await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token")
+            .with_sync_store(SyncStore::new(dir.path().join("idx.json")));
+
+        let first = client.mkdir_p("A/B/C").await.unwrap();
+        // Re-resolving the same path must return the same ids, creating nothing new.
+        let again = client.mkdir_p("A/B/C").await.unwrap();
+        assert_eq!(first, again);
+
+        // The tree should hold exactly A, B, C (three folders), each nested under the prior.
+        let tree = client.resolved_snapshot().await.unwrap();
+        assert_eq!(tree.docs.len(), 3, "no duplicate folders created");
+        assert_eq!(tree.resolve_folder("A/B/C"), Some(again));
     }
 }
 

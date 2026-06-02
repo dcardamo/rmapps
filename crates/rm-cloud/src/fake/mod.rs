@@ -109,6 +109,11 @@ impl FakeCloud {
         self.state.lock().unwrap().blob_gets.get(hash).copied().unwrap_or(0)
     }
 
+    /// Total blob GETs served across all hashes (test helper).
+    pub fn blob_count_total(&self) -> u32 {
+        self.state.lock().unwrap().blob_gets.values().sum()
+    }
+
     /// Number of root-ref GETs served (test helper).
     pub fn root_get_count(&self) -> u32 {
         self.state.lock().unwrap().root_gets
