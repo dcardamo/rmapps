@@ -5,7 +5,78 @@ use std::time::Duration;
 
 use reqwest::StatusCode;
 
+use std::sync::Arc;
+use std::sync::OnceLock;
+use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
+use tokio::time::Instant;
+
 use crate::error::{Error, Result};
+
+/// Default cap on concurrent in-flight cloud requests (env: `RM_CLOUD_MAX_CONCURRENCY`).
+const DEFAULT_MAX_CONCURRENCY: usize = 4;
+/// Default minimum spacing between request starts in ms (env: `RM_CLOUD_MIN_INTERVAL_MS`).
+const DEFAULT_MIN_INTERVAL_MS: u64 = 150;
+
+/// A process-global request throttle: a concurrency cap plus a minimum interval between
+/// request *starts*. The reMarkable cloud rate-limits aggressively and the account-wide
+/// `ls` fan-out can otherwise burst hundreds of requests; the governor spreads them so a
+/// cold cache cannot trip 429.
+#[derive(Clone)]
+pub(crate) struct Governor {
+    sem: Arc<Semaphore>,
+    /// Earliest instant the next request may start.
+    gate: Arc<Mutex<Instant>>,
+    min_interval: Duration,
+}
+
+impl Governor {
+    pub(crate) fn new(max_concurrency: usize, min_interval: Duration) -> Self {
+        Self {
+            sem: Arc::new(Semaphore::new(max_concurrency.max(1))),
+            gate: Arc::new(Mutex::new(Instant::now())),
+            min_interval,
+        }
+    }
+
+    /// Build from env vars, falling back to the defaults above.
+    fn from_env() -> Self {
+        let max = std::env::var("RM_CLOUD_MAX_CONCURRENCY")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_MAX_CONCURRENCY);
+        let interval_ms = std::env::var("RM_CLOUD_MIN_INTERVAL_MS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_MIN_INTERVAL_MS);
+        Self::new(max, Duration::from_millis(interval_ms))
+    }
+
+    /// Acquire a slot: wait for a concurrency permit, then wait out the spacing gate.
+    /// The returned permit must be held for the whole request (including retries).
+    pub(crate) async fn acquire(&self) -> OwnedSemaphorePermit {
+        let permit = self
+            .sem
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("governor semaphore is never closed");
+        if self.min_interval > Duration::ZERO {
+            let mut gate = self.gate.lock().await;
+            let now = Instant::now();
+            let next = (*gate).max(now);
+            *gate = next + self.min_interval;
+            drop(gate);
+            tokio::time::sleep_until(next).await;
+        }
+        permit
+    }
+}
+
+/// The process-global governor, initialized from env on first use.
+fn governor() -> &'static Governor {
+    static GOVERNOR: OnceLock<Governor> = OnceLock::new();
+    GOVERNOR.get_or_init(Governor::from_env)
+}
 
 /// Max automatic retries on HTTP 429 before giving up and surfacing [`Error::RateLimited`].
 const MAX_RATE_LIMIT_RETRIES: u32 = 5;
@@ -63,6 +134,9 @@ fn backoff_delay(attempt: u32) -> Duration {
 /// in-memory `Vec<u8>` body or no body, so [`reqwest::RequestBuilder::try_clone`] always
 /// succeeds.
 pub(crate) async fn send_retrying(builder: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+    // Hold a governor permit for the whole request (incl. 429 backoff) so a retrying
+    // request keeps its concurrency slot rather than letting new requests pile on.
+    let _permit = governor().acquire().await;
     let mut attempt = 0u32;
     loop {
         let req = builder
@@ -118,5 +192,45 @@ mod tests {
         assert_eq!(backoff_delay(2), BACKOFF_BASE * 4);
         // Huge attempt saturates to the cap rather than overflowing.
         assert_eq!(backoff_delay(1000), BACKOFF_CAP);
+    }
+
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Instant;
+
+    #[tokio::test]
+    async fn governor_caps_concurrency() {
+        let gov = Governor::new(3, Duration::ZERO);
+        let inflight = Arc::new(AtomicUsize::new(0));
+        let max = Arc::new(AtomicUsize::new(0));
+        let mut handles = Vec::new();
+        for _ in 0..20 {
+            let gov = gov.clone();
+            let inflight = inflight.clone();
+            let max = max.clone();
+            handles.push(tokio::spawn(async move {
+                let _permit = gov.acquire().await;
+                let now = inflight.fetch_add(1, Ordering::SeqCst) + 1;
+                max.fetch_max(now, Ordering::SeqCst);
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                inflight.fetch_sub(1, Ordering::SeqCst);
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+        assert!(max.load(Ordering::SeqCst) <= 3, "concurrency exceeded cap");
+    }
+
+    #[tokio::test]
+    async fn governor_spaces_request_starts() {
+        let interval = Duration::from_millis(20);
+        let gov = Governor::new(8, interval);
+        let start = Instant::now();
+        let mut starts = Vec::new();
+        for _ in 0..5 {
+            let _permit = gov.acquire().await;
+            starts.push(start.elapsed());
+        }
+        assert!(starts[4] >= interval * 4, "spacing not enforced: {:?}", starts);
     }
 }

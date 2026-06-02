@@ -1,8 +1,5 @@
 //! Path/listing view over a snapshot: names and parents come from each doc's metadata.
 
-use std::sync::Arc;
-
-use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 use crate::client::Client;
@@ -10,10 +7,6 @@ use crate::error::{Error, Result};
 use crate::plumbing::snapshot::Snapshot;
 use crate::porcelain::docfiles::{DocFiles, Metadata};
 use crate::porcelain::document::now_millis;
-
-/// Max concurrent per-doc metadata fetches during `ls` (the cloud has no server-side
-/// "list children", so listing reads every doc's metadata — done in parallel).
-const LS_CONCURRENCY: usize = 16;
 
 /// Reject path segments / folder names that should never be turned into a folder.
 ///
@@ -54,8 +47,9 @@ impl Client {
     /// List direct children of `parent` against an already-fetched snapshot.
     ///
     /// The cloud has no server-side child listing, so this reads every document's
-    /// `.metadata` (only that blob, not the PDF/ink) and filters by `parent`. Fetches run
-    /// up to [`LS_CONCURRENCY`] at a time. Docs whose metadata can't be read are skipped.
+    /// `.metadata` (only that blob, not the PDF/ink) and filters by `parent`. Fetch
+    /// concurrency is bounded by the transport's process-global request governor. Docs
+    /// whose metadata can't be read are skipped.
     /// Because the snapshot is provided by the caller, no generation poll is issued.
     pub async fn ls_with(&self, snap: &Snapshot, parent: &str) -> Result<Vec<Entry>> {
         let docs: Vec<(String, String)> = snap
@@ -63,13 +57,10 @@ impl Client {
             .map(|d| (d.id.clone(), d.hash.clone()))
             .collect();
 
-        let sem = Arc::new(Semaphore::new(LS_CONCURRENCY));
         let mut set = tokio::task::JoinSet::new();
         for (id, hash) in docs {
             let client = self.clone();
-            let sem = sem.clone();
             set.spawn(async move {
-                let _permit = sem.acquire_owned().await.expect("semaphore not closed");
                 let meta = client.metadata_by(&hash, &id).await;
                 (id, hash, meta)
             });
