@@ -1,0 +1,19 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-03-digest-skip-notebooks.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Expose .content fileType through rmfiles::Bundle",
+      "status": "completed",
+      "description": "**Goal:** `Bundle::file_type()` returns the `.content` `fileType` string (`pdf`/`epub`/`notebook`/`\"\"`).\n\n**Files:**\n- Modify: crates/rmfiles/src/bundle/content.rs\n- Modify: crates/rmfiles/src/bundle/mod.rs\n\n**Acceptance Criteria:**\n- Content deserializes a fileType field (default \"\").\n- Bundle::file_type() returns the parsed value.\n- Missing fileType yields \"\".\n\n**Verify:** cargo test -p rmfiles\n\n```json:metadata\n{\"files\": [\"crates/rmfiles/src/bundle/content.rs\", \"crates/rmfiles/src/bundle/mod.rs\"], \"verifyCommand\": \"cargo test -p rmfiles\", \"acceptanceCriteria\": [\"Content deserializes fileType (default empty)\", \"Bundle::file_type() returns it\", \"missing field yields empty string\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Gate digest on pdf/epub allow-list with skip sentinel",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "**Goal:** process_doc skips non-pdf/epub sources, records a `skipped` sentinel to avoid re-fetch, and re-engages if the doc later becomes supported.\n\n**Files:**\n- Modify: crates/rmdigest/src/state.rs (add `skipped: bool`, #[serde(default)])\n- Modify: crates/rmdigest/src/generate.rs (SUPPORTED_FILE_TYPES const, early skip-sentinel cheap-skip, allow-list gate after ingest, clear skipped on success, tests)\n- Modify: crates/rmdigest/src/ingest.rs (DocState literals add skipped: false)\n\n**Acceptance Criteria:**\n- DocState has skipped: bool (serde default, backward-compatible).\n- Notebook bundle -> 0 puts, saves skipped == true, page_hashes empty.\n- Second run over unchanged notebook does NOT re-fetch.\n- Existing pdf-fixture tests still upload exactly one digest.\n\n**Verify:** cargo test -p rmdigest && cargo test --workspace\n\n```json:metadata\n{\"files\": [\"crates/rmdigest/src/state.rs\", \"crates/rmdigest/src/generate.rs\", \"crates/rmdigest/src/ingest.rs\"], \"verifyCommand\": \"cargo test -p rmdigest\", \"acceptanceCriteria\": [\"DocState.skipped field, serde default\", \"notebook produces 0 puts and skipped=true\", \"unchanged notebook not re-fetched\", \"pdf fixtures still upload one digest\"], \"requiresUserVerification\": false}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-03"
+}

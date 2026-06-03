@@ -47,6 +47,10 @@ pub struct Content {
         deserialize_with = "null_to_default"
     )]
     pub redirection_page_map: Vec<i64>,
+
+    /// Source document kind: `"pdf"`, `"epub"`, `"notebook"`, or `""` (absent).
+    #[serde(default, rename = "fileType")]
+    pub file_type: String,
 }
 
 /// Container for the newer `cPages` page list.

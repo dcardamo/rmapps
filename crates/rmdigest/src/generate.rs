@@ -16,6 +16,10 @@ use crate::linked_doc::DigestMeta;
 use crate::render::compile;
 use crate::state::State;
 
+/// Source document kinds the digest pipeline processes. Anything else
+/// (notebooks, empty/unknown `fileType`) is skipped.
+const SUPPORTED_FILE_TYPES: [&str; 2] = ["pdf", "epub"];
+
 /// Options for a single `run` invocation.
 pub struct Opts {
     /// Skip uploading (still fetches + generates).
@@ -92,6 +96,13 @@ fn process_doc(
         return Ok(());
     }
 
+    // Skip-sentinel cheap-skip: an unsupported kind (e.g. notebook) recorded on a
+    // prior run. Same cloud version → nothing to reconsider, avoid the fetch.
+    if doc.version.is_some() && prev.skipped && prev.cloud_version == doc.version {
+        eprintln!("rmdigest: {} unsupported kind (skip sentinel, no fetch), skipping", doc.path);
+        return Ok(());
+    }
+
     let fetched = {
         let _s = tracing::info_span!("digest.bundle_fetch", doc = %doc.path).entered();
         backend.fetch(doc)?
@@ -105,6 +116,21 @@ fn process_doc(
     };
 
     let ing = ingest(&bundle_path, prev)?;
+
+    // Allow-list gate: only real source documents get digested. A native
+    // notebook (or any unknown/empty kind) is recorded as skipped — with the
+    // cloud version so the skip-sentinel cheap-skip engages next run — and
+    // produces no digest. A `version: None` backend re-inspects every run (the
+    // sentinel cheap-skip is version-gated), same as the hash-skip path.
+    let is_supported = SUPPORTED_FILE_TYPES.contains(&ing.bundle.file_type());
+    if !is_supported {
+        prev.cloud_version = doc.version.clone();
+        prev.skipped = true;
+        prev.page_hashes.clear();
+        state.save(state_path)?;
+        eprintln!("rmdigest: {} is '{}', not pdf/epub — skipping", doc.path, ing.bundle.file_type());
+        return Ok(());
+    }
 
     // Skip if nothing changed since a prior successful run.
     if ing.changed.is_empty() && !prev.page_hashes.is_empty() {
@@ -159,6 +185,7 @@ fn process_doc(
     // Persist state only after the upload succeeds, so a crash re-processes.
     prev.cloud_version = doc.version.clone();
     prev.page_hashes = ing.new_hashes;
+    prev.skipped = false; // a previously-skipped doc that is now a supported kind re-engages
     state.save(state_path)?;
 
     eprintln!("rmdigest: processed {}", doc.path);
@@ -369,6 +396,7 @@ mod cheap_skip_tests {
                 cloud_version: None,
                 page_hashes: seed.new_hashes.clone(),
                 digest_uuids: vec![],
+                skipped: false,
             },
         );
         state.save(&state_path).expect("save seed state");
@@ -388,6 +416,58 @@ mod cheap_skip_tests {
             fetches.load(Ordering::Relaxed),
             1,
             "after backfill, unchanged doc must cheap-skip (no second fetch)"
+        );
+    }
+
+    /// Build a minimal notebook bundle dir (fileType "notebook", one page, no
+    /// source PDF) and return its path. The tempdir guard must outlive the run.
+    fn notebook_bundle(dir: &std::path::Path) -> PathBuf {
+        use std::fs;
+        let uuid = "nb";
+        fs::write(
+            dir.join(format!("{uuid}.content")),
+            r#"{"fileType":"notebook","cPages":{"pages":[{"id":"p1"}]},"customZoomPageWidth":1404,"customZoomPageHeight":1872}"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join(format!("{uuid}.metadata")),
+            r#"{"visibleName":"Notes-Getting to Zero","type":"DocumentType"}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(dir.join(uuid)).unwrap();
+        fs::write(dir.join(uuid).join("p1.rm"), b"ink-bytes").unwrap();
+        dir.to_path_buf()
+    }
+
+    #[test]
+    fn notebook_is_skipped_and_not_refetched() {
+        let bundle_dir = tempfile::tempdir().expect("bundle tempdir");
+        let bundle = notebook_bundle(bundle_dir.path());
+
+        let fetches = Arc::new(AtomicU32::new(0));
+        let backend = CountingBackend {
+            bundle,
+            fetches: fetches.clone(),
+        };
+        let cfg = test_cfg();
+        let state_dir = tempfile::tempdir().expect("state tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = test_opts();
+        let doc = test_doc(Some("nb-hash-1"));
+
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("first run");
+        assert_eq!(fetches.load(Ordering::Relaxed), 1, "notebook fetched once to inspect");
+
+        let state = State::load(&state_path).expect("load state");
+        let ds = state.docs.get(&doc.path).expect("doc state present");
+        assert!(ds.skipped, "notebook must be marked skipped");
+        assert!(ds.page_hashes.is_empty(), "skipped notebook stores no page hashes");
+
+        run_one(&cfg, &backend, &state_path, &opts, &doc).expect("second run");
+        assert_eq!(
+            fetches.load(Ordering::Relaxed),
+            1,
+            "unchanged skipped notebook must not be re-fetched"
         );
     }
 
@@ -510,6 +590,7 @@ mod tests {
             cloud_version: None,
             page_hashes: run1.new_hashes.clone(),
             digest_uuids: vec![],
+            skipped: false,
         };
         let run2 = ingest(&bundle_path, &prev2).expect("ingest run2");
 
@@ -637,6 +718,46 @@ mod tests {
                 "dry run must not persist page hashes"
             );
         }
+    }
+
+    #[test]
+    fn notebook_produces_no_digest_put() {
+        use std::fs;
+        let bundle_dir = tempfile::tempdir().expect("bundle tempdir");
+        let root = bundle_dir.path();
+        let uuid = "nb";
+        fs::write(
+            root.join(format!("{uuid}.content")),
+            r#"{"fileType":"notebook","cPages":{"pages":[{"id":"p1"}]},"customZoomPageWidth":1404,"customZoomPageHeight":1872}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join(format!("{uuid}.metadata")),
+            r#"{"visibleName":"Notes-Getting to Zero","type":"DocumentType"}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(root.join(uuid)).unwrap();
+        fs::write(root.join(uuid).join("p1.rm"), b"ink").unwrap();
+
+        let puts = Arc::new(Mutex::new(Vec::new()));
+        let doc = CloudDoc {
+            path: "/Books/Notes-Getting to Zero".to_string(),
+            name: "Notes-Getting to Zero".to_string(),
+            folder: "/Books".to_string(),
+            version: None,
+        };
+        let backend = FakeBackend {
+            fixture: doc,
+            fixture_path: root.to_path_buf(),
+            puts: puts.clone(),
+        };
+        let cfg = fake_cfg();
+        let state_dir = tempfile::tempdir().expect("state tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = Opts { dry_run: false, local_output: None };
+
+        run(&cfg, &backend, &state_path, &opts).expect("run over notebook");
+        assert_eq!(puts.lock().unwrap().len(), 0, "notebook must produce no digest put");
     }
 
     #[test]
