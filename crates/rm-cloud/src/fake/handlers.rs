@@ -101,7 +101,6 @@ async fn root_get(AxState(state): AxState<Shared>) -> impl IntoResponse {
 
 #[derive(Deserialize)]
 struct RootPutReq {
-    #[allow(dead_code)]
     broadcast: bool,
     hash: String,
     generation: i64,
@@ -125,6 +124,9 @@ async fn root_put(
     let req_prev_hash = s.root_hash.clone();
     s.generation = req.generation + 1;
     s.root_hash = req.hash.clone();
+    if req.broadcast {
+        s.broadcast_commits += 1;
+    }
     if s.arm_lag > 0 {
         s.active_lag = s.arm_lag;
         s.arm_lag = 0;

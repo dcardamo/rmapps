@@ -32,6 +32,8 @@ pub struct State {
     pub blob_gets: HashMap<String, u32>,
     /// Count of root-ref GETs served (test assertion of generation-poll cost).
     pub root_gets: u32,
+    /// Count of root PUTs received with `broadcast: true` (test assertion of notify).
+    pub broadcast_commits: u32,
     /// Reads to keep stale once the next commit arms the lag (0 = unarmed).
     pub arm_lag: u32,
     /// Remaining root GETs currently serving the pre-commit index (0 = none).
@@ -133,6 +135,11 @@ impl FakeCloud {
         self.state.lock().unwrap().root_gets
     }
 
+    /// Number of commits that requested a broadcast notification (test helper).
+    pub fn broadcast_count(&self) -> u32 {
+        self.state.lock().unwrap().broadcast_commits
+    }
+
     /// Spawn a new fake cloud, hydrating its state from `dir/state.json` if present.
     /// If `dir` does not exist or contains no `state.json`, starts empty.
     pub async fn from_dir(dir: &Path) -> std::io::Result<Self> {
@@ -189,5 +196,25 @@ struct StateOnDisk {
 impl Drop for FakeCloud {
     fn drop(&mut self) {
         self.handle.abort();
+    }
+}
+
+#[cfg(test)]
+mod broadcast_count_tests {
+    use super::*;
+    use crate::client::Client;
+    use crate::config::Config;
+    use crate::porcelain::docfiles::DocFiles;
+
+    #[tokio::test]
+    async fn broadcast_count_tracks_only_broadcasting_commits() {
+        let fake = FakeCloud::spawn().await;
+        let client = Client::from_user_token(Config::single_host(&fake.base), "user-token");
+
+        client.put(DocFiles::new_pdf("A", "", b"%PDF\n".to_vec())).await.unwrap();
+        assert_eq!(fake.broadcast_count(), 0, "put must not broadcast");
+
+        client.put_broadcast(DocFiles::new_pdf("B", "", b"%PDF\n".to_vec())).await.unwrap();
+        assert_eq!(fake.broadcast_count(), 1, "put_broadcast must broadcast once");
     }
 }
