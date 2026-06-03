@@ -135,6 +135,34 @@ fn library_index_has_no_mark_all_read_region() {
     assert!(r.mark_all_read.is_none(), "Library must not render the button");
 }
 
+#[test]
+fn inline_code_followed_by_dot_field_compiles() {
+    // Regression: an inline <code> span immediately followed by ".data" (no space)
+    // used to emit `#raw("…").data`, which Typst parsed as a field access and
+    // failed to compile ("raw does not have field data"). The body below mirrors
+    // that real feed content; rendering must succeed.
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let body = rmreader::render::html2typst::convert(
+        "<p>region <code>0x100089E8</code>.data init values for kernel SRAM</p>",
+    );
+    let articles = vec![typst_doc::Article {
+        anchor: "article-x".into(),
+        title: "Mem map".into(),
+        byline: "A".into(),
+        body,
+    }];
+    let rows = vec![typst_doc::Row {
+        num: "01".into(),
+        title: "Mem map".into(),
+        author: "A".into(),
+        reading_time: "1 min".into(),
+        anchor: "article-x".into(),
+    }];
+    let r = render_collection(&device, &theme, "Feed", &rows, &articles, &[]);
+    assert!(r.is_ok(), "inline code + .data must compile: {:?}", r.err());
+}
+
 /// Count Link annotations on a single 0-based page index.
 fn links_on_page(pdf: &[u8], page_index: usize) -> usize {
     let doc = lopdf::Document::load_mem(pdf).unwrap();
