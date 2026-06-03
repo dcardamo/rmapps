@@ -44,6 +44,9 @@ pub struct Bundle {
 
     /// Device canvas dimensions `(width, height)` in pixels.
     canvas: (f64, f64),
+
+    /// Source document kind from `.content` `fileType` (`""` when absent).
+    file_type: String,
 }
 
 impl Bundle {
@@ -82,6 +85,8 @@ impl Bundle {
             content.page_height.unwrap_or(1872.0),
         );
 
+        let file_type = content.file_type.clone();
+
         Ok(Bundle {
             files,
             uuid,
@@ -89,6 +94,7 @@ impl Bundle {
             page_ids,
             source_pages,
             canvas,
+            file_type,
         })
     }
 
@@ -123,6 +129,11 @@ impl Bundle {
     /// defaults to `(1404.0, 1872.0)` when absent.
     pub fn canvas_size(&self) -> (f64, f64) {
         self.canvas
+    }
+
+    /// Source document kind: `"pdf"`, `"epub"`, `"notebook"`, or `""` (absent).
+    pub fn file_type(&self) -> &str {
+        &self.file_type
     }
 }
 
@@ -222,4 +233,55 @@ fn collect_dir(root: &Path, dir: &Path, map: &mut HashMap<String, Vec<u8>>) -> R
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_type_read_from_content() {
+        use std::fs;
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let uuid = "doc";
+        fs::write(
+            root.join(format!("{uuid}.content")),
+            r#"{"fileType":"notebook","cPages":{"pages":[{"id":"p1"}]}}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join(format!("{uuid}.metadata")),
+            r#"{"visibleName":"N","type":"DocumentType"}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(root.join(uuid)).unwrap();
+        fs::write(root.join(uuid).join("p1.rm"), b"x").unwrap();
+
+        let b = Bundle::open(root).unwrap();
+        assert_eq!(b.file_type(), "notebook");
+    }
+
+    #[test]
+    fn file_type_defaults_empty_when_absent() {
+        use std::fs;
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let uuid = "doc";
+        fs::write(
+            root.join(format!("{uuid}.content")),
+            r#"{"cPages":{"pages":[{"id":"p1"}]}}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join(format!("{uuid}.metadata")),
+            r#"{"visibleName":"N","type":"DocumentType"}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(root.join(uuid)).unwrap();
+        fs::write(root.join(uuid).join("p1.rm"), b"x").unwrap();
+
+        let b = Bundle::open(root).unwrap();
+        assert_eq!(b.file_type(), "");
+    }
 }
