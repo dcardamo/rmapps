@@ -1,5 +1,5 @@
 //! Geometric classification table tests.
-use rmreader::manifest::{EmbeddedDoc, EmbeddedManifest, LabelRect, ManifestRect, PageRange};
+use rmreader::manifest::{EmbeddedDoc, EmbeddedManifest, LabelRect, ManifestRect, MarkAllReadRect, PageRange};
 use rmreader::readback::{classify, PdfRect, StrokeHit, TextHit};
 use rmreader::readwise::ActionKind;
 
@@ -374,4 +374,45 @@ fn amp_entity_is_decoded_only_once() {
     let p = classify(&m, &[thit(0, "a &amp; b")], &[], |_, _| String::new());
     assert_eq!(p.highlights.len(), 1);
     assert_eq!(p.highlights[0].text, "a & b");
+}
+
+// ---------------------------------------------------------------------------
+// Mark-all-read button detection.
+// ---------------------------------------------------------------------------
+
+/// Manifest with a mark-all-read button at page 5, rect x=[20,160], y=[420,440].
+fn manifest_with_button() -> EmbeddedManifest {
+    let mut m = manifest();
+    m.collection = "Feed".into();
+    m.mark_all_read = Some(MarkAllReadRect {
+        page: 5,
+        rect: ManifestRect { x0: 20.0, y0: 420.0, x1: 160.0, y1: 440.0 },
+    });
+    m
+}
+
+#[test]
+fn stroke_on_button_marks_all_docs_seen() {
+    // center (90,430) inside rect x[20,160] y[420,440] on page 5.
+    let p = classify(&manifest_with_button(), &[], &[hit(5, 70.0, 425.0, 110.0, 435.0)], |_, _| String::new());
+    assert_eq!(p.seen_doc_ids, vec!["d1".to_string(), "d2".to_string()]);
+    assert!(p.highlights.is_empty(), "button stroke must not become a highlight");
+    assert!(p.warnings.is_empty(), "button stroke must not warn off-manifest");
+}
+
+#[test]
+fn text_label_marks_all_docs_seen() {
+    let p = classify(&manifest_with_button(), &[thit(5, "mark all as read")], &[], |_, _| String::new());
+    assert_eq!(p.seen_doc_ids, vec!["d1".to_string(), "d2".to_string()]);
+    assert!(p.highlights.is_empty());
+    assert!(p.warnings.is_empty());
+}
+
+#[test]
+fn non_button_stroke_on_button_page_does_not_trigger() {
+    // A stroke elsewhere on page 5 (well below the button band) → no seen ids.
+    // page 5 is not in any doc range → it warns (today's behavior), seen stays empty.
+    let p = classify(&manifest_with_button(), &[], &[hit(5, 70.0, 100.0, 110.0, 120.0)], |_, _| String::new());
+    assert!(p.seen_doc_ids.is_empty());
+    assert_eq!(p.warnings.len(), 1, "off-manifest stroke still warns as before");
 }

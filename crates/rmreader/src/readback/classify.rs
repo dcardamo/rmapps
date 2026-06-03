@@ -50,11 +50,33 @@ pub struct Plan {
     pub actions: Vec<(String, ActionKind)>, // (doc_id, kind)
     pub highlights: Vec<HighlightCreate>,
     pub warnings: Vec<String>,
+    /// Doc ids to mark seen=true (Feed "mark all as read"). Empty = no-op.
+    pub seen_doc_ids: Vec<String>,
 }
 
 /// Horizontal overlap between `a` and a rect defined by `[b_x0, b_x1]`.
 fn x_overlap(a: &PdfRect, b_x0: f64, b_x1: f64) -> f64 {
     (a.x1.min(b_x1) - a.x0.max(b_x0)).max(0.0)
+}
+
+/// True when the text is the "mark all as read" button label (case-insensitive,
+/// whitespace-trimmed/collapsed).
+fn is_mark_all_read_label(s: &str) -> bool {
+    let norm = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    norm.eq_ignore_ascii_case(crate::render::typst_doc::MARK_ALL_READ_LABEL)
+}
+
+/// True when a stroke bbox center falls inside the button rect on its page.
+fn hits_mark_all_read(m: &EmbeddedManifest, page: usize, bbox: &PdfRect) -> bool {
+    match &m.mark_all_read {
+        Some(b) if b.page == page => {
+            let cx = (bbox.x0 + bbox.x1) / 2.0;
+            let cy = (bbox.y0 + bbox.y1) / 2.0;
+            let r = &b.rect;
+            cx >= r.x0 && cx <= r.x1 && cy >= r.y0 && cy <= r.y1
+        }
+        _ => false,
+    }
 }
 
 /// Classify text highlights and stroke hits against the embedded manifest.
@@ -92,6 +114,11 @@ pub fn classify(
 
     // Primary path: snap-to-text highlights with verbatim strings.
     for hit in text_hits {
+        if is_mark_all_read_label(&hit.text) {
+            plan.seen_doc_ids = m.docs.iter().map(|d| d.id.clone()).collect();
+            continue;
+        }
+
         let Some(doc) = m.doc_for_page(hit.page) else {
             plan.warnings.push(format!(
                 "text highlight on page {} not in manifest; skipped",
@@ -124,6 +151,11 @@ pub fn classify(
 
     // Fallback path: highlighter ink geometry.
     for hit in hits {
+        if hits_mark_all_read(m, hit.page, &hit.bbox) {
+            plan.seen_doc_ids = m.docs.iter().map(|d| d.id.clone()).collect();
+            continue;
+        }
+
         let Some(doc) = m.doc_for_page(hit.page) else {
             plan.warnings.push(format!(
                 "stroke on page {} not in manifest; skipped",
