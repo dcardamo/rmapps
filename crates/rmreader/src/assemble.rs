@@ -241,6 +241,7 @@ mod tests {
             site_name: site.into(),
             category: "article".into(),
             location: "new".into(),
+            seen: false,
             summary: String::new(),
             image_url: String::new(),
             word_count: None,

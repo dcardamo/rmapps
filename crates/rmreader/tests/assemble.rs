@@ -12,6 +12,7 @@ fn doc(id: &str) -> Document {
         site_name: "Site".into(),
         category: "article".into(),
         location: "new".into(),
+        seen: false,
         summary: "Sum".into(),
         image_url: String::new(),
         word_count: Some(500),

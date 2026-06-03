@@ -180,6 +180,9 @@ pub struct Document {
     pub category: String,
     #[serde(default, deserialize_with = "null_to_default")]
     pub location: String,
+    /// Readwise "read" flag. Absent on older docs → false (treated as unread).
+    #[serde(default)]
+    pub seen: bool,
     #[serde(default, deserialize_with = "null_to_default")]
     pub summary: String,
     #[serde(default, deserialize_with = "null_to_default")]

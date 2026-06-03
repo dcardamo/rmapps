@@ -109,6 +109,12 @@ fn drop_empty(docs: Vec<crate::readwise::Document>) -> Vec<crate::readwise::Docu
         .collect()
 }
 
+/// Drop documents Readwise marks as read (`seen == true`). Feed-only: the Library
+/// has no "seen" concept, so its build path must not call this.
+fn drop_seen(docs: Vec<crate::readwise::Document>) -> Vec<crate::readwise::Document> {
+    docs.into_iter().filter(|d| !d.seen).collect()
+}
+
 fn build_one(
     collection: &str,
     docs: &[crate::readwise::Document],
@@ -319,7 +325,7 @@ pub fn generate(
                     config.feed.max_items,
                     sleep_secs,
                 )?;
-                let feed = drop_empty(feed);
+                let feed = drop_seen(drop_empty(feed));
                 eprintln!("[rmreader] feed: {} docs", feed.len());
                 let pdf = build_one("Feed", &feed, config, fetcher, out_dir, cache)?;
                 Ok((pdf, config.deploy.feed_folder.clone()))
@@ -343,4 +349,40 @@ pub fn generate(
 /// threads can share it; it is `Copy` and `Sync`).
 fn sleep_secs(s: u64) {
     std::thread::sleep(std::time::Duration::from_secs(s));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::readwise::Document;
+
+    fn d(id: &str, seen: bool) -> Document {
+        Document {
+            id: id.into(),
+            url: String::new(),
+            source_url: String::new(),
+            title: id.into(),
+            author: String::new(),
+            site_name: String::new(),
+            category: "article".into(),
+            location: "feed".into(),
+            seen,
+            summary: String::new(),
+            image_url: String::new(),
+            word_count: None,
+            reading_time: None,
+            published_date: None,
+            saved_at: "2026-01-01T00:00:00Z".into(),
+            html_content: Some("<p>x</p>".into()),
+        }
+    }
+
+    #[test]
+    fn drop_seen_keeps_only_unread_in_order() {
+        let out = drop_seen(vec![d("a", false), d("b", true), d("c", false)]);
+        assert_eq!(
+            out.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(),
+            vec!["a", "c"]
+        );
+    }
 }

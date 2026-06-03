@@ -304,3 +304,22 @@ fn action_kind_maps_locations() {
     );
     assert_eq!(ActionKind::parse_label("nope"), None);
 }
+
+#[test]
+fn seen_field_parses_true_false_and_missing() {
+    let body = r#"{"nextPageCursor":null,"results":[
+        {"id":"a","title":"A","saved_at":"2026-01-03T00:00:00Z","seen":true,"html_content":"<p>x</p>"},
+        {"id":"b","title":"B","saved_at":"2026-01-02T00:00:00Z","seen":false,"html_content":"<p>x</p>"},
+        {"id":"c","title":"C","saved_at":"2026-01-01T00:00:00Z","html_content":"<p>x</p>"}
+    ]}"#;
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script: vec![(200, None, body.to_string())],
+        idx: RefCell::new(0),
+    };
+    let docs = fetch_documents(&fake, "tok", &["feed".into()], 10, |_| {}).unwrap();
+    // newest-first by saved_at: a, b, c
+    assert!(docs[0].seen, "a should be seen");
+    assert!(!docs[1].seen, "b should be unseen");
+    assert!(!docs[2].seen, "c (missing field) defaults to unseen");
+}
