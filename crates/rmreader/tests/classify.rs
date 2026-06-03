@@ -408,6 +408,17 @@ fn text_label_marks_all_docs_seen() {
     assert!(p.warnings.is_empty());
 }
 
+/// A doc with no mark-all-read button (Library) must NOT trigger seen on a text
+/// hit whose string happens to equal the button label — it's just content.
+#[test]
+fn text_label_without_button_does_not_mark_seen() {
+    // page 0 is owned by d1, so "mark all as read" becomes a normal content highlight.
+    let p = classify(&manifest(), &[thit(0, "mark all as read")], &[], |_, _| String::new());
+    assert!(p.seen_doc_ids.is_empty(), "no button in manifest → no seen ids");
+    assert_eq!(p.highlights.len(), 1, "it's just a content highlight");
+    assert_eq!(p.highlights[0].text, "mark all as read");
+}
+
 #[test]
 fn non_button_stroke_on_button_page_does_not_trigger() {
     // A stroke elsewhere on page 5 (well below the button band) → no seen ids.

@@ -114,7 +114,10 @@ pub fn classify(
 
     // Primary path: snap-to-text highlights with verbatim strings.
     for hit in text_hits {
-        if is_mark_all_read_label(&hit.text) {
+        // Only trigger if the manifest actually has the button (Feed PDF); a
+        // Library article whose content happens to say "mark all as read" must
+        // not silently mark every doc as seen.
+        if m.mark_all_read.is_some() && is_mark_all_read_label(&hit.text) {
             plan.seen_doc_ids = m.docs.iter().map(|d| d.id.clone()).collect();
             continue;
         }
