@@ -43,13 +43,15 @@ fn main() -> anyhow::Result<()> {
                 page,
                 source_page,
                 strokes,
+                highlights,
             } => {
                 n_n += 1;
                 println!(
-                    "  [NOTE bundle p{:>3} src={:?}] {} strokes",
+                    "  [NOTE bundle p{:>3} src={:?}] {} strokes, {} highlight wash(es)",
                     page + 1,
                     source_page.map(|p| p + 1),
-                    strokes.len()
+                    strokes.len(),
+                    highlights.len()
                 );
             }
         }

@@ -21,7 +21,7 @@ use anyhow::{anyhow, Context};
 use rmfiles::{Bundle, Stroke};
 
 use crate::device::Device;
-use crate::extract::Mark;
+use crate::extract::{HighlightWash, Mark};
 use crate::ink::{ink_bbox, render_strokes, render_strokes_on_canvas, Background, InkOpts};
 
 /// DPI at which note pages are rasterized for flattening. A stroke point in the
@@ -217,13 +217,40 @@ fn rasterize_page(pdf_path: &Path, page_1based: usize) -> anyhow::Result<Vec<u8>
     std::fs::read(prefix.with_extension("png")).context("read page png")
 }
 
-/// Flatten `strokes` onto the source page: rasterize the page, draw the ink on
-/// top, and crop to the vertical span the strokes cover (full page width) so the
-/// circled/bracketed/underlined content between the marks comes along.
+/// Paint highlight wash bands onto an already-rasterized page pixmap.
+///
+/// `washes` carry scene-space rectangles; they map to page pixels with the same
+/// transform the note strokes use (`px = scene_x*scale + W/2`, `py = scene_y*scale`).
+/// The fill is translucent so the underlying text reads through, matching the
+/// on-device highlighter look.
+fn paint_washes(page: &mut tiny_skia::Pixmap, washes: &[HighlightWash], scale: f32) {
+    let half_w = page.width() as f32 / 2.0;
+    for hw in washes {
+        let left = hw.rect.x as f32 * scale + half_w;
+        let top = hw.rect.y as f32 * scale;
+        let right = (hw.rect.x + hw.rect.w) as f32 * scale + half_w;
+        let bottom = (hw.rect.y + hw.rect.h) as f32 * scale;
+        let Some(rect) = tiny_skia::Rect::from_ltrb(left, top, right, bottom) else {
+            continue;
+        };
+        let (r, g, b) = hw.rgb;
+        let mut paint = tiny_skia::Paint::default();
+        // Alpha 110 matches the highlighter ink wash in `render_strokes_on_canvas`.
+        paint.set_color_rgba8(r, g, b, 110);
+        paint.anti_alias = true;
+        page.fill_rect(rect, &paint, tiny_skia::Transform::identity(), None);
+    }
+}
+
+/// Flatten `strokes` onto the source page: rasterize the page, wash any
+/// snap-to-text highlights on it, draw the ink on top, and crop to the vertical
+/// span the strokes cover (full page width) so the circled/bracketed/underlined
+/// content between the marks — highlights included — comes along.
 fn flatten_note(
     pdf_path: &Path,
     page_1based: usize,
     strokes: &[&Stroke],
+    washes: &[HighlightWash],
 ) -> anyhow::Result<Vec<u8>> {
     let page_png = rasterize_page(pdf_path, page_1based)?;
     let mut page = tiny_skia::Pixmap::decode_png(&page_png).context("decode page png")?;
@@ -232,6 +259,11 @@ fn flatten_note(
     // Stroke scene coords → page pixels: px = scene_x*scale + W/2, py = scene_y*scale.
     let scale = RASTER_DPI / 226.0;
     let origin = (-(w as f32 / 2.0) / scale, 0.0);
+
+    // Wash highlights first (under the ink) so circled text shows highlighted but
+    // the pen strokes stay crisply on top.
+    paint_washes(&mut page, washes, scale);
+
     let opts = InkOpts {
         background: Background::Transparent,
         scale,
@@ -388,6 +420,7 @@ pub fn build_linked(
                 page,
                 source_page,
                 strokes,
+                highlights,
             } => {
                 let refs: Vec<&Stroke> = strokes.iter().collect();
                 // Flatten onto the backing source page (so circled content is
@@ -395,7 +428,7 @@ pub fn build_linked(
                 // rasterization fails.
                 let png = match (&pdf_path, *source_page) {
                     (Some(path), Some(sp)) => {
-                        flatten_note(path, sp + 1, &refs).or_else(|_| ink_only(&refs))?
+                        flatten_note(path, sp + 1, &refs, highlights).or_else(|_| ink_only(&refs))?
                     }
                     _ => ink_only(&refs)?,
                 };
@@ -417,6 +450,36 @@ pub fn build_linked(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paint_washes_tints_only_the_rect_region() {
+        use rmfiles::Rect;
+        use tiny_skia::{Color, Pixmap};
+
+        // 200px-wide page; scene x=0 maps to pixel x=100 (page centre). A wash
+        // band at scene (0,20) size 40x10 covers pixels x∈[100,140], y∈[20,30].
+        let mut page = Pixmap::new(200, 100).unwrap();
+        page.fill(Color::WHITE);
+        let washes = vec![HighlightWash {
+            rect: Rect { x: 0.0, y: 20.0, w: 40.0, h: 10.0 },
+            rgb: (255, 230, 0),
+        }];
+        paint_washes(&mut page, &washes, 1.0);
+
+        // A pixel inside the band is tinted (yellow over white → blue channel drops).
+        let inside = page.pixel(120, 25).expect("inside pixel");
+        assert!(
+            inside.red() > 230 && inside.blue() < 200,
+            "wash not applied inside band: {inside:?}"
+        );
+        // A pixel outside the band stays pure white.
+        let outside = page.pixel(10, 10).expect("outside pixel");
+        assert_eq!(
+            (outside.red(), outside.green(), outside.blue()),
+            (255, 255, 255),
+            "wash leaked outside band"
+        );
+    }
 
     #[test]
     fn locate_highlight_prefers_known_source_page() {

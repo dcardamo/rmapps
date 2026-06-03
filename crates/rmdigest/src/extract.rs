@@ -1,7 +1,16 @@
 //! Turn a bundle's changed pages into an ordered list of digest marks.
-use rmfiles::{Bundle, Stroke, TextHighlight};
+use rmfiles::{Bundle, Rect, Stroke, TextHighlight};
 
 use crate::textlayer::TextLayer;
+
+/// A highlight region to wash onto a flattened note page. `rect` is in device/
+/// scene space (the same coordinates as note strokes), so the note flattener can
+/// map it to page pixels exactly as it maps the ink.
+#[derive(Debug, Clone)]
+pub struct HighlightWash {
+    pub rect: Rect,
+    pub rgb: (u8, u8, u8),
+}
 
 /// One item destined for the digest.
 pub enum Mark {
@@ -25,6 +34,10 @@ pub enum Mark {
         page: usize,
         source_page: Option<usize>,
         strokes: Vec<Stroke>,
+        /// Snap-to-text highlights on the same page, washed onto the flattened
+        /// crop so a highlight that sits inside circled/bracketed ink shows up
+        /// highlighted there too (not just as a separate text block).
+        highlights: Vec<HighlightWash>,
     },
 }
 
@@ -52,10 +65,27 @@ pub(crate) fn page_marks(
                 page: page_index,
                 source_page: None,
                 strokes: clone_strokes(strokes),
+                // Inserted blank pages have no text layer → no snap-to-text washes.
+                highlights: Vec::new(),
             });
         }
         return marks;
     };
+
+    // Snap-to-text highlight wash regions for this page, in scene space. Attached
+    // to the note below so the flattener can paint them inside the circled crop.
+    let washes: Vec<HighlightWash> = text_highlights
+        .iter()
+        .flat_map(|h| {
+            let rgb = h
+                .color_rgba
+                .map(crate::theme::rgba_to_rgb)
+                .unwrap_or_else(|| crate::theme::pen_rgb(h.color));
+            h.rectangles
+                .iter()
+                .map(move |r| HighlightWash { rect: *r, rgb })
+        })
+        .collect();
 
     // Snap-to-text highlights: verbatim text from the device. Prefer the exact
     // recorded color (`color_rgba`); fall back to the palette color.
@@ -113,6 +143,7 @@ pub(crate) fn page_marks(
             page: page_index,
             source_page: Some(src),
             strokes: clone_strokes(&pen_strokes),
+            highlights: washes,
         });
     }
 
@@ -282,6 +313,53 @@ mod tests {
     fn dummy_transform() -> rmfiles::coords::Transform {
         // A 612×792 pt page (US Letter).
         rmfiles::coords::Transform::new((612.0, 792.0))
+    }
+
+    // A page with both a pen note and a snap-to-text highlight → the Note carries
+    // the highlight as a wash region (so the flattener can paint it inside the
+    // circled crop), AND the highlight is still emitted as its own Highlight mark.
+    #[test]
+    fn note_carries_highlight_wash_for_same_page() {
+        let stroke = make_pen_stroke();
+        let strokes = vec![&stroke];
+        let highlight = TextHighlight {
+            text: "ACTION STEPS".into(),
+            rectangles: vec![rmfiles::Rect {
+                x: -40.0,
+                y: 120.0,
+                w: 80.0,
+                h: 14.0,
+            }],
+            color: PenColor::Highlight,
+            color_rgba: None,
+        };
+        let highlights_in = vec![&highlight];
+        let transform = dummy_transform();
+        let marks = page_marks(
+            0,
+            Some(3),
+            &highlights_in,
+            &strokes,
+            &transform,
+            &|_, _| String::new(),
+        );
+
+        let note = marks
+            .iter()
+            .find_map(|m| match m {
+                Mark::Note { highlights, .. } => Some(highlights),
+                _ => None,
+            })
+            .expect("expected a Note");
+        assert_eq!(note.len(), 1, "note must carry the page's one highlight wash");
+        assert_eq!(note[0].rect.w, 80.0, "wash keeps the highlight rect geometry");
+
+        // The highlight is independently still present as its own Highlight mark.
+        let n_hl = marks
+            .iter()
+            .filter(|m| matches!(m, Mark::Highlight { .. }))
+            .count();
+        assert_eq!(n_hl, 1, "highlight still emitted as its own text block");
     }
 
     // A pen stroke on a real page → one Note carrying the strokes + source page.
