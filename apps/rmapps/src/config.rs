@@ -380,6 +380,32 @@ mod tests {
     }
 
     #[test]
+    fn accepts_digest_as_both_sweep_and_watch_action() {
+        // The intended steady-state shape: digest runs reactively via a [[watch]] rule
+        // (low latency) AND periodically via a scheduled [[sync]] sweep (the correctness
+        // backstop for transitions the reactor misses). Both must validate together —
+        // guards against reintroducing an app allowlist that would reject digest-as-sync.
+        let cfg = load_str(
+            r#"
+            [[sync]]
+            app = "digest"
+            every = "6h"
+
+            [[watch]]
+            path = "/Books"
+            action = "digest"
+        "#,
+        )
+        .unwrap();
+        cfg.validate()
+            .expect("a scheduled digest sweep alongside a watch digest rule must be valid");
+        assert_eq!(cfg.sync.len(), 1);
+        assert_eq!(cfg.sync[0].app, "digest");
+        assert_eq!(cfg.sync[0].every.as_deref(), Some("6h"));
+        assert_eq!(cfg.watch.len(), 1);
+    }
+
+    #[test]
     fn rejects_unknown_sync_fields() {
         // `trigger`/`watch` are not [[sync]] fields. serde must reject them loudly so a
         // mistaken on-change sync task fails at load instead of being silently ignored
