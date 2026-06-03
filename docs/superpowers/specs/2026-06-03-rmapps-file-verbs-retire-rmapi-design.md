@@ -98,7 +98,8 @@ Introduce `pub enum DocKind { Pdf, Epub }` and a private
 ### 4. New `get` command
 
 `rmapps get PATH [DEST]` (new module `apps/rmapps/src/get.rs`, wired in
-`main.rs`, acquires the cloud lock fail-fast like other one-shots):
+`main.rs`). It is read-only with respect to the cloud (it only writes to the
+local filesystem), so — like `ls` — it takes **no** cloud-mutation lock:
 
 - Resolve PATH read-only into parent folder + leaf name; find the document by
   leaf name among the parent's children (same pattern as `rm`).
