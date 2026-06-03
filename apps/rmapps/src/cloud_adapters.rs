@@ -30,8 +30,14 @@ impl Backend for CloudBackend<'_> {
     fn fetch(&self, doc: &CloudDoc) -> Result<Option<PathBuf>> {
         self.cloud.fetch_bundle(&doc.folder, &doc.name)
     }
-    fn put(&self, pdf: &Path, folder: &str, name: &str) -> Result<()> {
-        self.cloud.replace(folder, name, std::fs::read(pdf)?)
+    fn deploy_digest(
+        &self,
+        pdf: &Path,
+        folder: &str,
+        name: &str,
+        prev_uuid: Option<&str>,
+    ) -> Result<String> {
+        self.cloud.deploy_digest(folder, name, std::fs::read(pdf)?, prev_uuid)
     }
 }
 

@@ -177,15 +177,17 @@ fn process_doc(
     let digest_name = format!("{}{}", meta.title, cfg.output.digest_suffix);
     let digest_file = stage.path().join(format!("{}.pdf", digest_name));
     std::fs::write(&digest_file, &digest_pdf)?;
-    {
+    let uuid = {
         let _s = tracing::info_span!("digest.upload", doc = %doc.path).entered();
-        backend.put(&digest_file, &doc.folder, &digest_name)?;
-    }
+        let prev_uuid = prev.digest_uuids.first().map(String::as_str);
+        backend.deploy_digest(&digest_file, &doc.folder, &digest_name, prev_uuid)?
+    };
 
     // Persist state only after the upload succeeds, so a crash re-processes.
     prev.cloud_version = doc.version.clone();
     prev.page_hashes = ing.new_hashes;
     prev.skipped = false; // a previously-skipped doc that is now a supported kind re-engages
+    prev.digest_uuids = if uuid.is_empty() { vec![] } else { vec![uuid] };
     state.save(state_path)?;
 
     eprintln!("rmdigest: processed {}", doc.path);
@@ -258,8 +260,14 @@ mod cheap_skip_tests {
             Ok(Some(self.bundle.clone()))
         }
 
-        fn put(&self, _pdf: &std::path::Path, _folder: &str, _name: &str) -> anyhow::Result<()> {
-            Ok(())
+        fn deploy_digest(
+            &self,
+            _pdf: &std::path::Path,
+            _folder: &str,
+            _name: &str,
+            _prev_uuid: Option<&str>,
+        ) -> anyhow::Result<String> {
+            Ok(String::new())
         }
     }
 
@@ -502,7 +510,7 @@ mod tests {
 
     // ── Fake backend ─────────────────────────────────────────────────────────
 
-    type PutLog = Arc<Mutex<Vec<(String, String, Vec<u8>)>>>;
+    type PutLog = Arc<Mutex<Vec<(String, String, Vec<u8>, Option<String>)>>>;
 
     struct FakeBackend {
         /// The fixture doc to return from list().
@@ -522,13 +530,21 @@ mod tests {
             Ok(Some(self.fixture_path.clone()))
         }
 
-        fn put(&self, pdf: &Path, folder: &str, name: &str) -> anyhow::Result<()> {
+        fn deploy_digest(
+            &self,
+            pdf: &Path,
+            folder: &str,
+            name: &str,
+            prev_uuid: Option<&str>,
+        ) -> anyhow::Result<String> {
             let bytes = std::fs::read(pdf)?;
-            self.puts
-                .lock()
-                .unwrap()
-                .push((folder.to_string(), name.to_string(), bytes));
-            Ok(())
+            self.puts.lock().unwrap().push((
+                folder.to_string(),
+                name.to_string(),
+                bytes,
+                prev_uuid.map(str::to_string),
+            ));
+            Ok(format!("uuid-{name}"))
         }
     }
 
@@ -647,11 +663,11 @@ mod tests {
         // The single output ends with the digest suffix.
         let has_digest = first_puts
             .iter()
-            .any(|(_, name, _)| name.ends_with(&cfg.output.digest_suffix));
+            .any(|(_, name, _, _)| name.ends_with(&cfg.output.digest_suffix));
         assert!(has_digest, "expected a put ending with digest suffix");
 
         // It must be a valid PDF.
-        for (_, name, bytes) in &first_puts {
+        for (_, name, bytes, _) in &first_puts {
             lopdf::Document::load_mem(bytes)
                 .unwrap_or_else(|e| panic!("put '{}' is not a valid PDF: {e}", name));
         }
@@ -758,6 +774,45 @@ mod tests {
 
         run(&cfg, &backend, &state_path, &opts).expect("run over notebook");
         assert_eq!(puts.lock().unwrap().len(), 0, "notebook must produce no digest put");
+    }
+
+    #[test]
+    fn second_deploy_passes_back_prior_uuid() {
+        let fixture = fixture_path();
+        let puts = Arc::new(Mutex::new(Vec::new()));
+        let doc = CloudDoc {
+            path: "/Books/StampedLabels".to_string(),
+            name: "stamped-labels".to_string(),
+            folder: "/Books".to_string(),
+            version: None, // None → always re-processes (no cheap-skip)
+        };
+        let backend = FakeBackend {
+            fixture: doc,
+            fixture_path: fixture,
+            puts: puts.clone(),
+        };
+        let cfg = fake_cfg();
+        let state_dir = tempfile::tempdir().expect("tempdir");
+        let state_path = state_dir.path().join("state.json");
+        let opts = Opts { dry_run: false, local_output: None };
+
+        run(&cfg, &backend, &state_path, &opts).expect("first run");
+        {
+            let mut st = State::load(&state_path).unwrap();
+            let d = st.docs.get_mut("/Books/StampedLabels").unwrap();
+            d.page_hashes.clear();
+            st.save(&state_path).unwrap();
+        }
+        run(&cfg, &backend, &state_path, &opts).expect("second run");
+
+        let log = puts.lock().unwrap();
+        assert!(log.len() >= 2, "expected at least two deploys total (one per run)");
+        // The first run's deploy returns "uuid-<name>"; the second run should pass that back.
+        let first_name = &log[0].1;
+        let expected_prev_uuid = format!("uuid-{first_name}");
+        let last = log.last().unwrap();
+        assert_eq!(last.3.as_deref(), Some(expected_prev_uuid.as_str()),
+            "second deploy must receive the UUID the first run recorded");
     }
 
     #[test]

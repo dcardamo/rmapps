@@ -28,8 +28,17 @@ pub trait Backend {
     fn list(&self, root: &str, exclude_suffixes: &[String]) -> Result<Vec<CloudDoc>>;
     /// Download a document's bundle to a local temp dir; returns the bundle path.
     fn fetch(&self, doc: &CloudDoc) -> Result<Option<PathBuf>>;
-    /// Write `pdf` back as a sibling named `name` in `folder`.
-    fn put(&self, pdf: &Path, folder: &str, name: &str) -> Result<()>;
+    /// Deploy the digest `pdf` named `name` in `folder`. `prev_uuid` is the UUID a
+    /// prior run recorded for this digest (if any); a backend that has stable doc
+    /// identity should reuse it (update in place) and return the UUID the digest now
+    /// lives under. Backends without a UUID concept return an empty string.
+    fn deploy_digest(
+        &self,
+        pdf: &Path,
+        folder: &str,
+        name: &str,
+        prev_uuid: Option<&str>,
+    ) -> Result<String>;
 }
 
 /// Filesystem backend: documents are `.pdf` files under a root dir.
@@ -78,12 +87,18 @@ impl Backend for LocalBackend {
             Ok(None)
         }
     }
-    fn put(&self, pdf: &Path, folder: &str, name: &str) -> Result<()> {
+    fn deploy_digest(
+        &self,
+        pdf: &Path,
+        folder: &str,
+        name: &str,
+        _prev_uuid: Option<&str>,
+    ) -> Result<String> {
         let dest_dir = Path::new(folder);
         std::fs::create_dir_all(dest_dir)?;
         let dest = dest_dir.join(format!("{name}.pdf"));
         std::fs::copy(pdf, &dest)?;
-        Ok(())
+        Ok(String::new())
     }
 }
 
@@ -106,14 +121,15 @@ mod tests {
     }
 
     #[test]
-    fn local_backend_put_copies_pdf() {
+    fn local_backend_deploy_writes_pdf() {
         let dir = tempfile::tempdir().unwrap();
         let src = dir.path().join("src.pdf");
         std::fs::write(&src, b"pdf").unwrap();
         let backend = LocalBackend;
-        backend
-            .put(&src, &dir.path().to_string_lossy(), "out")
+        let uuid = backend
+            .deploy_digest(&src, &dir.path().to_string_lossy(), "out", None)
             .unwrap();
         assert!(dir.path().join("out.pdf").exists());
+        assert_eq!(uuid, "", "local backend has no UUID");
     }
 }
