@@ -8,6 +8,11 @@ pub enum Mark {
     /// A highlight (snap-to-text verbatim, or reconstructed from highlighter ink).
     Highlight {
         page: usize,
+        /// The backing source-PDF page (0-based) this highlight sits on. Always
+        /// present — highlights are only emitted for pages with a source page.
+        /// The digest uses this to locate the highlight's text on the correct
+        /// page even when the same phrase recurs elsewhere in the book.
+        source_page: usize,
         text: String,
         /// The highlight color as RGB — the device's exact `color_rgba` when it
         /// recorded one, else the palette color for `color`.
@@ -61,6 +66,7 @@ pub(crate) fn page_marks(
             .unwrap_or_else(|| crate::theme::pen_rgb(h.color));
         marks.push(Mark::Highlight {
             page: page_index,
+            source_page: src,
             text: h.text.clone(),
             rgb,
         });
@@ -91,6 +97,7 @@ pub(crate) fn page_marks(
                 if !text.is_empty() {
                     marks.push(Mark::Highlight {
                         page: page_index,
+                        source_page: src,
                         text,
                         rgb: crate::theme::pen_rgb(stroke.color),
                     });
@@ -449,8 +456,8 @@ mod tests {
 
         eprintln!("stamped-labels: {} highlight marks", highlights.len());
         for h in &highlights {
-            if let Mark::Highlight { text, rgb, page } = h {
-                eprintln!("  page={page} rgb={rgb:?} text={text:?}");
+            if let Mark::Highlight { text, rgb, page, source_page } = h {
+                eprintln!("  page={page} source_page={source_page} rgb={rgb:?} text={text:?}");
             }
         }
 

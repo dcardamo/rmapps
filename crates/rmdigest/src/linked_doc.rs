@@ -114,6 +114,27 @@ fn find_page(pages: &[String], phrase: &str) -> Option<usize> {
         .position(|p| p.to_lowercase().contains(&needle))
 }
 
+/// Locate the 0-based source-PDF page a highlight belongs to.
+///
+/// Prefer the highlight's own backing `source_page`: a short or recurring phrase
+/// (e.g. a section header like "ACTION STEPS") can appear verbatim on several
+/// pages, and a whole-document search would resolve to the FIRST occurrence —
+/// usually the wrong page. Only when the text isn't present on the known source
+/// page (e.g. device snap text that pdftotext renders differently) do we fall
+/// back to a global first-match search.
+fn locate_highlight(pages: &[String], source_page: Option<usize>, text: &str) -> Option<usize> {
+    let needle = text.trim().to_lowercase();
+    if needle.is_empty() {
+        return None;
+    }
+    if let Some(sp) = source_page {
+        if pages.get(sp).is_some_and(|p| p.to_lowercase().contains(&needle)) {
+            return Some(sp);
+        }
+    }
+    find_page(pages, text)
+}
+
 /// Nudge a byte index to the nearest char boundary at or before `i`.
 fn floor_boundary(s: &str, mut i: usize) -> usize {
     i = i.min(s.len());
@@ -321,14 +342,17 @@ pub fn build_linked(
     // ── One block per mark ─────────────────────────────────────────────────
     for m in marks {
         match m {
-            Mark::Highlight { page, text, rgb } => {
+            Mark::Highlight { page, source_page, text, rgb } => {
                 // Wash colour = the device's exact highlighter colour. The kicker
                 // and vertical bar use a fixed blue accent (it pops more than the
                 // pale highlight tint).
                 let (r, g, b) = *rgb;
                 // Locate the highlight in the source text → real page + context.
-                // Fall back to the bundle page index if the text isn't found.
-                let found = find_page(&doc_pages, text);
+                // Prefer the highlight's own backing source page so a recurring
+                // phrase (a header that also appears in body text elsewhere)
+                // resolves to the page the user actually marked, not the first
+                // textual match. Fall back to the bundle page if not found.
+                let found = locate_highlight(&doc_pages, Some(*source_page), text);
                 let display_page = found.map(|p| p + 1).unwrap_or(page + 1);
                 let ctx = found.and_then(|p| context(&doc_pages[p], text));
                 s.push_str(&format!(
@@ -393,6 +417,41 @@ pub fn build_linked(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn locate_highlight_prefers_known_source_page() {
+        // A short header phrase ("ACTION STEPS") appears verbatim on TWO pages:
+        // as body text on page index 1, and as the section header the user
+        // actually highlighted on page index 2. A naive global first-match search
+        // resolves to page 1 (wrong); using the highlight's own backing source
+        // page must resolve to page 2 (right).
+        let pages = vec![
+            "front matter".to_string(),
+            "We will outline the action steps required to begin.".to_string(),
+            "ACTION STEPS 1. Stop digging 2. Make a plan".to_string(),
+        ];
+        // Highlight came from source page index 2.
+        assert_eq!(locate_highlight(&pages, Some(2), "ACTION STEPS"), Some(2));
+        // Sanity: the global search alone would have picked the earlier page.
+        assert_eq!(find_page(&pages, "ACTION STEPS"), Some(1));
+    }
+
+    #[test]
+    fn locate_highlight_falls_back_to_global_search() {
+        // When the text isn't present on the claimed source page (e.g. device
+        // snap text that pdftotext renders differently, or a missing/short page),
+        // fall back to a whole-document search rather than returning nothing.
+        let pages = vec![
+            "front matter".to_string(),
+            "Roadside assistance is available to all members.".to_string(),
+        ];
+        // Source page index 0 doesn't contain the phrase → fall back finds page 1.
+        assert_eq!(locate_highlight(&pages, Some(0), "roadside assistance"), Some(1));
+        // No source page at all → pure global search.
+        assert_eq!(locate_highlight(&pages, None, "roadside assistance"), Some(1));
+        // Absent everywhere → None.
+        assert_eq!(locate_highlight(&pages, Some(0), "not present"), None);
+    }
 
     #[test]
     fn context_extracts_surrounding_sentences() {
