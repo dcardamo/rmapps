@@ -82,6 +82,8 @@ pub struct Rendered {
     pub page_ranges: std::collections::HashMap<String, crate::manifest::PageRange>,
     /// action-band cell rects (inbox/archive/later/delete), PDF bottom-left origin.
     pub label_rects: Vec<crate::manifest::LabelRect>,
+    /// Feed-only "mark all as read" button region (page + PDF-coords rect), if present.
+    pub mark_all_read: Option<crate::manifest::MarkAllReadRect>,
 }
 
 /// Render a whole collection (index + articles) to PDF via Typst and recover the
@@ -149,9 +151,25 @@ pub fn render_collection(
         }
     }
 
+    // Mark-all-read button: first occurrence of the mark-all-read region,
+    // converted Typst top-left → PDF bottom-left like the action rects.
+    let mark_all_read = regions
+        .iter()
+        .find(|r| r.name == "mark-all-read")
+        .map(|r| crate::manifest::MarkAllReadRect {
+            page: r.page,
+            rect: crate::manifest::ManifestRect {
+                x0: r.x,
+                y0: page_h - (r.y + r.h),
+                x1: r.x + r.w,
+                y1: page_h - r.y,
+            },
+        });
+
     Ok(Rendered {
         pdf,
         page_ranges,
         label_rects,
+        mark_all_read,
     })
 }

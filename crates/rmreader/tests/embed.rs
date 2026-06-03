@@ -15,6 +15,7 @@ fn sample() -> EmbeddedManifest {
             page_range: PageRange { first: 1, last: 3 },
         }],
         label_rects: Vec::new(),
+        mark_all_read: None,
     }
 }
 

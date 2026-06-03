@@ -226,6 +226,7 @@ fn main() -> anyhow::Result<()> {
         collection: String::new(),
         docs: Vec::new(),
         label_rects: Vec::new(),
+        mark_all_read: None,
     };
     let manifest = manifest_opt.as_ref().unwrap_or(&empty_manifest);
 

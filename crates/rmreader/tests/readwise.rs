@@ -1,5 +1,5 @@
 use rmreader::readwise::{
-    create_highlights, delete_document, fetch_documents, update_location, ActionKind,
+    create_highlights, delete_document, fetch_documents, mark_seen, update_location, ActionKind,
     HighlightCreate, HttpMethod, HttpResponse, HttpTransport,
 };
 use std::cell::RefCell;
@@ -303,4 +303,53 @@ fn action_kind_maps_locations() {
         Some(ActionKind::Archive)
     );
     assert_eq!(ActionKind::parse_label("nope"), None);
+}
+
+#[test]
+fn seen_field_parses_true_false_and_missing() {
+    let body = r#"{"nextPageCursor":null,"results":[
+        {"id":"a","title":"A","saved_at":"2026-01-03T00:00:00Z","seen":true,"html_content":"<p>x</p>"},
+        {"id":"b","title":"B","saved_at":"2026-01-02T00:00:00Z","seen":false,"html_content":"<p>x</p>"},
+        {"id":"c","title":"C","saved_at":"2026-01-01T00:00:00Z","html_content":"<p>x</p>"}
+    ]}"#;
+    let fake = Fake {
+        calls: RefCell::new(vec![]),
+        script: vec![(200, None, body.to_string())],
+        idx: RefCell::new(0),
+    };
+    let docs = fetch_documents(&fake, "tok", &["feed".into()], 10, |_| {}).unwrap();
+    // newest-first by saved_at: a, b, c
+    assert!(docs[0].seen, "a should be seen");
+    assert!(!docs[1].seen, "b should be unseen");
+    assert!(!docs[2].seen, "c (missing field) defaults to unseen");
+}
+
+#[test]
+fn mark_seen_patches_bulk_update_with_seen_true() {
+    let r = Recording { last: RefCell::new(None), status: 200 };
+    mark_seen(&r, "TKN", &["a".into(), "b".into()]).unwrap();
+    let last = r.last.borrow().clone().unwrap();
+    assert_eq!(last.0, HttpMethod::Patch);
+    assert_eq!(last.1, "https://readwise.io/api/v3/bulk_update/");
+    assert_eq!(last.2, "TKN");
+    let body = last.3.unwrap();
+    assert!(body.contains("\"updates\""), "body: {body}");
+    assert!(body.contains("\"id\":\"a\""), "body: {body}");
+    assert!(body.contains("\"seen\":true"), "body: {body}");
+}
+
+#[test]
+fn mark_seen_empty_is_noop() {
+    let fake = Counting { n: std::cell::RefCell::new(0) };
+    mark_seen(&fake, "TKN", &[]).unwrap();
+    assert_eq!(*fake.n.borrow(), 0, "empty ids → zero HTTP calls");
+}
+
+#[test]
+fn mark_seen_chunks_at_50() {
+    // 120 ids → 3 requests (50 + 50 + 20).
+    let fake = Counting { n: std::cell::RefCell::new(0) };
+    let ids: Vec<String> = (0..120).map(|i| format!("id{i}")).collect();
+    mark_seen(&fake, "TKN", &ids).unwrap();
+    assert_eq!(*fake.n.borrow(), 3, "120 ids must chunk into 3 requests");
 }

@@ -174,8 +174,7 @@ impl Walker<'_> {
             }
             "code" | "tt" | "kbd" | "samp" => {
                 let txt: String = el.text().collect();
-                self.out
-                    .push_str(&format!("#raw(\"{}\")", esc_typst_str(&txt)));
+                self.out.push_str(&inline_raw(&txt));
             }
             "pre" => {
                 self.block_gap();
@@ -204,6 +203,36 @@ fn push_escaped(out: &mut String, c: char) {
 /// Escape a string for a Typst double-quoted string literal.
 fn esc_typst_str(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Emit an inline `<code>` span as Typst backtick-raw markup.
+///
+/// A bare `#raw("…")` is a *code expression*, so following markup that begins with
+/// `.`, `(`, or `[` (e.g. `<code>0x10</code>.data`) is parsed as a field access /
+/// call on the raw element and the compile fails ("raw does not have field …").
+/// Backtick markup is self-delimiting, so adjacent punctuation stays literal.
+fn inline_raw(txt: &str) -> String {
+    // Inline code is single-line; fold any newlines to spaces.
+    let txt = txt.replace(['\n', '\r'], " ");
+    if txt.is_empty() {
+        return "``".to_string();
+    }
+    // Fence must be longer than the longest backtick run in the content.
+    let max_run = txt
+        .as_bytes()
+        .split(|&b| b != b'`')
+        .map(<[u8]>::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(max_run + 1);
+    // With a multi-backtick fence (content contains a backtick), Typst trims one
+    // leading and trailing space — pad so the original text round-trips. Single-
+    // backtick content keeps its spaces literally, so it needs no padding.
+    if max_run > 0 {
+        format!("{fence} {txt} {fence}")
+    } else {
+        format!("{fence}{txt}{fence}")
+    }
 }
 
 /// Collapse runs of 3+ newlines into exactly two (one blank line).
@@ -243,6 +272,23 @@ mod tests {
             t,
             "A #strong[bold] and #emph[it] #link(\"https://x.com\")[lnk]."
         );
+    }
+
+    #[test]
+    fn inline_code_uses_backtick_raw_not_code_expr() {
+        // A bare #raw("…") would chain a following ".data" as a field access and
+        // fail to compile. Backtick markup keeps adjacent punctuation literal.
+        let t = convert("<p>at <code>0x10</code>.data ok</p>");
+        assert_eq!(t, "at `0x10`.data ok");
+        assert!(!t.contains("#raw("), "must not emit a #raw(…) code expr: {t}");
+    }
+
+    #[test]
+    fn inline_code_fences_backtick_content() {
+        // Content containing a backtick needs a longer fence + space padding.
+        assert_eq!(inline_raw("a`b"), "`` a`b ``");
+        assert_eq!(inline_raw("0x10"), "`0x10`");
+        assert_eq!(inline_raw(""), "``");
     }
 
     #[test]

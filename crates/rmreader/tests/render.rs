@@ -114,3 +114,88 @@ fn render_is_deterministic() {
     let b = render_collection(&device, &theme, "Feed", &rows, &articles, &[]).unwrap();
     assert_eq!(a.pdf, b.pdf, "same input must produce byte-identical PDF");
 }
+
+#[test]
+fn feed_index_emits_mark_all_read_region() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let (rows, articles) = sample();
+    let r = render_collection(&device, &theme, "Feed", &rows, &articles, &[]).unwrap();
+    let m = r.mark_all_read.expect("Feed must emit a mark-all-read region");
+    assert_eq!(m.page, 0, "button is on the index page");
+    assert!(m.rect.x1 > m.rect.x0 && m.rect.y1 > m.rect.y0, "rect must be non-empty: {m:?}");
+}
+
+#[test]
+fn library_index_has_no_mark_all_read_region() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let (rows, articles) = sample();
+    let r = render_collection(&device, &theme, "Library", &rows, &articles, &[]).unwrap();
+    assert!(r.mark_all_read.is_none(), "Library must not render the button");
+}
+
+#[test]
+fn inline_code_followed_by_dot_field_compiles() {
+    // Regression: an inline <code> span immediately followed by ".data" (no space)
+    // used to emit `#raw("…").data`, which Typst parsed as a field access and
+    // failed to compile ("raw does not have field data"). The body below mirrors
+    // that real feed content; rendering must succeed.
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let body = rmreader::render::html2typst::convert(
+        "<p>region <code>0x100089E8</code>.data init values for kernel SRAM</p>",
+    );
+    let articles = vec![typst_doc::Article {
+        anchor: "article-x".into(),
+        title: "Mem map".into(),
+        byline: "A".into(),
+        body,
+    }];
+    let rows = vec![typst_doc::Row {
+        num: "01".into(),
+        title: "Mem map".into(),
+        author: "A".into(),
+        reading_time: "1 min".into(),
+        anchor: "article-x".into(),
+    }];
+    let r = render_collection(&device, &theme, "Feed", &rows, &articles, &[]);
+    assert!(r.is_ok(), "inline code + .data must compile: {:?}", r.err());
+}
+
+/// Count Link annotations on a single 0-based page index.
+fn links_on_page(pdf: &[u8], page_index: usize) -> usize {
+    let doc = lopdf::Document::load_mem(pdf).unwrap();
+    let pages: Vec<_> = doc.get_pages().into_values().collect();
+    let pid = pages[page_index];
+    let mut n = 0;
+    if let Ok(annots) = doc
+        .get_dictionary(pid)
+        .and_then(|p| p.get(b"Annots"))
+        .and_then(|a| a.as_array())
+    {
+        for a in annots {
+            if let Ok(ad) = a.as_reference().and_then(|id| doc.get_dictionary(id)) {
+                if ad.get(b"Subtype").ok().and_then(|s| s.as_name().ok()) == Some(b"Link") {
+                    n += 1;
+                }
+            }
+        }
+    }
+    n
+}
+
+#[test]
+fn index_page_has_nav_bar_links() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let (rows, articles) = sample();
+    let r = render_collection(&device, &theme, "Feed", &rows, &articles, &[]).unwrap();
+    // Index is page 0. Home always links; with articles present, Next links too.
+    // The two index rows also link. So the index page has multiple Link annots.
+    assert!(
+        links_on_page(&r.pdf, 0) >= 3,
+        "index page should carry Home + Next + row links, got {}",
+        links_on_page(&r.pdf, 0)
+    );
+}

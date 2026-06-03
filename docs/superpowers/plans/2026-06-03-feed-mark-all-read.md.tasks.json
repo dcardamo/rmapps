@@ -1,0 +1,57 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-03-feed-mark-all-read.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Feed shows only unread",
+      "status": "completed",
+      "description": "Add Document.seen, deserialize it, drop seen=true docs from the Feed (Library untouched). Files: readwise/mod.rs, generate.rs (drop_seen), literal fixups in assemble.rs/tests/assemble.rs/examples/make_test_pdf.rs, tests/readwise.rs + tests/generate.rs.\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/readwise/mod.rs\", \"crates/rmreader/src/generate.rs\", \"crates/rmreader/src/assemble.rs\", \"crates/rmreader/tests/readwise.rs\"], \"verifyCommand\": \"cargo test -p rmreader && cargo build -p rmreader --examples\", \"acceptanceCriteria\": [\"Document.seen parses with default false\", \"drop_seen filters seen=true\", \"feed drops seen, library does not\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Index nav bar on every index page (paging)",
+      "status": "completed",
+      "blockedBy": [
+        1
+      ],
+      "description": "Draw < Prev | Home | Next > on index pages (Library + Feed), paging through index pages; both ends dimmed on a single-page index. Files: render/typst_doc.rs (index-nav, page-header, top margin 44pt\u219276pt), tests/render.rs.\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/render/typst_doc.rs\", \"crates/rmreader/tests/render.rs\"], \"verifyCommand\": \"cargo test -p rmreader --test render\", \"acceptanceCriteria\": [\"index pages render nav bar\", \"Prev/Next page through index pages\", \"index page carries Home/Next links\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Mark-all-read button + manifest recovery",
+      "status": "completed",
+      "blockedBy": [
+        2
+      ],
+      "description": "Render a bordered recoverable button under the Feed masthead (Feed only), recover its rect into the embedded manifest. Files: manifest.rs (MarkAllReadRect + field), render/typst_doc.rs (MARK_ALL_READ_LABEL, build_index feed flag, region), render/mod.rs (Rendered.mark_all_read + recovery), generate.rs (set field), literal fixups in tests/classify.rs/embed.rs/examples/readback_overlay.rs, tests/render.rs.\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/manifest.rs\", \"crates/rmreader/src/render/typst_doc.rs\", \"crates/rmreader/src/render/mod.rs\", \"crates/rmreader/src/generate.rs\", \"crates/rmreader/tests/render.rs\"], \"verifyCommand\": \"cargo test -p rmreader && cargo build -p rmreader --examples\", \"acceptanceCriteria\": [\"EmbeddedManifest.mark_all_read added\", \"Feed index emits region recovered into manifest\", \"Library index emits none\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Classify button highlights into seen_doc_ids",
+      "status": "completed",
+      "blockedBy": [
+        3
+      ],
+      "description": "A highlight over the button (stroke geometry on its page, or snap-to-text of its label) sets Plan.seen_doc_ids to every manifest doc id. Files: readback/classify.rs (Plan.seen_doc_ids; helpers; text + stroke detection), tests/classify.rs.\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/readback/classify.rs\", \"crates/rmreader/tests/classify.rs\"], \"verifyCommand\": \"cargo test -p rmreader --test classify\", \"acceptanceCriteria\": [\"Plan.seen_doc_ids added\", \"stroke on button \u2192 all ids\", \"text label \u2192 all ids\", \"non-button stroke does not trigger\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Readwise mark_seen (bulk_update) + execute wiring",
+      "status": "completed",
+      "blockedBy": [
+        4
+      ],
+      "description": "Send seen=true for doc ids via PATCH /api/v3/bulk_update/ in chunks of \u226450; call from execute(). Files: readwise/mod.rs (BULK_UPDATE_URL + mark_seen), readback/mod.rs (execute), tests/readwise.rs.\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/readwise/mod.rs\", \"crates/rmreader/src/readback/mod.rs\", \"crates/rmreader/tests/readwise.rs\"], \"verifyCommand\": \"cargo test -p rmreader --test readwise\", \"acceptanceCriteria\": [\"mark_seen PATCHes bulk_update with seen:true\", \"empty is no-op\", \"chunks at 50\", \"execute calls mark_seen when ids present\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Tighten article chrome + visual verification",
+      "status": "completed",
+      "blockedBy": [
+        5
+      ],
+      "description": "Action band sits just under the nav bar (no big gap), body rises; verify rendered layout with the user. Files: render/typst_doc.rs (article header spacing; #article top margin 120pt\u2192104pt), tests/render.rs guardrail. User verification: AskUserQuestion on the rendered layout; if 'Needs tuning', adjust + re-render + re-verify.\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/render/typst_doc.rs\"], \"verifyCommand\": \"cargo test -p rmreader --test render\", \"acceptanceCriteria\": [\"inter-bar gap small\", \"article body raised\", \"render tests pass\", \"user confirms layout\"], \"requiresUserVerification\": true, \"userVerificationPrompt\": \"Does the tightened article chrome look right on a reMarkable-sized page \u2014 bars adjacent, nothing clipped, body not crowded?\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-03T12:40:00Z"
+}

@@ -30,6 +30,9 @@ pub struct Article {
 /// The four action labels stamped in the per-page action band, in column order.
 pub const ACTION_LABELS: [&str; 4] = ["INBOX", "ARCHIVE", "LATER", "DELETE"];
 
+/// Text + recoverable-region name for the Feed-only "mark all as read" button.
+pub const MARK_ALL_READ_LABEL: &str = "MARK ALL AS READ";
+
 /// Build a valid Typst string-array literal from items: `()` when empty,
 /// `("a", "b", )` otherwise. The trailing comma keeps a single-element literal
 /// from parsing as grouping parens rather than a 1-element array.
@@ -162,6 +165,34 @@ pub fn build(
       cell([< Prev], prev), home, cell([Next >], next))))
 }}
 
+// Index nav bar: < Prev | Home | Next >, paging through index pages. Index pages
+// are pages 1..=(firstArticlePage-1) (1-based), or all pages when there are no
+// articles. Prev/Next link to absolute page positions; inert cells are dimmed.
+#let index-nav() = context {{
+  let p = here().position().page
+  let first-art = if order.len() == 0 {{ none }} else {{
+    let m = query(label("art-" + order.at(0)))
+    if m.len() == 0 {{ none }} else {{ m.first().location().page() }}
+  }}
+  let last-index = if first-art == none {{ counter(page).final().first() }} else {{ first-art - 1 }}
+  let prev = if p > 1 {{ p - 1 }} else {{ none }}
+  let next = if p < last-index {{ p + 1 }} else {{ none }}
+  let cell(txt, target) = align(center + horizon, if target == none {{
+    text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+      fill: navfg.transparentize(55%), txt)
+  }} else {{
+    link((page: target, x: 0pt, y: 0pt),
+      text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+        fill: navfg, txt))
+  }})
+  let home = align(center + horizon, link(<index-home>,
+    text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+      fill: navfg, "Home")))
+  block(width: 100%, height: 24pt, fill: navbg, inset: (x: 10pt),
+    align(horizon, grid(columns: (1fr, 1fr, 1fr),
+      cell([< Prev], prev), home, cell([Next >], next))))
+}}
+
 // Action band: INBOX | ARCHIVE | LATER | DELETE, indigo on paper. Each cell is a
 // full outlined box (adjacent boxes share edges → a continuous bordered row) and
 // a recoverable region. Article pages only.
@@ -178,15 +209,20 @@ pub fn build(
   }}
 }}
 
-// Per-page chrome: nav bar + action band. Article pages only — on the index
-// (no active section) there is no chrome and the small toolbar-clearance top
-// margin keeps the masthead near the top.
+// Per-page chrome. Article pages get nav bar + action band (tall reserved
+// header). Index pages get just the paging nav bar, below the toolbar-clearance
+// gap, above the masthead.
 #let page-header() = context {{
-  if section-state.at(here()) == "" {{ none }} else {{
-    block(width: 100%, height: 112pt)[
-      #v(37pt, weak: false)
+  if section-state.at(here()) == "" {{
+    block(width: 100%)[
+      #v(34pt, weak: false)
+      #index-nav()
+    ]
+  }} else {{
+    block(width: 100%, height: 96pt)[
+      #v(34pt, weak: false)
       #nav-bar()
-      #v(20pt, weak: false)
+      #v(4pt, weak: false)
       #action-band()
     ]
   }}
@@ -196,12 +232,13 @@ pub fn build(
 // Emits a <region> metadata recording this article's first page (for page_range
 // recovery) and attaches the article link target to the headline.
 //
-// Article pages restore the tall top margin (120pt) that reserves room for the
-// per-page chrome header (nav bar + action band) drawn in the margin. The index
-// pages keep the small toolbar-clearance margin set globally below, so they
-// don't waste the top of every page.
+// Article pages restore the top margin that reserves room for the per-page
+// chrome header (nav bar + action band) drawn in the margin: 96pt header block
+// + 8pt header-ascent = 104pt. The index pages keep the small
+// toolbar-clearance margin set globally below, so they don't waste the top of
+// every page.
 #let article(id, title-text, byline-text, body) = {{
-  set page(margin: (top: 120pt, right: 16pt, bottom: 30pt, left: 16pt))
+  set page(margin: (top: 104pt, right: 16pt, bottom: 30pt, left: 16pt))
   section-state.update(id)
   pagebreak(weak: true)
   context [#metadata((name: "art-" + id, page: here().position().page - 1)) <region>]
@@ -213,15 +250,14 @@ pub fn build(
   body
 }}
 
-// Index pages get a small top margin that clears the reMarkable toolbar (it
-// overlays ~36pt of the page) plus a little breathing room, so the masthead's
-// top edge isn't clipped under the toolbar. Article pages
-// restore the tall 120pt top margin inside `#article` to reserve the per-page
-// chrome header. This keeps the index masthead near the top instead of pushed
-// down by a header-sized gap that the index never uses.
+// Index pages get a top margin (76pt) that clears the reMarkable toolbar (it
+// overlays ~36pt of the page) and reserves room for the index nav bar drawn in
+// the header, so the masthead sits just below the bar. Article pages restore a
+// taller 104pt top margin inside `#article` to reserve the per-page chrome
+// header (nav bar + action band).
 #set page(
   width: {w}pt, height: {h}pt,
-  margin: (top: 44pt, right: 16pt, bottom: 30pt, left: 16pt),
+  margin: (top: 76pt, right: 16pt, bottom: 30pt, left: 16pt),
   fill: paper,
   header-ascent: 8pt,
   header: page-header(),
@@ -233,7 +269,7 @@ pub fn build(
     ));
 
     // ---- Index page -------------------------------------------------------
-    s.push_str(&build_index(collection, rows));
+    s.push_str(&build_index(collection, rows, collection == "Feed"));
 
     // ---- Articles ---------------------------------------------------------
     for a in articles {
@@ -249,7 +285,7 @@ pub fn build(
     s
 }
 
-fn build_index(collection: &str, rows: &[Row]) -> String {
+fn build_index(collection: &str, rows: &[Row], feed: bool) -> String {
     let mut s = String::new();
     // Masthead. The <index-home> label anchors the nav bar's Home link. The
     // subhead/reading-times are lowercase to match the deployed look: the old
@@ -263,6 +299,19 @@ fn build_index(collection: &str, rows: &[Row]) -> String {
         title = esc_markup(collection),
         count = rows.len(),
     ));
+
+    // Feed-only "mark all as read" button: a bordered, tappable, recoverable
+    // region under the masthead. region(...) records its page+rect as <region>
+    // metadata, recovered by render::render_collection into the manifest.
+    if feed {
+        s.push_str(&format!(
+            "#block(above: 4pt, below: 10pt, region(\"mark-all-read\", \
+             box(stroke: 0.8pt + heading-col, inset: (x: 10pt, y: 6pt), radius: 2pt, \
+             text(font: \"Hanken Grotesk\", size: 9pt, weight: \"semibold\", \
+             tracking: 0.12em, fill: heading-col, [{label}]))))\n",
+            label = esc_markup(MARK_ALL_READ_LABEL),
+        ));
+    }
 
     for r in rows {
         // Row: tomato number | serif title — author | muted reading-time,
