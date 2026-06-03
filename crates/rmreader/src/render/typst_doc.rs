@@ -162,6 +162,34 @@ pub fn build(
       cell([< Prev], prev), home, cell([Next >], next))))
 }}
 
+// Index nav bar: < Prev | Home | Next >, paging through index pages. Index pages
+// are pages 1..=(firstArticlePage-1) (1-based), or all pages when there are no
+// articles. Prev/Next link to absolute page positions; inert cells are dimmed.
+#let index-nav() = context {{
+  let p = here().position().page
+  let first-art = if order.len() == 0 {{ none }} else {{
+    let m = query(label("art-" + order.at(0)))
+    if m.len() == 0 {{ none }} else {{ m.first().location().page() }}
+  }}
+  let last-index = if first-art == none {{ counter(page).final().first() }} else {{ first-art - 1 }}
+  let prev = if p > 1 {{ p - 1 }} else {{ none }}
+  let next = if p < last-index {{ p + 1 }} else {{ none }}
+  let cell(txt, target) = align(center + horizon, if target == none {{
+    text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+      fill: navfg.transparentize(55%), txt)
+  }} else {{
+    link((page: target, x: 0pt, y: 0pt),
+      text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+        fill: navfg, txt))
+  }})
+  let home = align(center + horizon, link(<index-home>,
+    text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+      fill: navfg, "Home")))
+  block(width: 100%, height: 24pt, fill: navbg, inset: (x: 10pt),
+    align(horizon, grid(columns: (1fr, 1fr, 1fr),
+      cell([< Prev], prev), home, cell([Next >], next))))
+}}
+
 // Action band: INBOX | ARCHIVE | LATER | DELETE, indigo on paper. Each cell is a
 // full outlined box (adjacent boxes share edges → a continuous bordered row) and
 // a recoverable region. Article pages only.
@@ -178,15 +206,20 @@ pub fn build(
   }}
 }}
 
-// Per-page chrome: nav bar + action band. Article pages only — on the index
-// (no active section) there is no chrome and the small toolbar-clearance top
-// margin keeps the masthead near the top.
+// Per-page chrome. Article pages get nav bar + action band (tall reserved
+// header). Index pages get just the paging nav bar, below the toolbar-clearance
+// gap, above the masthead.
 #let page-header() = context {{
-  if section-state.at(here()) == "" {{ none }} else {{
-    block(width: 100%, height: 112pt)[
-      #v(37pt, weak: false)
+  if section-state.at(here()) == "" {{
+    block(width: 100%)[
+      #v(34pt, weak: false)
+      #index-nav()
+    ]
+  }} else {{
+    block(width: 100%, height: 96pt)[
+      #v(34pt, weak: false)
       #nav-bar()
-      #v(20pt, weak: false)
+      #v(4pt, weak: false)
       #action-band()
     ]
   }}
@@ -221,7 +254,7 @@ pub fn build(
 // down by a header-sized gap that the index never uses.
 #set page(
   width: {w}pt, height: {h}pt,
-  margin: (top: 44pt, right: 16pt, bottom: 30pt, left: 16pt),
+  margin: (top: 76pt, right: 16pt, bottom: 30pt, left: 16pt),
   fill: paper,
   header-ascent: 8pt,
   header: page-header(),

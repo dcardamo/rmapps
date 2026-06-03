@@ -114,3 +114,40 @@ fn render_is_deterministic() {
     let b = render_collection(&device, &theme, "Feed", &rows, &articles, &[]).unwrap();
     assert_eq!(a.pdf, b.pdf, "same input must produce byte-identical PDF");
 }
+
+/// Count Link annotations on a single 0-based page index.
+fn links_on_page(pdf: &[u8], page_index: usize) -> usize {
+    let doc = lopdf::Document::load_mem(pdf).unwrap();
+    let pages: Vec<_> = doc.get_pages().into_values().collect();
+    let pid = pages[page_index];
+    let mut n = 0;
+    if let Ok(annots) = doc
+        .get_dictionary(pid)
+        .and_then(|p| p.get(b"Annots"))
+        .and_then(|a| a.as_array())
+    {
+        for a in annots {
+            if let Ok(ad) = a.as_reference().and_then(|id| doc.get_dictionary(id)) {
+                if ad.get(b"Subtype").ok().and_then(|s| s.as_name().ok()) == Some(b"Link") {
+                    n += 1;
+                }
+            }
+        }
+    }
+    n
+}
+
+#[test]
+fn index_page_has_nav_bar_links() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let (rows, articles) = sample();
+    let r = render_collection(&device, &theme, "Feed", &rows, &articles, &[]).unwrap();
+    // Index is page 0. Home always links; with articles present, Next links too.
+    // The two index rows also link. So the index page has multiple Link annots.
+    assert!(
+        links_on_page(&r.pdf, 0) >= 3,
+        "index page should carry Home + Next + row links, got {}",
+        links_on_page(&r.pdf, 0)
+    );
+}
