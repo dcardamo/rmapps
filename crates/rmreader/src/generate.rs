@@ -255,6 +255,7 @@ fn build_one(
         }
     }
     embedded.label_rects = rendered.label_rects;
+    embedded.mark_all_read = rendered.mark_all_read;
     let mut pdf_doc = lopdf::Document::load_mem(&rendered.pdf)?;
     crate::embed::write(&mut pdf_doc, &embedded)?;
     pdf_doc.save(&pdf_path)?;

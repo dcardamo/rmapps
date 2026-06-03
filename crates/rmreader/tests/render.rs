@@ -115,6 +115,26 @@ fn render_is_deterministic() {
     assert_eq!(a.pdf, b.pdf, "same input must produce byte-identical PDF");
 }
 
+#[test]
+fn feed_index_emits_mark_all_read_region() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let (rows, articles) = sample();
+    let r = render_collection(&device, &theme, "Feed", &rows, &articles, &[]).unwrap();
+    let m = r.mark_all_read.expect("Feed must emit a mark-all-read region");
+    assert_eq!(m.page, 0, "button is on the index page");
+    assert!(m.rect.x1 > m.rect.x0 && m.rect.y1 > m.rect.y0, "rect must be non-empty: {m:?}");
+}
+
+#[test]
+fn library_index_has_no_mark_all_read_region() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let (rows, articles) = sample();
+    let r = render_collection(&device, &theme, "Library", &rows, &articles, &[]).unwrap();
+    assert!(r.mark_all_read.is_none(), "Library must not render the button");
+}
+
 /// Count Link annotations on a single 0-based page index.
 fn links_on_page(pdf: &[u8], page_index: usize) -> usize {
     let doc = lopdf::Document::load_mem(pdf).unwrap();

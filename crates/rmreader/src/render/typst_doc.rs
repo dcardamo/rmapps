@@ -30,6 +30,9 @@ pub struct Article {
 /// The four action labels stamped in the per-page action band, in column order.
 pub const ACTION_LABELS: [&str; 4] = ["INBOX", "ARCHIVE", "LATER", "DELETE"];
 
+/// Text + recoverable-region name for the Feed-only "mark all as read" button.
+pub const MARK_ALL_READ_LABEL: &str = "MARK ALL AS READ";
+
 /// Build a valid Typst string-array literal from items: `()` when empty,
 /// `("a", "b", )` otherwise. The trailing comma keeps a single-element literal
 /// from parsing as grouping parens rather than a 1-element array.
@@ -266,7 +269,7 @@ pub fn build(
     ));
 
     // ---- Index page -------------------------------------------------------
-    s.push_str(&build_index(collection, rows));
+    s.push_str(&build_index(collection, rows, collection == "Feed"));
 
     // ---- Articles ---------------------------------------------------------
     for a in articles {
@@ -282,7 +285,7 @@ pub fn build(
     s
 }
 
-fn build_index(collection: &str, rows: &[Row]) -> String {
+fn build_index(collection: &str, rows: &[Row], feed: bool) -> String {
     let mut s = String::new();
     // Masthead. The <index-home> label anchors the nav bar's Home link. The
     // subhead/reading-times are lowercase to match the deployed look: the old
@@ -296,6 +299,19 @@ fn build_index(collection: &str, rows: &[Row]) -> String {
         title = esc_markup(collection),
         count = rows.len(),
     ));
+
+    // Feed-only "mark all as read" button: a bordered, tappable, recoverable
+    // region under the masthead. region(...) records its page+rect as <region>
+    // metadata, recovered by render::render_collection into the manifest.
+    if feed {
+        s.push_str(&format!(
+            "#block(above: 4pt, below: 10pt, region(\"mark-all-read\", \
+             box(stroke: 0.8pt + heading-col, inset: (x: 10pt, y: 6pt), radius: 2pt, \
+             text(font: \"Hanken Grotesk\", size: 9pt, weight: \"semibold\", \
+             tracking: 0.12em, fill: heading-col, [{label}]))))\n",
+            label = esc_markup(MARK_ALL_READ_LABEL),
+        ));
+    }
 
     for r in rows {
         // Row: tomato number | serif title — author | muted reading-time,

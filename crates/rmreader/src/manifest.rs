@@ -62,6 +62,7 @@ impl Manifest {
                 .collect(),
             // Filled by postprocess::finalize_pdf once page geometry is known.
             label_rects: Vec::new(),
+            mark_all_read: None,
         }
     }
 }
@@ -95,6 +96,13 @@ pub struct LabelRect {
     pub rect: ManifestRect,
 }
 
+/// The "mark all as read" button's tap region on the Feed index page.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MarkAllReadRect {
+    pub page: usize, // 0-based
+    pub rect: ManifestRect,
+}
+
 /// Per-doc record embedded in the PDF for read-back.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EmbeddedDoc {
@@ -119,6 +127,9 @@ pub struct EmbeddedManifest {
     /// postprocess. Empty until postprocess runs.
     #[serde(default)]
     pub label_rects: Vec<LabelRect>,
+    /// Feed-only "mark all as read" button region; None for Library / when absent.
+    #[serde(default)]
+    pub mark_all_read: Option<MarkAllReadRect>,
 }
 
 impl EmbeddedManifest {

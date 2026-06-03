@@ -67,6 +67,7 @@ fn manifest() -> EmbeddedManifest {
                 },
             },
         ],
+        mark_all_read: None,
     }
 }
 
@@ -319,6 +320,7 @@ fn manifest_with_category(reader_category: &str) -> EmbeddedManifest {
             page_range: PageRange { first: 0, last: 0 },
         }],
         label_rects: vec![],
+        mark_all_read: None,
     }
 }
 
