@@ -488,8 +488,10 @@ mod tests {
     fn next_scheduled_instant_returns_soonest_of_two_tasks() {
         // Two never-run `every` tasks: next_fire for a never-run interval task is
         // `now + interval`, so the soonest deadline is the shorter interval (1m).
-        let mut cfg = Config::default();
-        cfg.sync = vec![task_every("digest", "1h"), task_every("reader", "1m")];
+        let cfg = Config {
+            sync: vec![task_every("digest", "1h"), task_every("reader", "1m")],
+            ..Default::default()
+        };
 
         let now = Instant::now();
         let got = next_scheduled_instant(&cfg, &state::WatchState::default(), now)

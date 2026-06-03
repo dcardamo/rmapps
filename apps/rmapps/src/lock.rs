@@ -65,6 +65,7 @@ pub fn acquire_at(path: &Path, op: &str, wait: Wait) -> Result<CloudLock> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path)
         .with_context(|| format!("opening lock file {}", path.display()))?;
 

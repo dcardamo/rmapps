@@ -561,8 +561,8 @@ mod resolved_tests {
 
         client.rm("a").await.unwrap();
         let tree = client.resolved_snapshot().await.unwrap();
-        assert!(tree.docs.get("a").is_none());
-        assert!(tree.docs.get("b").is_some());
+        assert!(!tree.docs.contains_key("a"));
+        assert!(tree.docs.contains_key("b"));
     }
 
     #[tokio::test]
@@ -590,7 +590,7 @@ mod resolved_tests {
         client.put(df).await.unwrap();
         client.put(pdf_doc("real", "Real", "")).await.unwrap();
         let tree = client.resolved_snapshot().await.unwrap();
-        assert!(tree.docs.get("ghost").is_none(), "deleted doc must be excluded");
-        assert!(tree.docs.get("real").is_some());
+        assert!(!tree.docs.contains_key("ghost"), "deleted doc must be excluded");
+        assert!(tree.docs.contains_key("real"));
     }
 }

@@ -42,7 +42,7 @@ pub fn diff_ids(
 ) -> Vec<String> {
     current
         .iter()
-        .filter(|(id, h)| baseline.get(*id).map_or(true, |b| b != *h))
+        .filter(|(id, h)| baseline.get(*id).is_none_or(|b| b != *h))
         .map(|(id, _)| id.clone())
         .collect()
 }
