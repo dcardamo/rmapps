@@ -40,6 +40,18 @@ pub struct DocFiles {
 }
 
 impl DocFiles {
+    /// Shared `DocumentType` metadata for a freshly-created document.
+    fn base_metadata(visible_name: &str, parent: &str) -> Metadata {
+        Metadata {
+            visible_name: visible_name.to_string(),
+            doc_type: "DocumentType".to_string(),
+            parent: parent.to_string(),
+            last_modified: super::document::now_millis(),
+            deleted: false,
+            extra: Default::default(),
+        }
+    }
+
     /// Build a brand-new PDF document file-set: a fresh UUID, a `DocumentType`
     /// `.metadata` (named `visible_name`, under `parent`), a full PDF `.content`,
     /// and the `.pdf` blob. No `.rm` ink yet — the device adds those when the user
@@ -58,18 +70,6 @@ impl DocFiles {
     /// Generating the page UUIDs here is correct: the reader deploys via a
     /// destructive `replace` (a fresh doc each run), and for bujo's content-only
     /// path the `.content` is written once at create and preserved on refresh.
-    /// Shared `DocumentType` metadata for a freshly-created document.
-    fn base_metadata(visible_name: &str, parent: &str) -> Metadata {
-        Metadata {
-            visible_name: visible_name.to_string(),
-            doc_type: "DocumentType".to_string(),
-            parent: parent.to_string(),
-            last_modified: super::document::now_millis(),
-            deleted: false,
-            extra: Default::default(),
-        }
-    }
-
     pub fn new_pdf(visible_name: &str, parent: &str, pdf: Vec<u8>) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let meta = Self::base_metadata(visible_name, parent);
