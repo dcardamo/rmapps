@@ -232,12 +232,13 @@ pub fn build(
 // Emits a <region> metadata recording this article's first page (for page_range
 // recovery) and attaches the article link target to the headline.
 //
-// Article pages restore the tall top margin (120pt) that reserves room for the
-// per-page chrome header (nav bar + action band) drawn in the margin. The index
-// pages keep the small toolbar-clearance margin set globally below, so they
-// don't waste the top of every page.
+// Article pages restore the top margin that reserves room for the per-page
+// chrome header (nav bar + action band) drawn in the margin: 96pt header block
+// + 8pt header-ascent = 104pt. The index pages keep the small
+// toolbar-clearance margin set globally below, so they don't waste the top of
+// every page.
 #let article(id, title-text, byline-text, body) = {{
-  set page(margin: (top: 120pt, right: 16pt, bottom: 30pt, left: 16pt))
+  set page(margin: (top: 104pt, right: 16pt, bottom: 30pt, left: 16pt))
   section-state.update(id)
   pagebreak(weak: true)
   context [#metadata((name: "art-" + id, page: here().position().page - 1)) <region>]
