@@ -208,6 +208,44 @@ impl Cloud {
             .map_err(|e| anyhow!("create {name}: {e}"))
     }
 
+    /// Deploy the digest PDF as a single broadcasting commit. When `prev_uuid` still
+    /// exists in `folder`, the digest doc is upserted in place under that same UUID
+    /// (rebuilding `.content`/`.metadata` for the new PDF, so a grown digest's page
+    /// count stays correct) — no duplicate flashing, one commit. Otherwise a fresh doc
+    /// is created and any pre-existing same-named docs are swept (converging older
+    /// `replace`-minted duplicates). Broadcasts so the device pulls the update promptly.
+    /// Returns the UUID the digest now lives under.
+    pub fn deploy_digest(
+        &self,
+        folder: &str,
+        name: &str,
+        pdf: Vec<u8>,
+        prev_uuid: Option<&str>,
+    ) -> Result<String> {
+        let folder_id = self.ensure_folder(folder)?;
+        let existing = self.doc_ids_in(&folder_id, name)?;
+
+        // Reuse the prior UUID only if that exact doc still exists in this folder.
+        let reuse = prev_uuid.filter(|u| existing.iter().any(|e| e == u));
+
+        // Build a fresh doc for the new PDF (correct .content page list), then pin the id.
+        let mut df = DocFiles::new_pdf(name, &folder_id, pdf);
+        if let Some(u) = reuse {
+            df.id = u.to_string();
+        } else {
+            // Create branch: sweep every pre-existing same-named doc so we converge
+            // away from any duplicate state before creating the canonical one.
+            for id in &existing {
+                let _ = self.rt.block_on(self.client.rm(id));
+            }
+        }
+        let id = df.id.clone();
+        self.rt
+            .block_on(self.client.put_broadcast(df))
+            .map_err(|e| anyhow!("deploy digest {name}: {e}"))?;
+        Ok(id)
+    }
+
     /// `replace` against an already-resolved folder id (no path resolution). Sweeps
     /// EVERY same-named doc before creating, so it converges pre-existing duplicates.
     pub fn replace_in(&self, folder_id: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
@@ -507,6 +545,64 @@ mod tests {
             "second get re-queried the cloud instead of reusing the memoized id"
         );
         assert_eq!(id_a, id_b);
+    }
+
+    /// First deploy creates one doc and broadcasts; reusing the returned UUID
+    /// updates that same doc in place (no new id, still one doc) and broadcasts.
+    #[test]
+    fn deploy_digest_reuses_uuid_and_broadcasts() {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let cloud = cloud_from_client(Client::from_user_token(
+            CloudConfig::single_host(&fake.base), "user-token",
+        ));
+
+        let folder = cloud.ensure_folder("/Books").unwrap();
+
+        let uuid1 = cloud
+            .deploy_digest("/Books", "Book.digest", b"%PDF-v1".to_vec(), None)
+            .unwrap();
+        assert!(!uuid1.is_empty(), "first deploy returns a UUID");
+        assert_eq!(cloud.doc_ids_in(&folder, "Book.digest").unwrap().len(), 1);
+        assert_eq!(fake.broadcast_count(), 1, "first deploy must broadcast");
+
+        let uuid2 = cloud
+            .deploy_digest("/Books", "Book.digest", b"%PDF-v2".to_vec(), Some(&uuid1))
+            .unwrap();
+        assert_eq!(uuid2, uuid1, "reused UUID must be returned unchanged");
+        let ids = cloud.doc_ids_in(&folder, "Book.digest").unwrap();
+        assert_eq!(ids.len(), 1, "reuse must not create a second doc");
+        assert_eq!(ids[0], uuid1, "the one doc keeps the original UUID");
+        assert_eq!(fake.broadcast_count(), 2, "second deploy must broadcast");
+    }
+
+    /// Create-branch (no/stale prior UUID) sweeps pre-existing duplicates to one.
+    #[test]
+    fn deploy_digest_create_branch_sweeps_duplicates() {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let seed = Client::from_user_token(CloudConfig::single_host(&fake.base), "user-token");
+
+        let folder = rt.block_on(seed.mkdir("Books", "")).unwrap();
+        for id in [
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        ] {
+            rt.block_on(seed.put(doc_with_pdf(id, "Book.digest", &folder, b"%PDF-old")))
+                .unwrap();
+        }
+
+        let cloud = cloud_from_client(Client::from_user_token(
+            CloudConfig::single_host(&fake.base), "user-token",
+        ));
+        assert_eq!(cloud.doc_ids_in(&folder, "Book.digest").unwrap().len(), 2);
+
+        let uuid = cloud
+            .deploy_digest("/Books", "Book.digest", b"%PDF-new".to_vec(), Some("not-a-real-uuid"))
+            .unwrap();
+        let ids = cloud.doc_ids_in(&folder, "Book.digest").unwrap();
+        assert_eq!(ids.len(), 1, "create branch must sweep to exactly one doc");
+        assert_eq!(ids[0], uuid, "the surviving doc is the freshly created one");
     }
 
     /// bujo deploys many PDFs to ONE target folder; a single resolver must yield one
