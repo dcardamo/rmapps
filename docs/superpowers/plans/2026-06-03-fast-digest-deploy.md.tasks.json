@@ -1,0 +1,33 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-03-fast-digest-deploy.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Record broadcast flag in rm-cloud fake",
+      "status": "pending",
+      "description": "**Goal:** Let tests observe whether a commit was sent with broadcast: true.\n\n**Files:**\n- Modify: crates/rm-cloud/src/fake/mod.rs (add broadcast_commits to State; broadcast_count() getter)\n- Modify: crates/rm-cloud/src/fake/handlers.rs (root_put records the flag; drop #[allow(dead_code)])\n\n**Verify:** cargo test -p rm-cloud --features fake broadcast_count\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/fake/mod.rs\", \"crates/rm-cloud/src/fake/handlers.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud --features fake broadcast_count\", \"acceptanceCriteria\": [\"broadcast_count() reports broadcasting commits\", \"put=0, put_broadcast=1\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Cloud::deploy_digest broadcasting stable-UUID upsert",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** One method deploying the digest PDF as a single broadcasting commit, reusing prior UUID when present, else create + sweep duplicates. Returns the UUID used.\n\n**Files:**\n- Modify: apps/rmapps/src/cloud.rs (add deploy_digest + tests)\n\n**Verify:** cargo test -p rmapps deploy_digest\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/cloud.rs\"], \"verifyCommand\": \"cargo test -p rmapps deploy_digest\", \"acceptanceCriteria\": [\"create returns UUID + broadcasts\", \"reuse keeps same id, one doc, broadcasts\", \"create branch sweeps duplicates\", \"stale UUID falls back to create\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Wire stable-UUID deploy seam through rmdigest",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Replace Backend::put with deploy_digest, persist returned UUID in DocState.digest_uuids, route CloudBackend through Cloud::deploy_digest.\n\n**Files:**\n- Modify: crates/rmdigest/src/deploy.rs (trait + LocalBackend)\n- Modify: crates/rmdigest/src/generate.rs (process_doc + in-crate fakes)\n- Modify: apps/rmapps/src/cloud_adapters.rs (CloudBackend)\n\n**Verify:** cargo test -p rmdigest && cargo build -p rmapps\n\n```json:metadata\n{\"files\": [\"crates/rmdigest/src/deploy.rs\", \"crates/rmdigest/src/generate.rs\", \"apps/rmapps/src/cloud_adapters.rs\"], \"verifyCommand\": \"cargo test -p rmdigest && cargo build -p rmapps\", \"acceptanceCriteria\": [\"Backend::deploy_digest replaces put\", \"process_doc threads + persists UUID\", \"LocalBackend returns empty UUID\", \"CloudBackend delegates\", \"round-trip test passes prior UUID\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Full suite + on-device verification with Dan",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Workspace green, then Dan verifies on-device that the digest updates within seconds with no duplicates.\n\n**Verify:** cargo test, then user-verification prompt.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"cargo test\", \"acceptanceCriteria\": [\"workspace tests pass\", \"digest updates on-device within seconds\", \"no duplicate digest files\"], \"requiresUserVerification\": true, \"userVerificationPrompt\": \"Annotate a PDF in a watched folder. Does the digest update on your reMarkable within a few seconds, with no duplicate digest files?\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-03"
+}
