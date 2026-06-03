@@ -120,6 +120,11 @@ pub fn execute(t: &dyn HttpTransport, token: &str, plan: &Plan) {
     if let Err(e) = readwise::create_highlights(t, token, &plan.highlights) {
         eprintln!("[rmreader] create_highlights failed: {e:#}");
     }
+    if !plan.seen_doc_ids.is_empty() {
+        if let Err(e) = readwise::mark_seen(t, token, &plan.seen_doc_ids) {
+            eprintln!("[rmreader] mark_seen failed: {e:#}");
+        }
+    }
     for w in &plan.warnings {
         eprintln!("[rmreader] readback: {w}");
     }

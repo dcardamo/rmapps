@@ -8,6 +8,7 @@ const AUTH_URL: &str = "https://readwise.io/api/v2/auth/";
 const UPDATE_URL: &str = "https://readwise.io/api/v3/update/";
 const DELETE_URL: &str = "https://readwise.io/api/v3/delete/";
 const HL_URL: &str = "https://readwise.io/api/v2/highlights/";
+const BULK_UPDATE_URL: &str = "https://readwise.io/api/v3/bulk_update/";
 
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
@@ -125,6 +126,25 @@ pub fn delete_document(t: &dyn HttpTransport, token: &str, id: &str) -> anyhow::
         "delete {id} failed: HTTP {}",
         r.status
     );
+    Ok(())
+}
+
+/// Mark documents read (`seen=true`) via the bulk-update endpoint. Chunked at 50
+/// ids/request (the API max). Empty input is a no-op (zero HTTP calls).
+pub fn mark_seen(t: &dyn HttpTransport, token: &str, ids: &[String]) -> anyhow::Result<()> {
+    for chunk in ids.chunks(50) {
+        let updates: Vec<_> = chunk
+            .iter()
+            .map(|id| serde_json::json!({ "id": id, "seen": true }))
+            .collect();
+        let body = serde_json::json!({ "updates": updates }).to_string();
+        let r = t.request(HttpMethod::Patch, BULK_UPDATE_URL, token, Some(&body))?;
+        anyhow::ensure!(
+            (200..300).contains(&r.status),
+            "bulk_update (seen) failed: HTTP {}",
+            r.status
+        );
+    }
     Ok(())
 }
 
