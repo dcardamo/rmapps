@@ -17,6 +17,10 @@ pub struct DocState {
     pub page_hashes: BTreeMap<String, String>,
     /// the digest docs we created (so a later run can replace them in place)
     pub digest_uuids: Vec<String>,
+    /// True if this source was skipped as an unsupported kind (e.g. a native
+    /// notebook). Lets a later run cheap-skip without re-fetching the bundle.
+    #[serde(default)]
+    pub skipped: bool,
 }
 
 impl State {
@@ -63,6 +67,7 @@ mod tests {
             cloud_version: Some("v42".into()),
             page_hashes: BTreeMap::from([("p1.rm".into(), "abcdef".into())]),
             digest_uuids: vec!["uuid-digest-1".into()],
+            skipped: false,
         };
         state.docs.insert("/Books/SomeBook".into(), doc);
 

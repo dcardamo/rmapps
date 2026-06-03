@@ -94,6 +94,7 @@ mod tests {
             cloud_version: None,
             page_hashes: run1.new_hashes,
             digest_uuids: vec![],
+            skipped: false,
         };
         let run2 = ingest(dir.path(), &prev2).unwrap();
         assert!(
@@ -120,6 +121,7 @@ mod tests {
             cloud_version: None,
             page_hashes: run1.new_hashes,
             digest_uuids: vec![],
+            skipped: false,
         };
         let run2 = ingest(dir.path(), &prev2).unwrap();
         assert_eq!(run2.changed, vec![1]);
