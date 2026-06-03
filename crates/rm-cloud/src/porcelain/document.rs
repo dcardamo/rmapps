@@ -100,8 +100,10 @@ impl Client {
     /// subscribers (the reMarkable notification websocket). Like [`put`](Self::put) but routes
     /// through [`commit_broadcast`](Client::commit_broadcast). Normal sync uses `put`, which does
     /// NOT broadcast. This exists for clients that want to actively notify other devices (and for
-    /// end-to-end push tests). The `rmapps watch` daemon never calls this — it must not
-    /// self-notify.
+    /// end-to-end push tests). The `rmapps watch` daemon DOES call this for digest deploys
+    /// (via `Cloud::deploy_digest`) so the device pulls the new digest promptly; the resulting
+    /// self-wakeup is harmless because digest outputs are suffix-filtered out of the reconcile
+    /// routing (`reconcile::is_self_write`), so the daemon never re-triggers a digest.
     pub async fn put_broadcast(&self, docfiles: DocFiles) -> Result<()> {
         let up = DocUpsert {
             id: docfiles.id.clone(),
