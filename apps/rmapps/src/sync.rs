@@ -200,14 +200,15 @@ pub(crate) fn run_task(task: &crate::config::SyncTask, key: &str, cfg: &Config) 
     let _task_span = crate::timing::task_span(&task.app).entered();
     match task.app.as_str() {
         "bujo" => {
-            let only_month = if task.month_window == Some(true) {
-                // chrono gives the current calendar month; the year is taken from
-                // the bujo config inside bujo::run.
-                Some(chrono::Local::now().month())
-            } else {
-                None
-            };
-            bujo::run(BujoArgs::for_sync(only_month), cfg)
+            // chrono gives the current calendar month; the year is taken from the
+            // bujo config inside bujo::run. `for_sync` uses this as either the
+            // single month to sync (month_window) or the floor below which months
+            // are skipped on upload (so past months are never re-uploaded).
+            let current_month = chrono::Local::now().month();
+            bujo::run(
+                BujoArgs::for_sync(task.month_window == Some(true), current_month),
+                cfg,
+            )
         }
         "reader" => reader::run(cfg),
         "digest" => digest::run(DigestArgs::default(), cfg),

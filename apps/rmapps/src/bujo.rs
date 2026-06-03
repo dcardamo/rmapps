@@ -2,16 +2,21 @@
 //! deploy them to the reMarkable cloud via the native client.
 //!
 //! Ported from `rmbujo`'s old CLI. Deploy semantics (preserving on-device ink):
-//! - default: `upsert` every generated PDF.
+//! - default: `upsert` every generated PDF, EXCEPT monthly notebooks older than
+//!   the current calendar month when deploying the current year — those are kept
+//!   on-device and never re-uploaded (so a deploy can't clobber a past month's
+//!   ink). Pass `--from-month 1` to force every month.
 //! - `--only-month N`: `upsert` month N's PDF; `create_if_missing` the
 //!   non-monthly extras (future log / collection / reference); all other months
 //!   untouched.
 //! - `--from-month N`: filter the upload set to monthly PDFs with month >= N plus
-//!   all non-monthly, then `upsert`.
+//!   all non-monthly, then `upsert`. Overrides the default current-month floor
+//!   (use `--from-month 1` to deploy the whole year, past months included).
 
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use chrono::Datelike;
 use clap::Args;
 
 use rmbujo::{calendar, ics, notebooks};
@@ -26,7 +31,8 @@ pub struct BujoArgs {
     pub month: Option<u32>,
     /// Upload monthly notebooks for this month (1..=12) and later only; earlier
     /// months are skipped on upload (kept on-device). Non-monthly notebooks are
-    /// always uploaded.
+    /// always uploaded. Overrides the default current-month floor; pass
+    /// `--from-month 1` to force the whole year (past months included).
     #[arg(long = "from-month")]
     pub from_month: Option<u32>,
     /// Sync ONLY this month's notebook (upsert); the future log / collection /
@@ -43,13 +49,21 @@ pub struct BujoArgs {
 }
 
 impl BujoArgs {
-    /// Construct args for a sync run. With `only_month = Some(m)` only month `m`'s
-    /// notebook is synced (upsert) and the non-monthly extras are created-if-missing,
-    /// using the default target. `None` produces all-default args (whole-year upsert).
-    pub fn for_sync(only_month: Option<u32>) -> Self {
-        Self {
-            only_month,
-            ..Self::default()
+    /// Construct args for a sync run, given the current calendar month.
+    ///
+    /// - `month_window = true`: sync ONLY the current month (upsert), creating the
+    ///   non-monthly extras if missing. All other months untouched.
+    /// - `month_window = false`: whole-year default args. `run` then applies its
+    ///   current-month floor, so months older than the current month are never
+    ///   re-uploaded (left on-device, ink intact) when deploying the current year.
+    pub fn for_sync(month_window: bool, current_month: u32) -> Self {
+        if month_window {
+            Self {
+                only_month: Some(current_month),
+                ..Self::default()
+            }
+        } else {
+            Self::default()
         }
     }
 }
@@ -73,6 +87,23 @@ fn monthly_pdf_month(path: &Path) -> Option<u32> {
     let rest = name.split_once('.')?.1; // "MM <Month>.pdf"
     let mm = rest.split_once(' ')?.0; // "MM"
     mm.parse::<u32>().ok().filter(|m| (1..=12).contains(m))
+}
+
+/// The lowest month number whose notebook should be uploaded, or `None` for "no
+/// floor" (upload every month).
+///
+/// An explicit `--from-month` (`requested`) always wins. Otherwise, when the
+/// year being deployed is the *current* calendar year, the floor is the current
+/// month — so a deploy never re-uploads (and clobbers the ink of) a month that's
+/// already past. A future or past `deploy_year` has no floor: a future year's
+/// months are all still ahead, and re-deploying a past year is an explicit act.
+fn upload_floor(
+    requested: Option<u32>,
+    deploy_year: i32,
+    current_year: i32,
+    current_month: u32,
+) -> Option<u32> {
+    requested.or_else(|| (deploy_year == current_year).then_some(current_month))
 }
 
 pub fn run(args: BujoArgs, cfg: &Config) -> Result<()> {
@@ -117,10 +148,16 @@ pub fn run(args: BujoArgs, cfg: &Config) -> Result<()> {
     if let Some(only) = args.only_month {
         anyhow::ensure!((1..=12).contains(&only), "--only-month must be 1..=12 (got {only})");
     }
-    // `--from-month N` drops monthly notebooks before month N from the UPLOAD set
-    // (still generated on disk). Skipped when `--only-month` is set.
-    if let (Some(from), None) = (args.from_month, args.only_month) {
+    if let Some(from) = args.from_month {
         anyhow::ensure!((1..=12).contains(&from), "--from-month must be 1..=12 (got {from})");
+    }
+    // The floor drops monthly notebooks before `floor` from the UPLOAD set (they
+    // are still generated on disk). Skipped when `--only-month` is set.
+    let now = chrono::Local::now();
+    if let (Some(from), None) = (
+        upload_floor(args.from_month, year, now.year(), now.month()),
+        args.only_month,
+    ) {
         paths.retain(|p| monthly_pdf_month(p).is_none_or(|m| m >= from));
     }
 
@@ -191,6 +228,46 @@ mod tests {
         assert_eq!(monthly_pdf_month(Path::new("/x/2026.05 May.pdf")), Some(5));
         assert_eq!(monthly_pdf_month(Path::new("2026 Future Log.pdf")), None);
         assert_eq!(monthly_pdf_month(Path::new("2026 Reference.pdf")), None);
+    }
+
+    #[test]
+    fn for_sync_month_window_targets_only_current_month() {
+        let args = BujoArgs::for_sync(true, 6);
+        assert_eq!(args.only_month, Some(6));
+        assert_eq!(args.from_month, None);
+    }
+
+    #[test]
+    fn for_sync_without_window_uses_whole_year_args() {
+        // Non-window sync produces plain whole-year args; `run`'s current-month
+        // floor (see upload_floor) is what skips past months.
+        let args = BujoArgs::for_sync(false, 6);
+        assert_eq!(args.from_month, None);
+        assert_eq!(args.only_month, None);
+    }
+
+    #[test]
+    fn upload_floor_defaults_to_current_month_for_current_year() {
+        // Deploying 2026 in June 2026: floor at month 6, so Jan..May are skipped.
+        assert_eq!(upload_floor(None, 2026, 2026, 6), Some(6));
+    }
+
+    #[test]
+    fn upload_floor_explicit_request_overrides_default() {
+        // `--from-month 1` forces the whole year even in the current year.
+        assert_eq!(upload_floor(Some(1), 2026, 2026, 6), Some(1));
+        // An explicit floor above the current month is honored too.
+        assert_eq!(upload_floor(Some(9), 2026, 2026, 6), Some(9));
+    }
+
+    #[test]
+    fn upload_floor_no_floor_for_other_years() {
+        // A future year: every month is still ahead — upload all of them.
+        assert_eq!(upload_floor(None, 2027, 2026, 6), None);
+        // A past year deploy is explicit; don't silently drop its months either.
+        assert_eq!(upload_floor(None, 2025, 2026, 6), None);
+        // ...but an explicit --from-month still applies regardless of year.
+        assert_eq!(upload_floor(Some(3), 2027, 2026, 6), Some(3));
     }
 
     #[test]
