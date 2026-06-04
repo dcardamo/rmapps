@@ -19,6 +19,7 @@ mod cloud;
 mod cloud_adapters;
 mod config;
 mod digest;
+mod get;
 mod lock;
 mod ls;
 mod push;
@@ -61,6 +62,8 @@ enum Command {
     Watch(watch::WatchArgs),
     /// Upload a PDF to a cloud folder (`--content-only` to preserve on-device ink).
     Push(push::PushArgs),
+    /// Download a document's original source file (PDF/EPUB) to disk.
+    Get(get::GetArgs),
     /// List the entries directly under a cloud folder (default: root).
     Ls(ls::LsArgs),
     /// Delete a document or folder in the cloud (`--recursive` for folders).
@@ -104,6 +107,7 @@ fn main() -> anyhow::Result<()> {
             let _lock = lock::acquire("push", lock::Wait::Fail)?;
             push::run(args)
         }
+        Command::Get(args) => get::run(args),
         Command::Ls(args) => ls::run(args),
         Command::Rm(args) => {
             let _lock = lock::acquire("rm", lock::Wait::Fail)?;

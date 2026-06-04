@@ -26,6 +26,7 @@
 //!   2. The socket stays healthy: a bounded read returns either no message (Elapsed — the
 //!      EXPECTED outcome, since our own broadcast:false write does not notify us) or a benign
 //!      Ping/Pong frame. An error frame within the window is a FAILURE (a dead/refused socket).
+//!
 //! Cross-connection end-to-end push delivery is the job of `live_push_delivers_on_broadcast`
 //! (a second connection broadcasts; this one must receive a frame). The manual Tier B check
 //! (a SEPARATE registered device, distinct token) remains the fallback to disambiguate the

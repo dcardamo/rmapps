@@ -1,0 +1,54 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-03-rmapps-file-verbs-retire-rmapi.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: rm-cloud EPUB document constructor",
+      "status": "completed",
+      "description": "**Goal:** Add `DocFiles::new_epub` (+ shared metadata factoring) so the native client can build EPUB documents.\n\n**Files:**\n- Modify: `crates/rm-cloud/src/porcelain/docfiles.rs`\n\n```json:metadata\n{\"files\": [\"crates/rm-cloud/src/porcelain/docfiles.rs\"], \"verifyCommand\": \"cargo test -p rm-cloud docfiles\", \"acceptanceCriteria\": [\"new_epub builds .epub blob + epub content\", \"shared metadata builder\", \"new_pdf tests still pass\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: DocKind + kind-aware create/replace in cloud.rs",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Thread a doc kind through new create/replace helpers; existing PDF callers unchanged.\n\n**Files:**\n- Modify: `apps/rmapps/src/cloud.rs`\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/cloud.rs\"], \"verifyCommand\": \"cargo test -p rmapps cloud::\", \"acceptanceCriteria\": [\"DocKind enum\", \"create_if_missing returns created/skipped and never overwrites\", \"replace_doc stores correct blob kind\", \"existing PDF methods delegate unchanged\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: push gains --if-missing and EPUB support",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Expose create-if-missing + EPUB upload on the CLI; `--content-only` restricted to PDF.\n\n**Files:**\n- Modify: `apps/rmapps/src/push.rs`\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/push.rs\"], \"verifyCommand\": \"cargo test -p rmapps push\", \"acceptanceCriteria\": [\"--if-missing create-or-skip without overwrite\", \"EPUB by extension\", \"content-only PDF-only guard\", \"modes mutually exclusive\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: New get (download) command",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Add `rmapps get PATH [DEST]` writing the original PDF/EPUB source, refusing overwrite without `--force`.\n\n**Files:**\n- Create: `apps/rmapps/src/get.rs`\n- Modify: `apps/rmapps/src/main.rs`\n\n```json:metadata\n{\"files\": [\"apps/rmapps/src/get.rs\", \"apps/rmapps/src/main.rs\"], \"verifyCommand\": \"cargo test -p rmapps get\", \"acceptanceCriteria\": [\"extracts pdf/epub source\", \"refuses overwrite without --force\", \"pure-ink doc errors\", \"missing path reported\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Final verification of the rmapps side",
+      "status": "completed",
+      "blockedBy": [3, 4],
+      "description": "**Goal:** Confirm the whole workspace builds + tests green before touching dotfiles.\n\n**Files:** none (verification only).\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings\", \"acceptanceCriteria\": [\"workspace builds release\", \"all tests pass\", \"clippy clean\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Rewrite dotfiles kobo_getbooks onto rmapps",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "**Goal:** Replace rmapi mkdir+put machinery in `bin/kobo_getbooks` with `rmapps push --if-missing`; update tests.\n\n**Files:**\n- Modify: `~/git/dotfiles/bin/kobo_getbooks`\n- Modify: `~/git/dotfiles/tests/test_kobo_getbooks.py`\n\n```json:metadata\n{\"files\": [\"~/git/dotfiles/bin/kobo_getbooks\", \"~/git/dotfiles/tests/test_kobo_getbooks.py\"], \"verifyCommand\": \"cd ~/git/dotfiles && python -m pytest tests/test_kobo_getbooks.py -q\", \"acceptanceCriteria\": [\"_push_book uses rmapps push --if-missing for epub+pdf\", \"binary resolution via RMAPPS_BIN/built/PATH\", \"paired via auth.json\", \"no rm ever issued\", \"pytest passes\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Remove rmapi from dotfiles Nix + overlays",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "**Goal:** Delete every remaining rmapi reference (package, overlay, secret).\n\n**Files:**\n- Modify: `~/git/dotfiles/nixos/saturn/kobo-books.nix`\n- Delete: `~/git/dotfiles/overlays/rmapi.nix`\n- Modify: `~/git/dotfiles/flake.nix`\n- Modify: `~/git/dotfiles/secrets/manifest.nix` (only if unused)\n\n```json:metadata\n{\"files\": [\"~/git/dotfiles/nixos/saturn/kobo-books.nix\", \"~/git/dotfiles/overlays/rmapi.nix\", \"~/git/dotfiles/flake.nix\", \"~/git/dotfiles/secrets/manifest.nix\"], \"verifyCommand\": \"cd ~/git/dotfiles && grep -rn rmapi nixos overlays flake.nix secrets; nix flake check\", \"acceptanceCriteria\": [\"rmapi removed from kobo-books.nix\", \"overlays/rmapi.nix deleted + unreferenced\", \"secrets entry removed if unused\", \"flake evaluates\"], \"requiresUserVerification\": false}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-03"
+}

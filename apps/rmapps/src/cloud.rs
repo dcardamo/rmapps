@@ -51,6 +51,13 @@ pub fn default_sync_index_path() -> PathBuf {
     cache_base().join("sync-index.json")
 }
 
+/// The source format of a document being uploaded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocKind {
+    Pdf,
+    Epub,
+}
+
 /// A document discovered by [`Cloud::list_recursive`].
 #[derive(Debug, Clone)]
 pub struct RemoteDoc {
@@ -162,6 +169,54 @@ impl Cloud {
             .collect())
     }
 
+    /// Build a fresh document file-set of the given kind.
+    fn build_doc(&self, kind: DocKind, name: &str, folder_id: &str, bytes: Vec<u8>) -> DocFiles {
+        match kind {
+            DocKind::Pdf => DocFiles::new_pdf(name, folder_id, bytes),
+            DocKind::Epub => DocFiles::new_epub(name, folder_id, bytes),
+        }
+    }
+
+    /// Path-resolving destructive replace of any document kind: create `folder`
+    /// if missing, sweep EVERY same-named doc, then create a fresh one.
+    pub fn replace_doc(&self, folder: &str, name: &str, bytes: Vec<u8>, kind: DocKind) -> Result<()> {
+        let folder_id = self.ensure_folder(folder)?;
+        self.replace_in_kind(&folder_id, name, bytes, kind)
+    }
+
+    /// `replace_doc` against an already-resolved folder id.
+    pub fn replace_in_kind(&self, folder_id: &str, name: &str, bytes: Vec<u8>, kind: DocKind) -> Result<()> {
+        for id in self.doc_ids_in(folder_id, name)? {
+            // Best-effort remove; individual failures surface on the create below.
+            let _ = self.rt.block_on(self.client.rm(&id));
+        }
+        let doc = self.build_doc(kind, name, folder_id, bytes);
+        self.rt
+            .block_on(self.client.put(doc))
+            .map_err(|e| anyhow!("replace {name}: {e}"))
+    }
+
+    /// Path-resolving create-if-missing of any document kind. Creates `folder` if
+    /// missing. Returns `true` if a new doc was created, `false` if a same-named
+    /// doc already existed (left completely untouched — preserves any cloud or
+    /// on-device annotations). Never overwrites.
+    pub fn create_if_missing(&self, folder: &str, name: &str, bytes: Vec<u8>, kind: DocKind) -> Result<bool> {
+        let folder_id = self.ensure_folder(folder)?;
+        self.create_if_missing_in_kind(&folder_id, name, bytes, kind)
+    }
+
+    /// `create_if_missing` against an already-resolved folder id.
+    pub fn create_if_missing_in_kind(&self, folder_id: &str, name: &str, bytes: Vec<u8>, kind: DocKind) -> Result<bool> {
+        if self.doc_id_in(folder_id, name)?.is_some() {
+            return Ok(false);
+        }
+        let doc = self.build_doc(kind, name, folder_id, bytes);
+        self.rt
+            .block_on(self.client.put(doc))
+            .map_err(|e| anyhow!("create {name}: {e}"))?;
+        Ok(true)
+    }
+
     /// Create the doc if absent, else replace only its PDF blob (content-only),
     /// preserving on-device handwriting (mechanics §3). `folder` is created if
     /// missing.
@@ -200,12 +255,7 @@ impl Cloud {
     /// are left completely untouched (no upload), so on-device edits survive. No path
     /// resolution.
     pub fn create_if_missing_in(&self, folder_id: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
-        if self.doc_id_in(folder_id, name)?.is_some() {
-            return Ok(());
-        }
-        self.rt
-            .block_on(self.client.put(DocFiles::new_pdf(name, folder_id, pdf)))
-            .map_err(|e| anyhow!("create {name}: {e}"))
+        self.create_if_missing_in_kind(folder_id, name, pdf, DocKind::Pdf).map(|_| ())
     }
 
     /// Deploy the digest PDF as a single broadcasting commit. When `prev_uuid` still
@@ -249,13 +299,7 @@ impl Cloud {
     /// `replace` against an already-resolved folder id (no path resolution). Sweeps
     /// EVERY same-named doc before creating, so it converges pre-existing duplicates.
     pub fn replace_in(&self, folder_id: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
-        for id in self.doc_ids_in(folder_id, name)? {
-            // Best-effort remove; individual failures surface on the create below.
-            let _ = self.rt.block_on(self.client.rm(&id));
-        }
-        self.rt
-            .block_on(self.client.put(DocFiles::new_pdf(name, folder_id, pdf)))
-            .map_err(|e| anyhow!("replace {name}: {e}"))
+        self.replace_in_kind(folder_id, name, pdf, DocKind::Pdf)
     }
 
     /// Download `<folder>/<name>` to a temp `.rmdoc`; `Ok(None)` if it doesn't
@@ -603,6 +647,51 @@ mod tests {
         let ids = cloud.doc_ids_in(&folder, "Book.digest").unwrap();
         assert_eq!(ids.len(), 1, "create branch must sweep to exactly one doc");
         assert_eq!(ids[0], uuid, "the surviving doc is the freshly created one");
+    }
+
+    /// create_if_missing creates when absent (returns true) and is a no-op that
+    /// preserves the existing bytes when present (returns false). Covers EPUB.
+    #[test]
+    fn create_if_missing_is_safe_noop_when_present() {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let client = Client::from_user_token(CloudConfig::single_host(&fake.base), "user-token");
+        let cloud = cloud_from_client(client);
+
+        // First push of an EPUB creates it.
+        let created = cloud
+            .create_if_missing("/Books", "Title", b"epub-v1".to_vec(), DocKind::Epub)
+            .unwrap();
+        assert!(created, "first create_if_missing should create the doc");
+
+        let folder_id = cloud.resolve_folder("/Books").unwrap().unwrap();
+        let id = cloud.doc_id_in(&folder_id, "Title").unwrap().unwrap();
+
+        // Second push must NOT create or overwrite — returns false, same doc id.
+        let created2 = cloud
+            .create_if_missing("/Books", "Title", b"epub-v2".to_vec(), DocKind::Epub)
+            .unwrap();
+        assert!(!created2, "second create_if_missing must be a no-op");
+        let id2 = cloud.doc_id_in(&folder_id, "Title").unwrap().unwrap();
+        assert_eq!(id, id2, "the existing doc must be left untouched (no overwrite)");
+    }
+
+    /// replace_doc builds the right blob kind: an EPUB replace stores a .epub blob.
+    #[test]
+    fn replace_doc_epub_stores_epub_blob() {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let fake = rt.block_on(FakeCloud::spawn());
+        let client = Client::from_user_token(CloudConfig::single_host(&fake.base), "user-token");
+        let cloud = cloud_from_client(client);
+
+        cloud.replace_doc("/Books", "Title", b"epub-bytes".to_vec(), DocKind::Epub).unwrap();
+        let folder_id = cloud.resolve_folder("/Books").unwrap().unwrap();
+        let id = cloud.doc_id_in(&folder_id, "Title").unwrap().unwrap();
+        let df = cloud.block_on(cloud.client().get(&id)).unwrap();
+        assert!(
+            df.files.iter().any(|(n, b)| n.ends_with(".epub") && b == b"epub-bytes"),
+            "replace_doc(Epub) must store the bytes as a .epub blob"
+        );
     }
 
     /// bujo deploys many PDFs to ONE target folder; a single resolver must yield one

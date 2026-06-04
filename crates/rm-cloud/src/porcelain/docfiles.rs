@@ -40,6 +40,18 @@ pub struct DocFiles {
 }
 
 impl DocFiles {
+    /// Shared `DocumentType` metadata for a freshly-created document.
+    fn base_metadata(visible_name: &str, parent: &str) -> Metadata {
+        Metadata {
+            visible_name: visible_name.to_string(),
+            doc_type: "DocumentType".to_string(),
+            parent: parent.to_string(),
+            last_modified: super::document::now_millis(),
+            deleted: false,
+            extra: Default::default(),
+        }
+    }
+
     /// Build a brand-new PDF document file-set: a fresh UUID, a `DocumentType`
     /// `.metadata` (named `visible_name`, under `parent`), a full PDF `.content`,
     /// and the `.pdf` blob. No `.rm` ink yet — the device adds those when the user
@@ -60,14 +72,7 @@ impl DocFiles {
     /// path the `.content` is written once at create and preserved on refresh.
     pub fn new_pdf(visible_name: &str, parent: &str, pdf: Vec<u8>) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
-        let meta = Metadata {
-            visible_name: visible_name.to_string(),
-            doc_type: "DocumentType".to_string(),
-            parent: parent.to_string(),
-            last_modified: super::document::now_millis(),
-            deleted: false,
-            extra: Default::default(),
-        };
+        let meta = Self::base_metadata(visible_name, parent);
         // Count pages straight from the PDF bytes. 0 => unparseable; fall back.
         let n = lopdf::Document::load_mem(&pdf)
             .map(|d| d.get_pages().len())
@@ -112,6 +117,31 @@ impl DocFiles {
             ),
             (format!("{id}.content"), content),
             (format!("{id}.pdf"), pdf),
+        ];
+        Self { id, files }
+    }
+
+    /// Build a brand-new EPUB document file-set: a fresh UUID, a `DocumentType`
+    /// `.metadata`, a minimal `.content` declaring `fileType:"epub"`, and the
+    /// `.epub` blob. Unlike [`new_pdf`](Self::new_pdf) we do NOT synthesize a
+    /// `pages`/`redirectionPageMap` list — the device paginates EPUB at render
+    /// time, so a fabricated page map would be wrong.
+    pub fn new_epub(visible_name: &str, parent: &str, epub: Vec<u8>) -> Self {
+        let id = uuid::Uuid::new_v4().to_string();
+        let meta = Self::base_metadata(visible_name, parent);
+        let content = serde_json::to_vec(&serde_json::json!({
+            "fileType": "epub",
+            "formatVersion": 1,
+            "sizeInBytes": epub.len().to_string(),
+        }))
+        .expect("serialize content");
+        let files = vec![
+            (
+                format!("{id}.metadata"),
+                serde_json::to_vec(&meta).expect("serialize metadata"),
+            ),
+            (format!("{id}.content"), content),
+            (format!("{id}.epub"), epub),
         ];
         Self { id, files }
     }
@@ -280,5 +310,25 @@ mod tests {
         assert_eq!(content["formatVersion"].as_u64(), Some(1));
         // Fallback content has no page list.
         assert!(content.get("pageCount").is_none());
+    }
+
+    #[test]
+    fn new_epub_writes_epub_blob_and_content() {
+        let docs = DocFiles::new_epub("My Book", "parent-id", b"epub-bytes".to_vec());
+        // The source blob is stored as <id>.epub with the exact bytes.
+        let blob = docs.get(&format!("{}.epub", docs.id)).expect("has .epub");
+        assert_eq!(blob, b"epub-bytes");
+        // Content declares the epub fileType (no fabricated page list).
+        let content_raw = docs.get(&format!("{}.content", docs.id)).expect("has .content");
+        let content: serde_json::Value = serde_json::from_slice(content_raw).unwrap();
+        assert_eq!(content["fileType"], "epub");
+        assert_eq!(content["formatVersion"].as_u64(), Some(1));
+        assert_eq!(content["sizeInBytes"], "epub-bytes".len().to_string());
+        assert!(content.get("pages").is_none(), "epub must not synthesize a page list");
+        // Metadata names the doc and sets DocumentType under the given parent.
+        let meta = docs.metadata().unwrap();
+        assert_eq!(meta.visible_name, "My Book");
+        assert_eq!(meta.doc_type, "DocumentType");
+        assert_eq!(meta.parent, "parent-id");
     }
 }
