@@ -7,7 +7,7 @@
 //!
 //! - [`Cloud::upsert`] — create, or content-only refresh (preserves on-device ink).
 //! - [`Cloud::create_if_missing_in`] — create only when absent; leave existing docs alone.
-//! - [`Cloud::replace`] — destructive remove-then-create (for write-only docs).
+//! - [`Cloud::replace_doc`] — destructive remove-then-create (for write-only docs).
 //! - [`Cloud::fetch_bundle`] — download a doc to a temp `.rmdoc`.
 //! - [`Cloud::list_recursive`] — walk a folder subtree, excluding generated docs.
 //!
@@ -154,7 +154,7 @@ impl Cloud {
 
     /// The ids of ALL (non-folder) documents named `name` directly under
     /// `folder_id`. Unlike [`Self::doc_id_in`], this returns every match — used by
-    /// [`Self::replace`] to sweep duplicate docs that can accumulate from repeated
+    /// [`Self::replace_in_kind`] to sweep duplicate docs that can accumulate from repeated
     /// pushes under eventual consistency.
     fn doc_ids_in(&self, folder_id: &str, name: &str) -> Result<Vec<String>> {
         let tree = self
@@ -223,18 +223,6 @@ impl Cloud {
     pub fn upsert(&self, folder: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
         let folder_id = self.ensure_folder(folder)?;
         self.upsert_in(&folder_id, name, pdf)
-    }
-
-    /// Destructive replace: remove EVERY existing doc of this name, then create a
-    /// fresh one. For write-only docs (reader PDFs, digests) with no ink to keep.
-    ///
-    /// We delete all same-named matches (not just the first) so this is idempotent
-    /// against pre-existing duplicates: repeated pushes and the cloud's eventual
-    /// consistency could otherwise leave several "Feed"/"Library" docs in a folder,
-    /// and a one-doc remove would never converge back to a single copy.
-    pub fn replace(&self, folder: &str, name: &str, pdf: Vec<u8>) -> Result<()> {
-        let folder_id = self.ensure_folder(folder)?;
-        self.replace_in(&folder_id, name, pdf)
     }
 
     /// `upsert` against an already-resolved folder id (no path resolution).
@@ -488,7 +476,7 @@ mod tests {
         // Pre-condition: doc_ids_in sees all three duplicates.
         assert_eq!(cloud.doc_ids_in(&folder, "Feed").unwrap().len(), 3);
 
-        cloud.replace("/Readwise", "Feed", b"%PDF-new".to_vec()).unwrap();
+        cloud.replace_doc("/Readwise", "Feed", b"%PDF-new".to_vec(), DocKind::Pdf).unwrap();
 
         // Post-condition: exactly one "Feed" remains.
         assert_eq!(cloud.doc_ids_in(&folder, "Feed").unwrap().len(), 1);
@@ -513,8 +501,8 @@ mod tests {
         let cloud = cloud_from_client(client);
 
         let rw = cloud.ensure_folder("/Readwise").unwrap();
-        cloud.replace("/Readwise", "Feed", b"feed-v1".to_vec()).unwrap();
-        cloud.replace("/Readwise", "Library", b"lib-v1".to_vec()).unwrap();
+        cloud.replace_doc("/Readwise", "Feed", b"feed-v1".to_vec(), DocKind::Pdf).unwrap();
+        cloud.replace_doc("/Readwise", "Library", b"lib-v1".to_vec(), DocKind::Pdf).unwrap();
         // Seed several unrelated sibling docs — this is the "account size" the old
         // store-less `ls` would have re-scanned (2*N metadata GETs) on every replace.
         for i in 0..8 {
@@ -525,7 +513,7 @@ mod tests {
         let _ = cloud.list_recursive("/Readwise", &[]).unwrap(); // warm the store
 
         let blobs_before = fake.blob_count_total();
-        cloud.replace("/Readwise", "Feed", b"feed-v2".to_vec()).unwrap();
+        cloud.replace_doc("/Readwise", "Feed", b"feed-v2".to_vec(), DocKind::Pdf).unwrap();
         let blob_delta = fake.blob_count_total() - blobs_before;
 
         // Observed: blob_delta == 1 (only Feed's own new content blob is fetched;
