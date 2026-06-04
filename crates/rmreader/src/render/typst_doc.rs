@@ -141,12 +141,17 @@ pub fn build(
   #body
 ]
 
-// Indigo filled nav bar: < Prev | Home | Next >. Inert cells are dimmed.
+// Indigo filled nav bar: < Prev | Index | Home | Next >. Inert cells are dimmed.
+// Index links to the absolute page of this article's index row (label idx-<sid>).
 #let nav-bar() = context {{
   let sid = section-state.at(here())
   let cur = if sid == "" {{ none }} else {{ order.position(s => s == sid) }}
   let prev = if cur == none or cur == 0 {{ none }} else {{ order.at(cur - 1) }}
   let next = if cur == none or cur + 1 >= order.len() {{ none }} else {{ order.at(cur + 1) }}
+  let idx-page = if sid == "" {{ none }} else {{
+    let m = query(label("idx-" + sid))
+    if m.len() == 0 {{ none }} else {{ m.first().location().page() }}
+  }}
   let cell(txt, target) = align(center + horizon, if target == none {{
     text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
       fill: navfg.transparentize(55%), txt)
@@ -155,14 +160,20 @@ pub fn build(
       text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
         fill: navfg, txt))
   }})
+  let page-cell(txt, target) = align(center + horizon, if target == none {{
+    text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+      fill: navfg.transparentize(55%), txt)
+  }} else {{
+    link((page: target, x: 0pt, y: 0pt),
+      text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
+        fill: navfg, txt))
+  }})
   let home = align(center + horizon, link(<index-home>,
     text(font: "Hanken Grotesk", size: 8pt, weight: "semibold", tracking: 0.04em,
       fill: navfg, "Home")))
-  // align(horizon, …) centres the row vertically in the fixed-height bar so the
-  // labels aren't clipped at the bottom edge.
   block(width: 100%, height: 24pt, fill: navbg, inset: (x: 10pt),
-    align(horizon, grid(columns: (1fr, 1fr, 1fr),
-      cell([< Prev], prev), home, cell([Next >], next))))
+    align(horizon, grid(columns: (1fr, 1fr, 1fr, 1fr),
+      cell([< Prev], prev), page-cell([Index], idx-page), home, cell([Next >], next))))
 }}
 
 // Index nav bar: < Prev | Home | Next >, paging through index pages. Index pages
@@ -323,7 +334,7 @@ fn build_index(collection: &str, rows: &[Row], feed: bool) -> String {
              column-gutter: 8pt, align: (left + top, left + top, right + top),\n\
              text(font: \"Lora\", weight: \"semibold\", size: 9pt, fill: accent, \"{num}\"),\n\
              text(font: \"Lora\", size: 9.5pt, fill: ink, [{title_line}]),\n\
-             text(font: \"Hanken Grotesk\", size: 7.5pt, fill: muted, \"{rt}\"))]]\n",
+             text(font: \"Hanken Grotesk\", size: 7.5pt, fill: muted, \"{rt}\"))]] #label(\"idx-{anchor}\")\n",
             anchor = esc_str(&r.anchor),
             num = esc_str(&r.num),
             rt = esc_str(&r.reading_time),
