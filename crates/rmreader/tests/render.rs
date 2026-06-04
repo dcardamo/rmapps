@@ -163,6 +163,73 @@ fn inline_code_followed_by_dot_field_compiles() {
     assert!(r.is_ok(), "inline code + .data must compile: {:?}", r.err());
 }
 
+/// 0-based destination page indices of GoTo links on a single 0-based page.
+/// Typst emits /Dest as a reference to an array [page-ref /XYZ x y zoom].
+fn link_dest_pages(pdf: &[u8], page_index: usize) -> Vec<usize> {
+    let doc = lopdf::Document::load_mem(pdf).unwrap();
+    let pages: Vec<_> = doc.get_pages().into_values().collect();
+    let page_idx = |target: lopdf::ObjectId| pages.iter().position(|&p| p == target);
+    let pid = pages[page_index];
+    let mut out = Vec::new();
+    if let Ok(annots) = doc
+        .get_dictionary(pid)
+        .and_then(|p| p.get(b"Annots"))
+        .and_then(|a| a.as_array())
+    {
+        for a in annots {
+            let Ok(ad) = a.as_reference().and_then(|id| doc.get_dictionary(id)) else { continue };
+            // Typst stores Dest as a reference to a [page-ref /XYZ ...] array.
+            // Resolve: Dest => ref => array, then take first element as page ref.
+            let arr = ad
+                .get(b"Dest")
+                .and_then(|d| {
+                    // May be inline array or a reference to an array object
+                    d.as_array().map(|a| a.clone()).or_else(|_| {
+                        d.as_reference()
+                            .and_then(|id| doc.get_object(id))
+                            .and_then(|o| o.as_array().map(|a| a.clone()))
+                    })
+                })
+                .or_else(|_| {
+                    // /A << /S /GoTo /D [...] >> style
+                    ad.get(b"A")
+                        .and_then(|a_obj| {
+                            a_obj.as_reference().and_then(|id| doc.get_dictionary(id))
+                                .or_else(|_| a_obj.as_dict())
+                        })
+                        .and_then(|act| act.get(b"D").and_then(|d| d.as_array()).map(|a| a.clone()))
+                });
+            if let Ok(arr) = arr {
+                if let Some(first) = arr.first() {
+                    if let Ok(r) = first.as_reference() {
+                        if let Some(ix) = page_idx(r) {
+                            out.push(ix);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+
+#[test]
+fn article_page_has_index_button_linking_to_index_page() {
+    let device = get_device("paper-pro-move").unwrap();
+    let theme = load_theme("reader").unwrap();
+    let (rows, articles) = sample();
+    let r = render_collection(&device, &theme, "Feed", &rows, &articles, &[]).unwrap();
+    // Page 0 is the index; page 1 is the first article. Its nav bar must carry
+    // both Index and Home links targeting the index page (page 0).
+    let dests = link_dest_pages(&r.pdf, 1);
+    let to_index = dests.iter().filter(|&&d| d == 0).count();
+    assert!(
+        to_index >= 2,
+        "expected Index + Home both targeting page 0, got {to_index} (dests {dests:?})"
+    );
+}
+
 /// Count Link annotations on a single 0-based page index.
 fn links_on_page(pdf: &[u8], page_index: usize) -> usize {
     let doc = lopdf::Document::load_mem(pdf).unwrap();
