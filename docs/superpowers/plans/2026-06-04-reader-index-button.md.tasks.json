@@ -4,9 +4,9 @@
     {
       "id": 0,
       "subject": "Task 1: Add Index button to the article nav bar",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Each index row is labelled idx-<anchor>; the article nav bar shows < Prev | Index | Home | Next > where Index links to the index page that lists the current article.\n\n**Files:**\n- Modify: crates/rmreader/src/render/typst_doc.rs (nav-bar() helper, row emission in build_index)\n- Test: crates/rmreader/tests/render.rs\n\n**Verify:** cargo test -p rmreader --test render\n\n```json:metadata\n{\"files\": [\"crates/rmreader/src/render/typst_doc.rs\", \"crates/rmreader/tests/render.rs\"], \"verifyCommand\": \"cargo test -p rmreader --test render\", \"acceptanceCriteria\": [\"index rows labelled idx-<anchor>\", \"nav-bar renders Prev|Index|Home|Next\", \"Index links to the index row's absolute page\", \"first-article page has a link to page 0\", \"all prior render tests still pass\"], \"requiresUserVerification\": false}\n```"
     }
   ],
-  "lastUpdated": "2026-06-04"
+  "lastUpdated": "2026-06-04T08:30:00-04:00"
 }
