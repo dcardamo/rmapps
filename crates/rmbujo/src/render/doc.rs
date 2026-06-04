@@ -142,13 +142,16 @@ pub fn build_preamble(device: &Device, grid: &GridSpec, theme: &Palette) -> Stri
 // top margin) come from the #set page below; each wrapper overrides only what it
 // needs.
 #let plain-page(body) = page(body)
-#let dot-page(body) = page(background: dot-bg, body)
+// Dot-grid pages render on pure white (not the warm editorial `paper`): the grey
+// dots read with much more contrast on white, so the grid stays easy to follow.
+#let dot-page(body) = page(fill: white, background: dot-bg, body)
 #let cover-page(body) = page(fill: cover-grad, margin: margin-pt, body)
 
 // The month index drops the top/bottom margins so its rows can be `place`d on the
 // real dot-row centres (absolute page Y) — the day list aligns to the grid instead
 // of flowing. The masthead is placed by hand into the top toolbar-reserve band.
 #let month-page(body) = page(
+  fill: white,
   background: dot-bg,
   margin: (top: 0pt, bottom: 0pt, left: margin-pt, right: margin-pt),
   body,

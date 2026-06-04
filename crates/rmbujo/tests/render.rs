@@ -65,7 +65,7 @@ fn month_index_shares_device_dot_grid() {
         "dots must tile at the full device pitch:\n{pre}"
     );
     assert!(
-        pre.contains("#let dot-page(body) = page(background: dot-bg"),
+        pre.contains("#let dot-page(body) = page(fill: white, background: dot-bg"),
         "dot pages must share the device dot background:\n{pre}"
     );
     // Day rows knock out a paper strip so the label stays crisp over the dots.
@@ -84,8 +84,8 @@ fn month_index_shares_device_dot_grid() {
     .render()
     .unwrap();
     assert!(
-        m.contains("box(fill: paper, width: 44pt)"),
-        "day labels need a paper knockout to stay crisp over the dots:\n{m}"
+        m.contains("box(fill: white, width: 44pt)"),
+        "day labels need a white knockout to stay crisp over the dots:\n{m}"
     );
 }
 

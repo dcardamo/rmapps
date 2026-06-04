@@ -143,7 +143,7 @@ impl MonthlyView<'_> {
             rows.push_str(&format!(
                 "#place(top + left, dy: {top}pt)[#block(width: 100%, height: {sp}pt)[\
                  #align(horizon)[\
-                 #box(fill: paper, width: 44pt)[#link(label(\"day-{day}\"))[\
+                 #box(fill: white, width: 44pt)[#link(label(\"day-{day}\"))[\
                  #box(width: 16pt)[#align(right)[#text(font: \"Hanken Grotesk\", size: num-fs, \
                  weight: 700, fill: {numcol})[{day}]]] #h(6pt) \
                  #text(font: \"Hanken Grotesk\", size: wd-fs, fill: muted)[{wd}]]]{badge}]]]\n",
@@ -158,7 +158,7 @@ impl MonthlyView<'_> {
         // reading/navigation mode — only hidden behind the pen toolbar while writing.
         Ok(format!(
             "#month-page[\n\
-             #place(top + left, dy: 4pt)[#box(fill: paper, inset: (x: 4pt))[\
+             #place(top + left, dy: 4pt)[#box(fill: white, inset: (x: 4pt))[\
              #text(font: \"Fraunces 72pt\", size: head-fs, weight: 600, fill: primary)[{title} {year}]] \
              #label(\"monthly\")]\n\
              {rows}]\n",
@@ -240,7 +240,7 @@ impl DailyPage<'_> {
         Ok(format!(
             "#dot-page[\n\
              #box(width: 100%)[\
-             #link(label(\"monthly\"))[#box(fill: paper, \
+             #link(label(\"monthly\"))[#box(fill: white, \
              inset: (left: 3pt, right: 3pt, top: 1pt, bottom: 2pt), \
              stroke: (bottom: 0.75pt + primary))[\
              #text(font: \"Fraunces 72pt\", size: 13pt, weight: 600, fill: primary)[{date}]]] \
