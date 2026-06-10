@@ -1,6 +1,7 @@
 use lopdf::Document;
 use rmbujo::device::get_device;
 use rmbujo::geometry::default_grid;
+use rmbujo::render::compile_pdf;
 use rmbujo::render::doc::build_preamble;
 use rmbujo::render::render_pdf;
 use rmbujo::templates::{DayRow, DotGrid, MonthlyView};
@@ -87,6 +88,19 @@ fn month_index_shares_device_dot_grid() {
         m.contains("box(fill: white, width: 44pt)"),
         "day labels need a white knockout to stay crisp over the dots:\n{m}"
     );
+}
+
+#[test]
+fn preamble_icons_compile() {
+    let dev = get_device("paper-pro-move").unwrap();
+    let grid = default_grid(&dev);
+    let theme = load_theme("library").unwrap();
+    // A page exercising every new helper, plus the label sinks the tab links need.
+    let body = "#dot-page[#plan-icon(primary, 12pt) #retro-icon(primary, 12pt) #wtab(8)]\n\
+                #plain-page[#hide[#box[x]#label(\"wplan-8\")#box[x]#label(\"wretro-8\")]]\n";
+    let src = format!("{}{}", build_preamble(&dev, &grid, &theme), body);
+    let pdf = compile_pdf(&src, &[]).unwrap();
+    assert!(pdf.len() > 1000, "expected a non-empty PDF, got {} bytes", pdf.len());
 }
 
 #[test]

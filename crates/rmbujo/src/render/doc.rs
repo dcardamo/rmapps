@@ -170,6 +170,53 @@ pub fn build_preamble(device: &Device, grid: &GridSpec, theme: &Palette) -> Stri
   width: 7pt, height: 7pt, radius: 2pt, baseline: 0.5pt,
   fill: theme-col.at(name, default: accent))
 
+// PLAN icon — a target/bullseye: two concentric rings + a filled centre dot,
+// all in `col`. `sz` is the box edge.
+#let plan-icon(col, sz) = box(width: sz, height: sz, {{
+  let r = sz / 2
+  let th = sz * 0.12
+  place(center + horizon, circle(radius: r * 0.92, stroke: (paint: col, thickness: th)))
+  place(center + horizon, circle(radius: r * 0.46, stroke: (paint: col, thickness: th)))
+  place(center + horizon, circle(radius: r * 0.15, fill: col, stroke: none))
+}})
+
+// RETRO icon — a counter-clockwise open-circle arrow. The arc is drawn as a
+// fan of short round-capped segments (robust across renderers, no arc
+// primitive), with a two-stroke arrowhead at the leading (top) end.
+#let retro-icon(col, sz) = box(width: sz, height: sz, {{
+  let cx = sz / 2
+  let cy = sz / 2
+  let r = sz * 0.34
+  let th = sz * 0.12
+  let a0 = 60deg   // leading end (arrowhead here)
+  let a1 = 330deg  // trailing end; gap sits on the lower-right
+  let n = 28
+  let pt(a) = (cx + r * calc.cos(a), cy - r * calc.sin(a))
+  for i in range(n) {{
+    let t0 = a0 + (a1 - a0) * (i / n)
+    let t1 = a0 + (a1 - a0) * ((i + 1) / n)
+    place(top + left, line(start: pt(t0), end: pt(t1),
+      stroke: (paint: col, thickness: th, cap: "round")))
+  }}
+  // Arrowhead at a0, drawn as two short legs off the leading point.
+  let h = sz * 0.22
+  let tip = pt(a0)
+  place(top + left, line(start: tip, end: (tip.at(0) - h, tip.at(1) - h * 0.2),
+    stroke: (paint: col, thickness: th, cap: "round")))
+  place(top + left, line(start: tip, end: (tip.at(0) + h * 0.2, tip.at(1) - h),
+    stroke: (paint: col, thickness: th, cap: "round")))
+}})
+
+// Month-index week tab — PLAN | RETRO, each linking its weekly page. `seg` is
+// the segment id (its first day number).
+#let wtab(seg) = box(stroke: 2pt + primary, radius: 4pt, clip: true)[
+  #grid(columns: 2, rows: auto, gutter: 0pt,
+    box(fill: primary, inset: (x: 5pt, y: 2.5pt))[
+      #link(label("wplan-" + str(seg)))[#plan-icon(white, 11pt)]],
+    box(fill: white, inset: (x: 5pt, y: 2.5pt))[
+      #link(label("wretro-" + str(seg)))[#retro-icon(primary, 11pt)]])
+]
+
 #set page(
   width: page-w, height: page-h,
   margin: (top: toolbar-pt, left: margin-pt, right: margin-pt, bottom: margin-pt),
