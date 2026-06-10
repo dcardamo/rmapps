@@ -123,6 +123,51 @@ fn busy_month_paginates_per_day_pages() {
     );
 }
 
+#[test]
+fn weekly_pages_interleave_in_order() {
+    use rmbujo::calendar::{build_month, segments};
+    use rmbujo::notebooks::month::month_fragments;
+
+    // Page *count* tests can't catch a reordering bug (Retro-before-Plan, or all
+    // Plans then all Retros keep the count identical). Assert the actual sequence:
+    // month index, Tasks, then per segment [Plan -> its day pages -> Retro], in
+    // segment order, each Plan strictly after the previous segment's Retro.
+    let cfg = Config::new(2027);
+    let frags = month_fragments(&cfg, 5, &std::collections::BTreeMap::new()).unwrap();
+    assert!(
+        frags[0].contains("label(\"monthly\")"),
+        "first page is the month index"
+    );
+    assert!(
+        frags[1].contains("[Tasks]"),
+        "second page is the Tasks page"
+    );
+
+    let pos = |needle: &str| -> usize {
+        frags
+            .iter()
+            .position(|f| f.contains(needle))
+            .unwrap_or_else(|| panic!("no fragment contains {needle:?}"))
+    };
+
+    // Match the page ANCHORS (`#label(...)`), not the cross-page LINKS
+    // (`#link(label(...))`) — the month index and Plan page link every day, so a
+    // bare `label("day-N")` substring would match those link pages first.
+    let m = build_month(2027, 5, "sun").unwrap();
+    let mut prev_retro = 1; // the Tasks page index; the first Plan must follow it.
+    for seg in segments(&m) {
+        let id = seg.id();
+        let p_plan = pos(&format!("#label(\"wplan-{id}\")"));
+        let p_first_day = pos(&format!("#label(\"day-{}\")", seg.first_day()));
+        let p_last_day = pos(&format!("#label(\"day-{}\")", seg.last_day()));
+        let p_retro = pos(&format!("#label(\"wretro-{id}\")"));
+        assert!(p_plan > prev_retro, "seg {id}: Plan after previous Retro");
+        assert!(p_plan < p_first_day, "seg {id}: Plan before its first day");
+        assert!(p_last_day < p_retro, "seg {id}: Retro after its last day");
+        prev_retro = p_retro;
+    }
+}
+
 fn mk_event(title: &str) -> rmbujo::templates::AgendaEvent {
     rmbujo::templates::AgendaEvent {
         label: "09:00".into(),

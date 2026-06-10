@@ -8,7 +8,9 @@ use chrono::NaiveDate;
 use crate::calendar::{build_month, segments};
 use crate::config::Config;
 use crate::ics::EventOccurrence;
-use crate::templates::{DailyPage, DayEvents, DayRow, DotGrid, MonthlyView, Tasks, WeeklyPlan, WeeklyRetro};
+use crate::templates::{
+    DailyPage, DayEvents, DayRow, DotGrid, MonthlyView, Tasks, WeeklyPlan, WeeklyRetro,
+};
 
 pub fn build_month_pdf(
     config: &Config,
@@ -16,6 +18,20 @@ pub fn build_month_pdf(
     events: &BTreeMap<NaiveDate, Vec<EventOccurrence>>,
     out_path: &Path,
 ) -> anyhow::Result<()> {
+    let fragments = month_fragments(config, month, events)?;
+    super::render_notebook(config, &fragments, out_path)
+}
+
+/// Build the ordered per-page Typst fragments for one month notebook: the month
+/// index, the Tasks page, then — interleaved per week-segment — a WeeklyPlan, that
+/// segment's day pages (DailyPage + extra DotGrids), and a WeeklyRetro; finally
+/// the per-day event/agenda pages (only when the month has events). Split out from
+/// `build_month_pdf` so the page *order* can be asserted directly in tests.
+pub fn month_fragments(
+    config: &Config,
+    month: u32,
+    events: &BTreeMap<NaiveDate, Vec<EventOccurrence>>,
+) -> anyhow::Result<Vec<String>> {
     let m = build_month(config.year, month, &config.week_start)?;
 
     // Per-day event count drives the navy badge on the monthly + daily pages.
@@ -117,5 +133,5 @@ pub fn build_month_pdf(
         }
     }
 
-    super::render_notebook(config, &fragments, out_path)
+    Ok(fragments)
 }
