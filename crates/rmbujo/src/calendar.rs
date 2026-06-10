@@ -128,7 +128,9 @@ pub fn segments(m: &Month) -> Vec<Segment> {
     let mut out: Vec<Segment> = Vec::new();
     for d in &m.days {
         if out.is_empty() || d.week_start {
-            out.push(Segment { days: vec![d.clone()] });
+            out.push(Segment {
+                days: vec![d.clone()],
+            });
         } else {
             out.last_mut().unwrap().days.push(d.clone());
         }

@@ -66,7 +66,10 @@ fn segments_may_2026_sunday() {
     let firsts: Vec<u32> = segs.iter().map(|s| s.first_day()).collect();
     assert_eq!(firsts, vec![1, 3, 10, 17, 24, 31]);
     // Every day covered exactly once, in order.
-    let flat: Vec<u32> = segs.iter().flat_map(|s| s.days.iter().map(|d| d.day)).collect();
+    let flat: Vec<u32> = segs
+        .iter()
+        .flat_map(|s| s.days.iter().map(|d| d.day))
+        .collect();
     assert_eq!(flat, (1..=31).collect::<Vec<_>>());
     // First segment is the partial lead-in (days 1..=2).
     assert_eq!(segs[0].first_day(), 1);
@@ -95,5 +98,8 @@ fn segment_date_range_padded() {
     assert_eq!(s.id(), 4);
     // Single-day last segment renders a same-day range.
     let last = segs.last().unwrap();
-    assert_eq!(last.date_range(5), format!("05.{:02} – 05.{:02}", last.first_day(), last.last_day()));
+    assert_eq!(
+        last.date_range(5),
+        format!("05.{:02} – 05.{:02}", last.first_day(), last.last_day())
+    );
 }

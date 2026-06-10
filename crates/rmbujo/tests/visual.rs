@@ -111,12 +111,18 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
         .into_iter()
         .find(|s| s.first_day() == 4)
         .unwrap();
-    let weekly_plan = rmbujo::templates::WeeklyPlan { month_num: 5, segment: &seg }
-        .render()
-        .unwrap();
-    let weekly_retro = rmbujo::templates::WeeklyRetro { month_num: 5, segment: &seg }
-        .render()
-        .unwrap();
+    let weekly_plan = rmbujo::templates::WeeklyPlan {
+        month_num: 5,
+        segment: &seg,
+    }
+    .render()
+    .unwrap();
+    let weekly_retro = rmbujo::templates::WeeklyRetro {
+        month_num: 5,
+        segment: &seg,
+    }
+    .render()
+    .unwrap();
 
     vec![
         (
@@ -389,7 +395,11 @@ fn monthly_day_rows_clear_the_dot_grid() {
         .into_iter()
         .map(|r| r.2)
         .collect();
-    assert!(dots.len() >= 30, "expected a full dot grid, found {} rows", dots.len());
+    assert!(
+        dots.len() >= 30,
+        "expected a full dot grid, found {} rows",
+        dots.len()
+    );
 
     // Dot pitch must match the configured spacing. Use the median consecutive
     // difference to avoid bias from gaps at week-divider positions (where the
@@ -424,9 +434,21 @@ fn monthly_day_rows_clear_the_dot_grid() {
     let mut min_clear = f64::INFINITY;
     for (t, b, _) in &glyphs {
         let pierced = dots.iter().any(|&d| d > *t && d < *b);
-        assert!(!pierced, "a dot row cuts through the day number at y={:.0}px", t);
-        let above = dots.iter().cloned().filter(|&d| d <= *t).fold(f64::MIN, f64::max);
-        let below = dots.iter().cloned().filter(|&d| d >= *b).fold(f64::MAX, f64::min);
+        assert!(
+            !pierced,
+            "a dot row cuts through the day number at y={:.0}px",
+            t
+        );
+        let above = dots
+            .iter()
+            .cloned()
+            .filter(|&d| d <= *t)
+            .fold(f64::MIN, f64::max);
+        let below = dots
+            .iter()
+            .cloned()
+            .filter(|&d| d >= *b)
+            .fold(f64::MAX, f64::min);
         min_clear = min_clear.min((*t - above).min(below - *b));
     }
     assert!(

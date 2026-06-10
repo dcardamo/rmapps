@@ -100,7 +100,11 @@ fn preamble_icons_compile() {
                 #plain-page[#hide[#box[x]#label(\"wplan-8\")#box[x]#label(\"wretro-8\")]]\n";
     let src = format!("{}{}", build_preamble(&dev, &grid, &theme), body);
     let pdf = compile_pdf(&src, &[]).unwrap();
-    assert!(pdf.len() > 1000, "expected a non-empty PDF, got {} bytes", pdf.len());
+    assert!(
+        pdf.len() > 1000,
+        "expected a non-empty PDF, got {} bytes",
+        pdf.len()
+    );
 }
 
 #[test]
@@ -109,17 +113,36 @@ fn weekly_markup_has_labels_and_links() {
     use rmbujo::templates::{WeeklyPlan, WeeklyRetro};
 
     let m = build_month(2026, 5, "mon").unwrap();
-    let seg = segments(&m).into_iter().find(|s| s.first_day() == 4).unwrap();
+    let seg = segments(&m)
+        .into_iter()
+        .find(|s| s.first_day() == 4)
+        .unwrap();
 
-    let plan = WeeklyPlan { month_num: 5, segment: &seg }.render().unwrap();
+    let plan = WeeklyPlan {
+        month_num: 5,
+        segment: &seg,
+    }
+    .render()
+    .unwrap();
     assert!(plan.contains("label(\"wplan-4\")"), "plan anchor");
     assert!(plan.contains("label(\"wretro-4\")"), "plan -> retro link");
     assert!(plan.contains("label(\"monthly\")"), "plan -> month link");
-    assert!(plan.contains("label(\"day-4\")") && plan.contains("label(\"day-10\")"), "day links");
-    assert!(plan.contains("Intentions") && plan.contains("Tasks"), "section headings");
+    assert!(
+        plan.contains("label(\"day-4\")") && plan.contains("label(\"day-10\")"),
+        "day links"
+    );
+    assert!(
+        plan.contains("Intentions") && plan.contains("Tasks"),
+        "section headings"
+    );
     assert!(plan.contains("05.04 \u{2013} 05.10"), "date range header");
 
-    let retro = WeeklyRetro { month_num: 5, segment: &seg }.render().unwrap();
+    let retro = WeeklyRetro {
+        month_num: 5,
+        segment: &seg,
+    }
+    .render()
+    .unwrap();
     assert!(retro.contains("label(\"wretro-4\")"), "retro anchor");
     assert!(retro.contains("label(\"wplan-4\")"), "retro -> plan link");
     assert!(retro.contains("label(\"monthly\")"), "retro -> month link");
