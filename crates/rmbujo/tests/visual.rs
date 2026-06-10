@@ -105,6 +105,19 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
     .render()
     .unwrap();
 
+    // weekly plan + retro for the Monday-start segment beginning May 4 2026.
+    let m_mon = build_month(2026, 5, "mon").unwrap();
+    let seg = rmbujo::calendar::segments(&m_mon)
+        .into_iter()
+        .find(|s| s.first_day() == 4)
+        .unwrap();
+    let weekly_plan = rmbujo::templates::WeeklyPlan { month_num: 5, segment: &seg }
+        .render()
+        .unwrap();
+    let weekly_retro = rmbujo::templates::WeeklyRetro { month_num: 5, segment: &seg }
+        .render()
+        .unwrap();
+
     vec![
         (
             "cover",
@@ -140,6 +153,8 @@ fn fragment_pages() -> Vec<(&'static str, String)> {
         ("monthly_view", monthly_view),
         ("daily_page", daily_page),
         ("day_events", day_events),
+        ("weekly_plan", weekly_plan),
+        ("weekly_retro", weekly_retro),
     ]
 }
 

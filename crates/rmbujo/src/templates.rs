@@ -3,6 +3,7 @@
 //! Each fragment is already wrapped in a `*-page(...)` helper, so the renderer
 //! just concatenates the preamble and the fragments.
 
+use crate::calendar::Segment;
 use crate::render::doc::{esc_markup, esc_str};
 
 /// Build a `month.day weekday` date label, e.g. `5.02 Sat`.
@@ -362,6 +363,95 @@ impl DayEvents<'_> {
             cont = cont,
             anchor = anchor,
             events = events,
+        ))
+    }
+}
+
+/// A weekly Plan page: minimal underlined date header (Month link + retro icon
+/// button), Intentions and Tasks blocks, then one linked row per segment day.
+pub struct WeeklyPlan<'a> {
+    pub month_num: u32,
+    pub segment: &'a Segment,
+}
+
+impl WeeklyPlan<'_> {
+    pub fn render(&self) -> anyhow::Result<String> {
+        let seg = self.segment.id();
+        let range = self.segment.date_range(self.month_num);
+        // Header row: date (left) … Month link + retro-icon button (right).
+        let header = format!(
+            "#box(width: 100%)[\
+             #text(font: \"Hanken Grotesk\", size: 11pt, weight: 700, fill: primary)[\
+             #underline(offset: 2.5pt)[{range}]] \
+             #h(1fr) \
+             #link(label(\"monthly\"))[#text(font: \"Hanken Grotesk\", size: 9pt, fill: muted)[\
+             #underline[Month]]] #h(6pt) \
+             #box(stroke: 1.5pt + primary, radius: 5pt, inset: (x: 4pt, y: 2pt))[\
+             #link(label(\"wretro-{seg}\"))[#retro-icon(primary, 11pt)]] \
+             #label(\"wplan-{seg}\")]\n",
+        );
+        // Section heading = body size, underline + colour only (no large type).
+        let heading = |t: &str| {
+            format!(
+                "#text(font: \"Hanken Grotesk\", size: 11pt, weight: 700, fill: primary)[\
+                 #underline(offset: 2pt)[{t}]]",
+                t = t
+            )
+        };
+        let mut days = String::new();
+        for d in &self.segment.days {
+            // "MM.DD Wd": date in indigo, weekday in accent; whole label links day page.
+            days.push_str(&format!(
+                "#block(above: 6pt, below: 0pt)[\
+                 #link(label(\"day-{day}\"))[\
+                 #text(font: \"Hanken Grotesk\", size: 11pt, weight: 700, fill: primary)[\
+                 #underline(offset: 2pt)[{mm}.{dd} ]]\
+                 #text(font: \"Hanken Grotesk\", size: 11pt, weight: 700, fill: accent)[\
+                 #underline(offset: 2pt)[{wd}]]]]\n",
+                day = d.day,
+                mm = format!("{:02}", self.month_num),
+                dd = format!("{:02}", d.day),
+                wd = esc_markup(d.weekday),
+            ));
+        }
+        Ok(format!(
+            "#dot-page[\n{header}\
+             #block(above: 8pt, below: 2pt)[{intentions}]\n\
+             #v(26pt)\n\
+             #block(below: 2pt)[{tasks}]\n\
+             #v(34pt)\n\
+             {days}]\n",
+            header = header,
+            intentions = heading("Intentions"),
+            tasks = heading("Tasks"),
+            days = days,
+        ))
+    }
+}
+
+/// A weekly Retro page: minimal underlined `Retro · range` header (Month link +
+/// plan icon button), then free dot-grid write space.
+pub struct WeeklyRetro<'a> {
+    pub month_num: u32,
+    pub segment: &'a Segment,
+}
+
+impl WeeklyRetro<'_> {
+    pub fn render(&self) -> anyhow::Result<String> {
+        let seg = self.segment.id();
+        let range = self.segment.date_range(self.month_num);
+        Ok(format!(
+            "#dot-page[\n\
+             #box(width: 100%)[\
+             #text(font: \"Hanken Grotesk\", size: 11pt, weight: 700, fill: primary)[\
+             #underline(offset: 2.5pt)[Retro \u{00b7} {range}]] \
+             #h(1fr) \
+             #link(label(\"monthly\"))[#text(font: \"Hanken Grotesk\", size: 9pt, fill: muted)[\
+             #underline[Month]]] #h(6pt) \
+             #box(stroke: 1.5pt + primary, radius: 5pt, inset: (x: 4pt, y: 2pt))[\
+             #link(label(\"wplan-{seg}\"))[#plan-icon(primary, 11pt)]] \
+             #label(\"wretro-{seg}\")]\n\
+             ]\n",
         ))
     }
 }
