@@ -2,6 +2,11 @@ use lopdf::Document;
 use rmbujo::config::Config;
 use rmbujo::notebooks::month::build_month_pdf;
 
+fn weekly_pages(year: i32, month: u32, week_start: &str) -> usize {
+    let m = rmbujo::calendar::build_month(year, month, week_start).unwrap();
+    rmbujo::calendar::segments(&m).len() * 2
+}
+
 fn tmp() -> std::path::PathBuf {
     let mut p = std::env::temp_dir();
     let n = std::time::SystemTime::now()
@@ -21,8 +26,9 @@ fn month_page_count_static() {
     let out = tmp();
     build_month_pdf(&cfg, 5, &std::collections::BTreeMap::new(), &out).unwrap();
     let doc = Document::load(&out).unwrap();
-    // monthly view + tasks + 31 daily pages (May has 31 days)
-    assert_eq!(doc.get_pages().len(), 2 + 31);
+    // monthly view + tasks + 31 daily pages (May has 31 days) + 2 pages per week segment
+    let weekly = weekly_pages(2027, 5, "sun");
+    assert_eq!(doc.get_pages().len(), 2 + 31 + weekly);
 }
 
 #[test]
@@ -35,7 +41,8 @@ fn month_pages_per_day_multiplies_daily() {
     // Feb 2027 = 28 days
     build_month_pdf(&cfg, 2, &std::collections::BTreeMap::new(), &out).unwrap();
     let doc = Document::load(&out).unwrap();
-    assert_eq!(doc.get_pages().len(), 2 + 28 * 2);
+    let weekly = weekly_pages(2027, 2, "sun");
+    assert_eq!(doc.get_pages().len(), 2 + 28 * 2 + weekly);
 }
 
 #[test]
@@ -48,8 +55,9 @@ fn events_only_add_trailing_pages() {
     let empty = BTreeMap::new();
     let out_a = tmp();
     build_month_pdf(&cfg, 5, &empty, &out_a).unwrap();
+    let weekly = weekly_pages(2027, 5, "sun");
     let base = lopdf::Document::load(&out_a).unwrap().get_pages().len();
-    assert_eq!(base, 2 + 31);
+    assert_eq!(base, 2 + 31 + weekly);
 
     let mut ev = BTreeMap::new();
     ev.insert(
@@ -105,12 +113,59 @@ fn busy_month_paginates_per_day_pages() {
     let out = tmp();
     build_month_pdf(&cfg, 1, &ev, &out).unwrap();
     let pages = lopdf::Document::load(&out).unwrap().get_pages().len();
-    // Jan static = 2 + 31 = 33; 28 busy days each produce 1+ combined pages, so the
-    // event pages add well beyond a single trailing page.
+    // Jan static = 2 + 31 + weekly; 28 busy days each produce 1+ combined pages, so
+    // the event pages add well beyond a single trailing page.
+    let weekly = weekly_pages(2027, 1, "sun");
+    let base = 2 + 31 + weekly;
     assert!(
-        pages > 33 + 1,
-        "busy month should paginate per-day event pages beyond one page (got {pages})"
+        pages > base + 1,
+        "busy month should paginate per-day event pages beyond one page (got {pages}, base {base})"
     );
+}
+
+#[test]
+fn weekly_pages_interleave_in_order() {
+    use rmbujo::calendar::{build_month, segments};
+    use rmbujo::notebooks::month::month_fragments;
+
+    // Page *count* tests can't catch a reordering bug (Retro-before-Plan, or all
+    // Plans then all Retros keep the count identical). Assert the actual sequence:
+    // month index, Tasks, then per segment [Plan -> its day pages -> Retro], in
+    // segment order, each Plan strictly after the previous segment's Retro.
+    let cfg = Config::new(2027);
+    let frags = month_fragments(&cfg, 5, &std::collections::BTreeMap::new()).unwrap();
+    assert!(
+        frags[0].contains("label(\"monthly\")"),
+        "first page is the month index"
+    );
+    assert!(
+        frags[1].contains("[Tasks]"),
+        "second page is the Tasks page"
+    );
+
+    let pos = |needle: &str| -> usize {
+        frags
+            .iter()
+            .position(|f| f.contains(needle))
+            .unwrap_or_else(|| panic!("no fragment contains {needle:?}"))
+    };
+
+    // Match the page ANCHORS (`#label(...)`), not the cross-page LINKS
+    // (`#link(label(...))`) — the month index and Plan page link every day, so a
+    // bare `label("day-N")` substring would match those link pages first.
+    let m = build_month(2027, 5, "sun").unwrap();
+    let mut prev_retro = 1; // the Tasks page index; the first Plan must follow it.
+    for seg in segments(&m) {
+        let id = seg.id();
+        let p_plan = pos(&format!("#label(\"wplan-{id}\")"));
+        let p_first_day = pos(&format!("#label(\"day-{}\")", seg.first_day()));
+        let p_last_day = pos(&format!("#label(\"day-{}\")", seg.last_day()));
+        let p_retro = pos(&format!("#label(\"wretro-{id}\")"));
+        assert!(p_plan > prev_retro, "seg {id}: Plan after previous Retro");
+        assert!(p_plan < p_first_day, "seg {id}: Plan before its first day");
+        assert!(p_last_day < p_retro, "seg {id}: Retro after its last day");
+        prev_retro = p_retro;
+    }
 }
 
 fn mk_event(title: &str) -> rmbujo::templates::AgendaEvent {

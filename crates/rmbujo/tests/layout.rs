@@ -43,11 +43,13 @@ fn ev(title: &str, hour: u32) -> EventOccurrence {
 
 #[test]
 fn empty_month_has_no_event_pages() {
-    // monthly view + tasks + one page per day (May has 31 days), no event pages.
+    // monthly view + tasks + one page per day (May has 31 days) + weekly pages, no event pages.
     let cfg = Config::new(2026);
     let out = tmp("empty");
     month::build_month_pdf(&cfg, 5, &BTreeMap::new(), &out).unwrap();
-    assert_eq!(pages(&out), 2 + 31);
+    let m = rmbujo::calendar::build_month(2026, 5, "sun").unwrap();
+    let weekly = rmbujo::calendar::segments(&m).len() * 2;
+    assert_eq!(pages(&out), 2 + 31 + weekly);
 }
 
 #[test]
@@ -59,8 +61,10 @@ fn one_event_day_adds_one_event_page() {
     );
     let out = tmp("one");
     month::build_month_pdf(&Config::new(2026), 5, &events, &out).unwrap();
-    // 2 chrome + 31 daily + exactly one event page for the single busy day.
-    assert_eq!(pages(&out), 2 + 31 + 1);
+    // 2 chrome + 31 daily + weekly pages + exactly one event page for the single busy day.
+    let m = rmbujo::calendar::build_month(2026, 5, "sun").unwrap();
+    let weekly = rmbujo::calendar::segments(&m).len() * 2;
+    assert_eq!(pages(&out), 2 + 31 + weekly + 1);
 }
 
 #[test]
@@ -72,9 +76,11 @@ fn busy_day_spills_onto_continuation_pages() {
     events.insert(NaiveDate::from_ymd_opt(2026, 5, 19).unwrap(), day);
     let out = tmp("busy");
     month::build_month_pdf(&Config::new(2026), 5, &events, &out).unwrap();
-    // 2 chrome + 31 daily + >= 2 event pages (the day spilled).
+    // 2 chrome + 31 daily + weekly pages + >= 2 event pages (the day spilled).
+    let m = rmbujo::calendar::build_month(2026, 5, "sun").unwrap();
+    let weekly = rmbujo::calendar::segments(&m).len() * 2;
     assert!(
-        pages(&out) >= 2 + 31 + 2,
+        pages(&out) >= 2 + 31 + weekly + 2,
         "busy day should spill onto continuation pages, got {} pages",
         pages(&out)
     );

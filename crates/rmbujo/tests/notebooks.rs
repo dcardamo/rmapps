@@ -18,14 +18,16 @@ fn pages(p: &std::path::Path) -> usize {
 
 #[test]
 fn month_pages() {
-    // monthly view + tasks + one page per day (May 2026 has 31 days)
+    // monthly view + tasks + one page per day (May 2026 has 31 days) + 2 pages per week segment
     let cfg = Config {
         pages_per_day: 1,
         ..Config::new(2026)
     };
     let out = tmp();
     month::build_month_pdf(&cfg, 5, &std::collections::BTreeMap::new(), &out).unwrap();
-    assert_eq!(pages(&out), 2 + 31);
+    let m = rmbujo::calendar::build_month(2026, 5, "sun").unwrap();
+    let weekly = rmbujo::calendar::segments(&m).len() * 2;
+    assert_eq!(pages(&out), 2 + 31 + weekly);
 }
 
 #[test]

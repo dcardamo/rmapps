@@ -5,10 +5,12 @@ use std::path::Path;
 
 use chrono::NaiveDate;
 
-use crate::calendar::build_month;
+use crate::calendar::{build_month, segments};
 use crate::config::Config;
 use crate::ics::EventOccurrence;
-use crate::templates::{DailyPage, DayEvents, DayRow, DotGrid, MonthlyView, Tasks};
+use crate::templates::{
+    DailyPage, DayEvents, DayRow, DotGrid, MonthlyView, Tasks, WeeklyPlan, WeeklyRetro,
+};
 
 pub fn build_month_pdf(
     config: &Config,
@@ -16,6 +18,20 @@ pub fn build_month_pdf(
     events: &BTreeMap<NaiveDate, Vec<EventOccurrence>>,
     out_path: &Path,
 ) -> anyhow::Result<()> {
+    let fragments = month_fragments(config, month, events)?;
+    super::render_notebook(config, &fragments, out_path)
+}
+
+/// Build the ordered per-page Typst fragments for one month notebook: the month
+/// index, the Tasks page, then — interleaved per week-segment — a WeeklyPlan, that
+/// segment's day pages (DailyPage + extra DotGrids), and a WeeklyRetro; finally
+/// the per-day event/agenda pages (only when the month has events). Split out from
+/// `build_month_pdf` so the page *order* can be asserted directly in tests.
+pub fn month_fragments(
+    config: &Config,
+    month: u32,
+    events: &BTreeMap<NaiveDate, Vec<EventOccurrence>>,
+) -> anyhow::Result<Vec<String>> {
     let m = build_month(config.year, month, &config.week_start)?;
 
     // Per-day event count drives the navy badge on the monthly + daily pages.
@@ -51,20 +67,38 @@ pub fn build_month_pdf(
         .render()?,
         Tasks.render()?,
     ];
-    for d in &m.days {
+    // Per-week segments, interleaved: Plan → that segment's day pages → Retro.
+    let segs = segments(&m);
+    for seg in &segs {
         fragments.push(
-            DailyPage {
-                day: d.day,
-                day_pad: format!("{:02}", d.day),
+            WeeklyPlan {
                 month_num: month,
-                weekday: d.weekday,
-                event_count: count_for(d.day),
+                segment: seg,
             }
             .render()?,
         );
-        for _ in 1..config.pages_per_day {
-            fragments.push(DotGrid.render()?);
+        for d in &seg.days {
+            fragments.push(
+                DailyPage {
+                    day: d.day,
+                    day_pad: format!("{:02}", d.day),
+                    month_num: month,
+                    weekday: d.weekday,
+                    event_count: count_for(d.day),
+                }
+                .render()?,
+            );
+            for _ in 1..config.pages_per_day {
+                fragments.push(DotGrid.render()?);
+            }
         }
+        fragments.push(
+            WeeklyRetro {
+                month_num: month,
+                segment: seg,
+            }
+            .render()?,
+        );
     }
 
     // Per-day event pages are appended ONLY when the month has events, so a static
@@ -99,5 +133,5 @@ pub fn build_month_pdf(
         }
     }
 
-    super::render_notebook(config, &fragments, out_path)
+    Ok(fragments)
 }
