@@ -153,6 +153,8 @@ fn label_sink() -> String {
     for n in 1..=31 {
         anchors.push_str(&format!("#box[x]#label(\"day-{n}\")"));
         anchors.push_str(&format!("#box[x]#label(\"agenda-{n}\")"));
+        anchors.push_str(&format!("#box[x]#label(\"wplan-{n}\")"));
+        anchors.push_str(&format!("#box[x]#label(\"wretro-{n}\")"));
     }
     format!("#plain-page[#hide[{anchors}]]\n")
 }

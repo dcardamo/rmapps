@@ -152,6 +152,20 @@ impl MonthlyView<'_> {
                 wd = esc_markup(d.weekday),
                 badge = badge,
             ));
+            // A segment boundary (day 1, or any week-start day) gets a zero-height
+            // rule + PLAN/RETRO tab on the dot-row boundary above this day's cell.
+            // It is `place`d (out of flow), so no day row shifts.
+            if i == 0 || d.week_start {
+                let yb = crate::geometry::monthly_row_center(sp, i) - sp / 2.0;
+                rows.push_str(&format!(
+                    "#place(top + left, dy: {yb}pt)[#box(width: 100%)[\
+                     #place(left + horizon, line(length: 100%, \
+                     stroke: (paint: primary, thickness: 2.4pt, cap: \"round\"))) \
+                     #place(right + horizon, wtab({seg}))]]\n",
+                    yb = yb,
+                    seg = d.day,
+                ));
+            }
         }
         // Masthead tucked into the top toolbar-reserve band (above the first day
         // row); its paper backdrop keeps it legible over the dots. Fully visible in
