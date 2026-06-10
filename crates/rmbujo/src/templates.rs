@@ -395,7 +395,7 @@ impl WeeklyPlan<'_> {
             format!(
                 "#text(font: \"Hanken Grotesk\", size: 11pt, weight: 700, fill: primary)[\
                  #underline(offset: 2pt)[{t}]]",
-                t = t
+                t = esc_markup(t)
             )
         };
         let mut days = String::new();
@@ -409,8 +409,8 @@ impl WeeklyPlan<'_> {
                  #text(font: \"Hanken Grotesk\", size: 11pt, weight: 700, fill: accent)[\
                  #underline(offset: 2pt)[{wd}]]]]\n",
                 day = d.day,
-                mm = format!("{:02}", self.month_num),
-                dd = format!("{:02}", d.day),
+                mm = format_args!("{:02}", self.month_num),
+                dd = format_args!("{:02}", d.day),
                 wd = esc_markup(d.weekday),
             ));
         }

@@ -380,9 +380,9 @@ fn monthly_day_rows_clear_the_dot_grid() {
         .unwrap();
     // Zero out divider pixel rows so their ink doesn't produce phantom centroids.
     let mut dprof_clean = dprof.clone();
-    for y in 0..dprof_clean.len() {
+    for (y, v) in dprof_clean.iter_mut().enumerate() {
         if is_divider(y) {
-            dprof_clean[y] = 0;
+            *v = 0;
         }
     }
     let dots: Vec<f64> = runs(&dprof_clean, (dmax as f64 * 0.35) as u32, 1)
