@@ -8,7 +8,7 @@ use chrono::NaiveDate;
 use crate::calendar::build_month;
 use crate::config::Config;
 use crate::ics::EventOccurrence;
-use crate::templates::{DailyPage, DayEvents, DayRow, DotGrid, MonthlyView, Tasks};
+use crate::templates::{DailyPage, DayEvents, DayRow, DotGrid, MonthlyView, Tasks, WeeklyPlan, WeeklyRetro};
 
 pub fn build_month_pdf(
     config: &Config,
@@ -51,20 +51,38 @@ pub fn build_month_pdf(
         .render()?,
         Tasks.render()?,
     ];
-    for d in &m.days {
+    // Per-week segments, interleaved: Plan → that segment's day pages → Retro.
+    let segs = crate::calendar::segments(&m);
+    for seg in &segs {
         fragments.push(
-            DailyPage {
-                day: d.day,
-                day_pad: format!("{:02}", d.day),
+            WeeklyPlan {
                 month_num: month,
-                weekday: d.weekday,
-                event_count: count_for(d.day),
+                segment: seg,
             }
             .render()?,
         );
-        for _ in 1..config.pages_per_day {
-            fragments.push(DotGrid.render()?);
+        for d in &seg.days {
+            fragments.push(
+                DailyPage {
+                    day: d.day,
+                    day_pad: format!("{:02}", d.day),
+                    month_num: month,
+                    weekday: d.weekday,
+                    event_count: count_for(d.day),
+                }
+                .render()?,
+            );
+            for _ in 1..config.pages_per_day {
+                fragments.push(DotGrid.render()?);
+            }
         }
+        fragments.push(
+            WeeklyRetro {
+                month_num: month,
+                segment: seg,
+            }
+            .render()?,
+        );
     }
 
     // Per-day event pages are appended ONLY when the month has events, so a static
