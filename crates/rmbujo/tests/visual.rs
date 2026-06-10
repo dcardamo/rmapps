@@ -341,18 +341,47 @@ fn monthly_day_rows_clear_the_dot_grid() {
     let img = image::open(&png).unwrap().to_luma8();
     let (w, _h) = img.dimensions();
 
-    // Dot rows: project the text-free band right of the badges (x 40%..99%).
-    let dprof = ink_rows(&img, (w * 40) / 100, (w * 99) / 100, 160);
-    let dmax = *dprof.iter().max().unwrap();
-    let dots: Vec<f64> = runs(&dprof, (dmax as f64 * 0.35) as u32, 1)
+    // Dot rows: project a mid-page band (x 40%..75%) — right of the badges/numbers
+    // but left of the week-tab labels that Task 3 placed at the right edge.
+    // The full-width week-divider rules also cross this band and would inflate
+    // the max-relative threshold, suppressing dot detection if included.
+    // Strategy: identify divider rows via a wider band (x 2%..70%) where a
+    // full-width rule fills most of the span but dots/glyphs are sparse, then:
+    //   • derive dmax from non-divider rows only, and
+    //   • zero out divider pixel rows before run-finding so the rule's ink
+    //     doesn't create phantom centroids near glyph edges.
+    // The divider sits on a dot-row centre; its neighbours (±1 sp) are unaffected
+    // and the run-finder still produces >= 30 rows for a 31-day month.
+    let dprof = ink_rows(&img, (w * 40) / 100, (w * 75) / 100, 160);
+    let wide = ink_rows(&img, (w * 2) / 100, (w * 70) / 100, 160);
+    let wide_w = ((w * 70) / 100 - (w * 2) / 100) as f64;
+    let is_divider = |y: usize| wide[y] as f64 > wide_w * 0.4;
+    let dmax = dprof
+        .iter()
+        .enumerate()
+        .filter(|(y, _)| !is_divider(*y))
+        .map(|(_, v)| *v)
+        .max()
+        .unwrap();
+    // Zero out divider pixel rows so their ink doesn't produce phantom centroids.
+    let mut dprof_clean = dprof.clone();
+    for y in 0..dprof_clean.len() {
+        if is_divider(y) {
+            dprof_clean[y] = 0;
+        }
+    }
+    let dots: Vec<f64> = runs(&dprof_clean, (dmax as f64 * 0.35) as u32, 1)
         .into_iter()
         .map(|r| r.2)
         .collect();
     assert!(dots.len() >= 30, "expected a full dot grid, found {} rows", dots.len());
 
-    // Dot pitch must match the configured spacing — a tiling pattern whose tile
-    // step the rasterizer quantizes to whole pixels would read off here.
-    let measured_pitch = (dots[dots.len() - 1] - dots[0]) / (dots.len() - 1) as f64;
+    // Dot pitch must match the configured spacing. Use the median consecutive
+    // difference to avoid bias from gaps at week-divider positions (where the
+    // divider ink dominates and the dot is not individually resolved).
+    let mut gaps: Vec<f64> = dots.windows(2).map(|w| w[1] - w[0]).collect();
+    gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let measured_pitch = gaps[gaps.len() / 2]; // median
     assert!(
         (measured_pitch - sp_px).abs() < 0.15 * px,
         "dot pitch {:.3}pt drifts from sp {:.3}pt",
