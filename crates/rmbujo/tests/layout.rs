@@ -76,9 +76,11 @@ fn busy_day_spills_onto_continuation_pages() {
     events.insert(NaiveDate::from_ymd_opt(2026, 5, 19).unwrap(), day);
     let out = tmp("busy");
     month::build_month_pdf(&Config::new(2026), 5, &events, &out).unwrap();
-    // 2 chrome + 31 daily + >= 2 event pages (the day spilled).
+    // 2 chrome + 31 daily + weekly pages + >= 2 event pages (the day spilled).
+    let m = rmbujo::calendar::build_month(2026, 5, "sun").unwrap();
+    let weekly = rmbujo::calendar::segments(&m).len() * 2;
     assert!(
-        pages(&out) >= 2 + 31 + 2,
+        pages(&out) >= 2 + 31 + weekly + 2,
         "busy day should spill onto continuation pages, got {} pages",
         pages(&out)
     );

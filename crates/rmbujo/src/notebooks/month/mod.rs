@@ -5,7 +5,7 @@ use std::path::Path;
 
 use chrono::NaiveDate;
 
-use crate::calendar::build_month;
+use crate::calendar::{build_month, segments};
 use crate::config::Config;
 use crate::ics::EventOccurrence;
 use crate::templates::{DailyPage, DayEvents, DayRow, DotGrid, MonthlyView, Tasks, WeeklyPlan, WeeklyRetro};
@@ -52,7 +52,7 @@ pub fn build_month_pdf(
         Tasks.render()?,
     ];
     // Per-week segments, interleaved: Plan → that segment's day pages → Retro.
-    let segs = crate::calendar::segments(&m);
+    let segs = segments(&m);
     for seg in &segs {
         fragments.push(
             WeeklyPlan {
