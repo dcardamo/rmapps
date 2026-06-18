@@ -7,6 +7,7 @@ pub mod generate;
 pub mod ingest;
 pub mod ink;
 pub mod linked_doc;
+pub mod notebook;
 pub mod render;
 pub mod state;
 pub mod textlayer;

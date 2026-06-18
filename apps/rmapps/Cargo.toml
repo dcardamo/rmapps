@@ -14,6 +14,7 @@ rm-cloud = { path = "../../crates/rm-cloud" }
 rmbujo = { path = "../../crates/rmbujo" }
 rmreader = { path = "../../crates/rmreader" }
 rmdigest = { path = "../../crates/rmdigest" }
+rmfiles = { path = "../../crates/rmfiles" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }

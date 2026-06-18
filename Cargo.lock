@@ -3775,6 +3775,7 @@ dependencies = [
  "rm-cloud",
  "rmbujo",
  "rmdigest",
+ "rmfiles",
  "rmreader",
  "rustix",
  "serde",

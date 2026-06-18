@@ -24,6 +24,7 @@ mod lock;
 mod ls;
 mod push;
 mod reader;
+mod render;
 mod rm;
 mod sync;
 mod timing;
@@ -64,6 +65,8 @@ enum Command {
     Push(push::PushArgs),
     /// Download a document's original source file (PDF/EPUB) to disk.
     Get(get::GetArgs),
+    /// Render a notebook's ink to a PDF on disk (works on pure-ink notebooks).
+    Render(render::RenderArgs),
     /// List the entries directly under a cloud folder (default: root).
     Ls(ls::LsArgs),
     /// Delete a document or folder in the cloud (`--recursive` for folders).
@@ -108,6 +111,7 @@ fn main() -> anyhow::Result<()> {
             push::run(args)
         }
         Command::Get(args) => get::run(args),
+        Command::Render(args) => render::run(args),
         Command::Ls(args) => ls::run(args),
         Command::Rm(args) => {
             let _lock = lock::acquire("rm", lock::Wait::Fail)?;
